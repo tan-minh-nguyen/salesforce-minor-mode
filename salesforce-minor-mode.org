@@ -1,0 +1,56 @@
+#+title:     SALESFORCE-MONOR-MODE
+#+author:    tan.nguyen
+#+email:     tan.nguyen@furucrm.com
+
+* MINOR MODE FUNCTIONS
+** REQUIREMENT LIBRARY
+#+begin_src emacs-lisp :tangle yes
+(require 'salesforce-api)
+#+end_src
+** CUSTOM VARIABLE
+#+begin_src emacs-lisp :tangle yes
+(defcustom salesforce-keymap-prefix "C-c C-."
+  "The prefix for salesforce-mode key bindings."
+  :type 'string
+  :group 'salesforce)
+
+(defcustom salesforce-tangle-on-save t
+  "When t, automatically tangle Org files on save."
+  :type 'boolean
+  :group 'salesforce)
+#+end_src
+** INTERNAL FUNCTIONS
+#+begin_src emacs-lisp :tangle yes
+(defun salesforce--key (key)
+  (kbd (concat salesforce-keymap-prefix " " key)))
+
+(defun salesforce--org-hook-on-handler ()
+  (setq org-default-alias (sfdx-org-default))
+  (add-to-list 'mode-line-misc-info '(" " org-default-alias " ")))
+
+(defun salesforce--org-hook-off-handler ()
+  (setq org-default-alias (sfdx-org-default))
+  (setq mode-line-misc-info
+        (delete '(" " org-default-alias " ") mode-line-misc-info)))
+#+end_src
+
+** GLOBAL FUNCTIONS
+#+begin_src emacs-lisp :tangle yes
+(define-minor-mode salesforce-minor-mode
+  "Toggles global salesforce minor mode."
+  nil ; Inital value, nil for disabled
+  :global t
+  :group 'salesforce
+  :lighter " salesforce-minor-mode"
+  :keymap
+  (list (cons (salesforce--key "r") #'sfdx-retrieve-file)
+        (cons (salesforce--key "d") #'sfdx-push-file)
+        (cons (salesforce--key "a") #'sfdx-authorize-web)
+        (cons (salesforce--key "e") #'sfdx-execute-entire-file))
+
+  (add-hook 'salesforce-mode-on-hook #'salesforce--org-hook-on-handler)
+
+  (add-hook 'salesforce-mode-off-hook #'salesforce--org-hook-off-handler))
+
+(provide 'salesforce-minor-mode)
+#+end_src
