@@ -9,7 +9,7 @@
 #+end_src
 ** CUSTOM VARIABLE
 #+begin_src emacs-lisp :tangle yes
-(defcustom salesforce-keymap-prefix "C-c C-."
+(defcustom salesforce-keymap-prefix "M-x"
   "The prefix for salesforce-mode key bindings."
   :type 'string
   :group 'salesforce)
@@ -46,11 +46,13 @@
   (list (cons (salesforce--key "r") #'sfdx-retrieve-file)
         (cons (salesforce--key "d") #'sfdx-push-file)
         (cons (salesforce--key "a") #'sfdx-authorize-web)
-        (cons (salesforce--key "e") #'sfdx-execute-entire-file))
+        (cons (salesforce--key "e") #'sfdx-execute-apex-code)
+        (cons (salesforce--key "s") #'sfdx-fetch-record-through-soql))
 
-  (add-hook 'salesforce-mode-on-hook #'salesforce--org-hook-on-handler)
 
-  (add-hook 'salesforce-mode-off-hook #'salesforce--org-hook-off-handler))
+  (add-hook 'salesforce-minor-mode-on-hook #'salesforce--org-hook-on-handler)
+
+  (add-hook 'salesforce-minor-mode-off-hook #'salesforce--org-hook-off-handler))
 
 (provide 'salesforce-minor-mode)
 #+end_src
