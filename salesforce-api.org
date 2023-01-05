@@ -1,21 +1,26 @@
-#+title:     EMACS-SALESFORCE-UTILS
+#+title:     EMACS-SALESFORCE-API
 #+author:    tan.nguyen
 #+email:     tan.nguyen@furucrm.com
-#+PROPERTY: header-args :tangle ./sf-utils.el
+#+PROPERTY: header-args :tangle ./salesforce-api.el
+** REQUIREMENT LIBRARY
+#+begin_src emacs-lisp :tangle yes
+(require 'alert)
+(require 'projectile)
+(require 'subr-x)
+#+end_src
 
 ** CUSTOM DEFINE
-#+begin_src emacs-lisp :tangle no
+#+begin_src emacs-lisp :tangle yes
+(defcustom sfdx--api-version nil
+  "Custom define api version for command")
 #+end_src
 
 ** SALESFORCE API FUNCTIONS
 #+begin_src emacs-lisp :tangle yes
-(require 'alert)
-
 (add-to-list
  'display-buffer-alist
   '("salesforce api.*" . (display-buffer-no-window . nil)))
 
-(setq buffer (generate-new-buffer "Salesforce Overview"))
 #+end_src
 
 *** PUSH SOURCE SALESFORCE TO ORG
@@ -25,7 +30,7 @@
    (interactive)
    (let
     ((push-command (message "sfdx force:source:deploy -p %s" buffer-file-name)))
-    (execute-command push-command (format "Deploy %s success" (buffer-file-name)))))
+    (sfdx--execute-process push-command (format "Deploy %s success" (buffer-file-name)))))
 #+end_src
 *** RETRIEVE SOURCE SALESFORCE FROM ORG
 #+begin_src emacs-lisp :tangle yes
@@ -34,7 +39,7 @@
    (interactive)
    (let
     ((retrieve-command (message "sfdx force:source:retrieve -p %s" buffer-file-name)))
-    (execute-command retrieve-command (format "Retrieve %s success" (buffer-file-name)))))
+    (sfdx--execute-process retrieve-command (format "Retrieve %s success" (buffer-file-name)))))
 #+end_src
 *** AUTHORIZE SALESFORCE ORG
 #+begin_src emacs-lisp :tangle yes
@@ -47,47 +52,50 @@
      (url (read-string "url: " "https://test.salesforce.com")))
     (setq authorize-command
       (message "sfdx auth:web:login --setalias %s --instanceurl %s" alias url))
-    (execute-command authorize-command "Authorize success")))
+    (sfdx--execute-process authorize-command "Authorize success")))
 #+end_src
-*** FETCH DEFAULT ORG
+*** GET DEFAULT ORG
 #+begin_src emacs-lisp :tangle yes
 (defun sfdx-org-default ()
-  (interactive)
-  (if (concat default-directory "manifest/package.xml")
+  (if (and (projectile-project-root) (concat (projectile-project-root) "manifest/package.xml"))
       (let ((file-content
                   (with-temp-buffer
-                    (insert-file-contents (concat default-directory ".sf/config.json"))
+                    (insert-file-contents (concat (projectile-project-root) ".sf/config.json"))
                     (goto-char (point-min))
                     (json-read))))
            (cdr (assq 'target-org file-content)))
     ""))
-  ;(let* ((get-default-org "sfdx force:config:list | grep defaultusername | awk '{print $2}'")
-  ;       (process (start-process-shell-command "salesforce api" "*salesforce api*" get-default-org)))
-
-  ;      (set-process-sentinel
-  ;       process
-  ;       `(lambda (process event)
-  ;         (when (string= "finished\n" event)
-  ;           (with-current-buffer (process-buffer (get-process process))
-  ;               (alert (buffer-string) :title "Salesforce Alert")
-  ;               (kill-buffer
-  ;                (process-buffer (get-process process)))))))))
-  ;
 #+end_src
+*** TODO SHOW ORG CONNECT STATUS
+#+begin_src emacs-lisp :tangle yes
 
+#+end_src
+*** FETCH SALESFORCE RECORDS
+**** SOQL STRING
+#+begin_src emacs-lisp :tangle yes
+(defun sfdx-fetch-record-through-soql ()
+  "Fetch salesforce record by calling API through Salesforce CLI library"
+  (interactive)
+  (let ((soql-string (read-string "SOQL: ")))
+
+    (sfdx--execute-soql `((:query . ,soql-string) (:format . "json")))))
+#+end_src
+**** SOQL FILE
+#+begin_src emacs-lisp :tangle yes
+
+#+end_src
 *** EXECUTE APEX CODE
 #+begin_src emacs-lisp :tangle yes
-(defun sfdx-execute-entire-file ()
+(defun sfdx-execute-apex-code ()
  (interactive)
- (sfdx-execute-apex (point-min)))
+ (sfdx--execute-apex (point-min)))
 #+end_src
 
 ** HELPER FUNCTIONS
 *** EXECUTE APEX CODE
 #+begin_src emacs-lisp :tangle yes
-(defun sfdx-execute-apex (content)
+(defun sfdx--execute-apex (content)
   "Execute code"
-  (interactive)
   (let
    ((code
      (unless
@@ -102,20 +110,130 @@
 
    (async-shell-command execute-apex-code-command buffer)))
 #+end_src
-*** EXECUTE SALESFORCE COMMAND
-#+begin_src emacs-lisp :tangle yes
-(defun execute-command (command message-success)
-  (let* ((buffer-name (format "*%s*" "salesforce-api"))
-         (process-name "salesforce-api")
-         (process
-          (start-process-shell-command process-name buffer-name command)))
+*** EXCUTE SOQL BLOCK
+This function execute [[https://developer.salesforce.com/docs/atlas.en-us.sfdx_cli_reference.meta/sfdx_cli_reference/cli_reference_force_data.htm#cli_reference_force_data_soql_query][command]] from library [[https://developer.salesforce.com/docs/atlas.en-us.sfdx_setup.meta/sfdx_setup/sfdx_setup_intro.htm][Salesforce CLI]]
++ Reference: sfdx-fetch-record-through-soql
++ Params:
+  * params-command: A list of params is used by Salesforce SOQL command, supporting the following type:
+    + user: the user is used to executing command
+    + api-version: version API is using
+    + query: SOQL string want to execute
+    + file: file contains chain SOQL want to execute
+    + format: format for result return from API
 
-        (set-process-sentinel
+#+begin_src emacs-lisp :tangle yes
+(defun sfdx--execute-soql (params-command)
+  "Excute command fetch records from Salesforce through API"
+  (let* ((param-support
+            '((:user . "-u")
+              (:api-version . "--apiversion")
+              (:query . "-q")
+              (:file . "-f")
+              (:format . "-r")))
+         (params
+             (sfdx--recursive-list
+               params-command
+               `(lambda (item)
+                  (let* ((key (car item)))
+                    (when (assq key param-support)
+                      (format "%s \'%s\'"
+                       (cdr (assq key param-support))
+                       (cdr item)))))))
+         (execute-soql-code
+           (message "sfdx force:data:soql:query %s" (string-join params " "))))
+
+        (sfdx--execute-process
+         execute-soql-code
+         `(lambda (process output buffer)
+                (if (json-available-p)
+                    (with-current-buffer (find-file (buffer-name buffer))
+                      (set-buffer-major-mode buffer)
+                      (save-excursion
+                        (let* ((json-instance (json-parse-string output)))
+                          (when (= (gethash "status" json-instance) 0)
+                                (let* ((result-instance (gethash "result" json-instance))
+                                       (records-list (gethash "records" result-instance))
+                                       (columns-name '())
+                                       (j2t
+                                         (mapconcat
+                                          (lambda (element)
+                                             (let ((columns-data '()))
+
+                                               (maphash
+                                                (lambda (key value)
+                                                  (unless (hash-table-p value)
+                                                    (when (keywordp value)
+                                                      (when (eq value ':null)
+                                                        (setq value " "))
+                                                      (when (eq value ':false)
+                                                        (setq value "False"))
+                                                      (when (eq value ':t)
+                                                        (setq value "True")))
+
+                                                    (add-to-list 'columns-data
+                                                                 (replace-regexp-in-string "\\([\n]\\)" "" value)
+                                                                 1)
+                                                    (add-to-list 'columns-name key 1)))
+                                                element)
+
+                                              (concat "|" (string-join columns-data "|") "|")))
+                                          records-list
+                                          "\n")))
+
+                                  (insert
+                                   (format "|%s|\n|----\n%s" (string-join columns-name "|") j2t))
+                                  (org-table-align)
+                                  (read-only-mode)))))))))))
+#+end_src
+
+*** TODO EXECUTE PROCESS
++ add function clear old content for salesforce-api buffer
++ add function clear old content for salesforce-api salesforce overview
++ set readonly for overview buffer, edit the buffer through key-bind
+#+begin_src emacs-lisp :tangle yes
+(defun sfdx--execute-process (command lambda-function)
+  (let* ((buffer-stdout (format "*%s*" "salesforce-api"))
+         (process-identity "salesforce-api")
+         (buffer-view-post-process (generate-new-buffer "Salesforce Overview"))
+         (process-output "")
+         (process
+          (start-process-shell-command process-identity buffer-stdout command)))
+
+        (set-process-filter
          process
-         `(lambda (process event)
-            (when (string= "finished\n" event)
-              (kill-buffer ,buffer-name)
-              (alert ,message-success :title "Salesforce Alert"))))))
+         `(lambda (process output)
+            (setq process-output (concat process-output output))))
+        (when (accept-process-output process))
+        ; clear old content
+        (with-current-buffer buffer-stdout
+          (setf (buffer-string) ""))
+        (funcall lambda-function process process-output buffer-view-post-process)))
+        
+#+end_src
+
+*** TODO EXECUTE SALESFORCE COMMAND
++ override api version with custom once
+#+begin_src emacs-lisp :tangle yes
+(defun sfdx--execute-command (command message-success)
+
+  (sfdx--execute-process
+   command
+   `(lambda (process output buffer)
+      (alert ,message-success :title "Salesforce Alert"))))
+#+end_src
+*** HELPER
+#+begin_src emacs-lisp :tangle yes
+(defun sfdx--recursive-list (list-data lambda-function)
+  (let* ((new-list (cdr list-data))
+         (first-item (car list-data))
+         (remap-list '()))
+
+    (when (length> new-list 0)
+        (setq remap-list
+              (append remap-list
+                      (sfdx--recursive-list new-list lambda-function))))
+
+    (add-to-list 'remap-list (funcall lambda-function first-item))))
 #+end_src
 ** PACKAGE NAME
 #+begin_src emacs-lisp :tangle yes
