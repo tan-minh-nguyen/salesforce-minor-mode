@@ -6,6 +6,7 @@
 #+begin_src emacs-lisp :tangle yes
 (require 'alert)
 (require 'projectile)
+(require 'ctable)
 (require 'subr-x)
 #+end_src
 
@@ -146,44 +147,44 @@ This function execute [[https://developer.salesforce.com/docs/atlas.en-us.sfdx_c
          execute-soql-code
          `(lambda (process output buffer)
                 (if (json-available-p)
-                    (with-current-buffer (find-file (buffer-name buffer))
-                      (set-buffer-major-mode buffer)
-                      (save-excursion
-                        (let* ((json-instance (json-parse-string output)))
-                          (when (= (gethash "status" json-instance) 0)
-                                (let* ((result-instance (gethash "result" json-instance))
-                                       (records-list (gethash "records" result-instance))
-                                       (columns-name '())
-                                       (j2t
-                                         (mapconcat
-                                          (lambda (element)
-                                             (let ((columns-data '()))
+                    (let* ((json-instance (json-parse-string output)))
+                      (when (= (gethash "status" json-instance) 0)
+                            (let* ((result-instance (gethash "result" json-instance))
+                                   (records-list (gethash "records" result-instance))
+                                   (start-index 1)
+                                   (column-header-map #s(hash-table test equal data ("No" ((:align . 'left) (:title . "No")))))
+                                   (data
+                                     (mapcar
+                                      (lambda (element)
+                                         (let ((row `(,start-index)))
+                                           (maphash
+                                            (lambda (key value)
+                                              (let ((column-config `((:align . ,'left) (:title . ,key))))
+                                                (unless (hash-table-p value)
+                                                   (when (keywordp value)
+                                                     (when (eq value ':null)
+                                                       (setq value " "))
+                                                     (when (eq value ':false)
+                                                       (setq value "False"))
+                                                     (when (eq value ':t)
+                                                       (setq value "True")))
 
-                                               (maphash
-                                                (lambda (key value)
-                                                  (unless (hash-table-p value)
-                                                    (when (keywordp value)
-                                                      (when (eq value ':null)
-                                                        (setq value " "))
-                                                      (when (eq value ':false)
-                                                        (setq value "False"))
-                                                      (when (eq value ':t)
-                                                        (setq value "True")))
+                                                   (add-to-list 'row
+                                                                (replace-regexp-in-string "\\([\n]\\)" "" value) 1
+                                                                '(lambda (element1 element2) nil))
 
-                                                    (add-to-list 'columns-data
-                                                                 (replace-regexp-in-string "\\([\n]\\)" "" value)
-                                                                 1)
-                                                    (add-to-list 'columns-name key 1)))
-                                                element)
+                                                   (when (length> value 50)
+                                                     (add-to-list 'column-config `(:max-width . ,'50)))
 
-                                              (concat "|" (string-join columns-data "|") "|")))
-                                          records-list
-                                          "\n")))
-
-                                  (insert
-                                   (format "|%s|\n|----\n%s" (string-join columns-name "|") j2t))
-                                  (org-table-align)
-                                  (read-only-mode)))))))))))
+                                                   (puthash (format "%s" key) column-config column-header-map))))
+                                            element)
+                                           (setq start-index (1+ start-index))
+                                           row))
+                                      records-list)))
+                              (sfdx--build:make-table-component
+                               :column-header (hash-table-values column-header-map)
+                               :data data
+                               :buffer buffer)))))))))
 #+end_src
 
 *** TODO EXECUTE PROCESS
@@ -199,15 +200,15 @@ This function execute [[https://developer.salesforce.com/docs/atlas.en-us.sfdx_c
          (process
           (start-process-shell-command process-identity buffer-stdout command)))
 
-        (set-process-filter
-         process
-         `(lambda (process output)
-            (setq process-output (concat process-output output))))
-        (when (accept-process-output process))
+    (set-process-filter
+     process
+     `(lambda (process output)
+        (setq process-output (concat process-output output))))
+    (when (accept-process-output process))
         ; clear old content
-        (with-current-buffer buffer-stdout
-          (setf (buffer-string) ""))
-        (funcall lambda-function process process-output buffer-view-post-process)))
+    (with-current-buffer buffer-stdout
+      (setf (buffer-string) ""))
+    (funcall lambda-function process process-output buffer-view-post-process)))
         
 #+end_src
 
@@ -221,6 +222,46 @@ This function execute [[https://developer.salesforce.com/docs/atlas.en-us.sfdx_c
    `(lambda (process output buffer)
       (alert ,message-success :title "Salesforce Alert"))))
 #+end_src
+*** BUILD TABLE VIEW
+#+begin_src emacs-lisp :tangle yes
+(cl-defun sfdx--build:make-table-component (&key column-header data buffer)
+ (let* ((column-model (mapcar 'sfdx--build:make-header-table column-header))
+        (async-model
+         (ctbl:async-model-wrapper data))
+        (model
+         (make-ctbl:model
+          :column-model column-model :data async-model)))
+
+   (with-current-buffer (pop-to-buffer buffer)
+     (ctbl:create-table-component-region
+          :model model)
+     (ctbl:table-mode)
+     (beginning-of-buffer)
+     (read-only-mode))))
+
+(defun sfdx--build:make-header-table (column)
+  (let* ((header-config column)
+         (title (if (assq ':title column)
+                    (cdr (assq ':title column))
+                  (car column)))
+         (min-width
+          (cdr
+           (assq ':min-width header-config)))
+         (max-width
+          (cdr
+           (assq ':max-width header-config)))
+         (align
+          (cdr
+           (assq ':align header-config))))
+
+    (make-ctbl:cmodel
+     :title title
+     :sorter 'cbtbl:sort-number-lessp
+     :min-width min-width
+     :max-width max-width
+     :align align)))
+#+end_src
+
 *** HELPER
 #+begin_src emacs-lisp :tangle yes
 (defun sfdx--recursive-list (list-data lambda-function)
