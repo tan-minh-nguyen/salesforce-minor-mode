@@ -9,29 +9,35 @@
 #+end_src
 ** CUSTOM VARIABLE
 #+begin_src emacs-lisp :tangle yes
-(defcustom salesforce-keymap-prefix "M-x"
+(defcustom sfmm:keymap-prefix "M-o"
   "The prefix for salesforce-mode key bindings."
   :type 'string
   :group 'salesforce)
 
-(defcustom salesforce-tangle-on-save t
+(defcustom sfmm:tangle-on-save t
   "When t, automatically tangle Org files on save."
   :type 'boolean
   :group 'salesforce)
+
 #+end_src
 ** INTERNAL FUNCTIONS
 #+begin_src emacs-lisp :tangle yes
-(defun salesforce--key (key)
-  (kbd (concat salesforce-keymap-prefix " " key)))
+(defun sfmm:binding--key (key)
+  (kbd (concat sfmm:keymap-prefix " " key)))
 
-(defun salesforce--org-hook-on-handler ()
+(defun sfmm:hook-on-handler ()
   (setq org-default-alias (sfdx-org-default))
-  (add-to-list 'mode-line-misc-info '(" " org-default-alias " ")))
+  (when org-default-alias
+    (add-to-list 'mode-line-misc-info '(" " org-default-alias " "))
+    (sfdx-org-connect-status)))
 
-(defun salesforce--org-hook-off-handler ()
+
+(defun sfmm:hook-off-handler ()
   (setq org-default-alias (sfdx-org-default))
-  (setq mode-line-misc-info
-        (delete '(" " org-default-alias " ") mode-line-misc-info)))
+  (when org-default-alias
+    (setq mode-line-misc-info
+        (delete '(" " org-default-alias " ") mode-line-misc-info))))
+
 #+end_src
 
 ** GLOBAL FUNCTIONS
@@ -43,16 +49,17 @@
   :group 'salesforce
   :lighter " salesforce-minor-mode"
   :keymap
-  (list (cons (salesforce--key "r") #'sfdx-retrieve-file)
-        (cons (salesforce--key "d") #'sfdx-push-file)
-        (cons (salesforce--key "a") #'sfdx-authorize-web)
-        (cons (salesforce--key "e") #'sfdx-execute-apex-code)
-        (cons (salesforce--key "s") #'sfdx-fetch-record-through-soql))
+  (list (cons (sfmm:binding--key "r") #'sfdx-retrieve-file)
+        (cons (sfmm:binding--key "d") #'sfdx-push-file)
+        (cons (sfmm:binding--key "a") #'sfdx-authorize-web)
+        (cons (sfmm:binding--key "e") #'sfdx-execute-apex-code)
+        (cons (sfmm:binding--key "s") #'sfdx-fetch-record-through-soql))
 
 
-  (add-hook 'salesforce-minor-mode-on-hook #'salesforce--org-hook-on-handler)
+  (add-hook 'salesforce-minor-mode-on-hook #'sfmm:hook-on-handler)
 
-  (add-hook 'salesforce-minor-mode-off-hook #'salesforce--org-hook-off-handler))
+  (add-hook 'salesforce-minor-mode-off-hook #'sfmm:hook-off-handler))
 
 (provide 'salesforce-minor-mode)
+
 #+end_src
