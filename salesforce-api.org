@@ -10,10 +10,23 @@
 (require 'subr-x)
 #+end_src
 
-** CUSTOM DEFINE
+** CUSTOM DEFINE VARIABLE
 #+begin_src emacs-lisp :tangle yes
 (defcustom sfdx--api-version nil
-  "Custom define api version for command")
+  "Custom define api version for command"
+   :type 'string
+   :group 'salesforce-api)
+
+(defcustom sfdx--package-dir "manifest"
+  "Custom define api version for command"
+   :type 'string
+   :group 'salesforce-api)
+
+(defcustom sfdx:org-header-display
+  '("instanceUrl" "orgId" "isDevHub" "instanceApiVersion" "alias" "lastUsed" "connectedStatus")
+  "Custom define header display on table orgs"
+  :type 'list
+  :group 'salesforce-api)
 #+end_src
 
 ** SALESFORCE API FUNCTIONS
@@ -67,9 +80,20 @@
            (cdr (assq 'target-org file-content)))
     ""))
 #+end_src
-*** TODO SHOW ORG CONNECT STATUS
+*** SHOW ORG CONNECT STATUS
 #+begin_src emacs-lisp :tangle yes
+(defun sfdx-org-connect-status ()
+  "Check connect status to org"
+  (let ((display-org-information-command "sfdx force:org:display --json"))
 
+    (sfdx--helper:execute-process display-org-information-command
+                           (lambda (process output buffer)
+                              (let* ((result-json (gethash "result" (json-parse-string output))))
+                                (when
+                                    (not
+                                     (string=
+                                      (gethash "connectedStatus" result-json) "connected"))
+                                  (alert "Token expired !!" :title "test")))))))
 #+end_src
 *** FETCH SALESFORCE RECORDS
 **** SOQL STRING
