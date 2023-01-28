@@ -66,6 +66,7 @@ any later version.
 (require 'ob-ref)
 (require 'ob-comint)
 (require 'ob-eval)
+(require 'salesforce-api)
 #+end_src
 
 ** DEFINE EXTENSION
@@ -127,7 +128,7 @@ specified by the user will be available in the PARAMS variable.
        (filter-type (assq :filter-type processed-params))
        (full-body (org-babel-expand-body:apex
                       body params processed-params)))
-     (execute-apex full-body)))
+     (execute-async-apex full-body)))
 
 #+end_src
 
@@ -140,7 +141,7 @@ specified by the user will be available in the PARAMS variable.
     (buffer-name (format "*%s*" uuid))
     (tempfile (make-temp-file "temp-code"))
     (execute-apex-command
-      (message "sfdx force:apex:execute -f %s" tempfile))
+      (list "sfdx" "force:apex:execute" "-f" tempfile))
     process)
 
    (write-region content nil tempfile)
@@ -150,37 +151,24 @@ specified by the user will be available in the PARAMS variable.
 
    ;; Insert new result with uuid
    (save-excursion
-        (re-search-forward ("#\\+end_src"))
-        (insert (format
-                 "\n\n#+RESULTS: %s\n %s")
-                ""
-                uuid)
+        (re-search-forward "#\\+end_src")
+        (insert (format "\n\n#+RESULTS: %s\n %s" "" uuid))
 
-      ;; Excute evaluate apex code command
-      (setq process
-            (start-process-shell-command uuid buffer-name execute-apex-command))
+        (sfdx--helper:execute-process
+         execute-apex-command
+         (lambda (process output buffer)
 
-      ;; Update process result to org babel result
-      (set-process-sentinel
-       process
-       `(lambda (process event)
-          (when (string= "finished\n" event)
-            (delete-file ,tempfile)
-            (save-window-excursion
-             (save-excursion
-               (save-restriction
-                 (with-current-buffer (find-file ,current-buffer)
-                   (goto-char (point-min))
-                   (re-search-forward ,uuid)
-                   (beginning-of-line)
-                   (kill-line)
-                   insert (mapconcat
-                           (lambda (x)
-                             (format ": %s" x))
-                           (split-string
-                            (with-current-buffer ,buffer-name (buffer-string))
-                            "\n")
-                           "\n")))))))))))
+           (with-current-buffer (find-file current-buffer)
+             (goto-char (point-min))
+             (re-search-forward uuid)
+             (beginning-of-line)
+             (kill-line)
+             (insert
+              (mapconcat
+               (lambda (x)
+                 (format ": %s" x))
+               (split-string output "\n")
+               "\n"))))))))
 
 (defun org-babel-prep-session:apex (session params)
   "Prepare SESSION according to the header arguments specified in PARAMS.")
