@@ -7,10 +7,30 @@
 #+begin_src emacs-lisp :tangle yes
 (require 'salesforce-api)
 #+end_src
-** CUSTOM VARIABLE
+** CUSTOM CONFIG
 #+begin_src emacs-lisp :tangle yes
 (defcustom sfmm:keymap-prefix "M-o"
   "The prefix for salesforce-mode key bindings."
+  :type 'string
+  :group 'salesforce)
+
+(defcustom sfmm:org-keymap-prefix "O"
+  "The keymap prefix for Org function"
+  :type 'string
+  :group 'salesforce)
+
+(defcustom sfmm:auth-keymap-prefix "A"
+  "The keymap prefix for Auth function"
+  :type 'string
+  :group 'salesforce)
+
+(defcustom sfmm:apex-keymap-prefix "C"
+  "The keymap prefix for Apex function"
+  :type 'string
+  :group 'salesforce)
+
+(defcustom sfmm:query-keymap-prefix "Q"
+  "The keymap prefix for Database function"
   :type 'string
   :group 'salesforce)
 
@@ -20,11 +40,31 @@
   :group 'salesforce)
 
 #+end_src
-** INTERNAL FUNCTIONS
+** HELPERS FUNCTIONS
+*** KEY BINDING FUNCTIONS
 #+begin_src emacs-lisp :tangle yes
 (defun sfmm:binding--key (key)
   (kbd (concat sfmm:keymap-prefix " " key)))
 
+(defun sfmm:binding--key-org (key)
+  (sfmm:binding--key
+   (concat sfmm:org-keymap-prefix " " key)))
+
+(defun sfmm:binding--key-auth (key)
+  (sfmm:binding--key
+   (concat sfmm:auth-keymap-prefix " " key)))
+
+(defun sfmm:binding--key-apex (key)
+  (sfmm:binding--key
+   (concat sfmm:apex-keymap-prefix " " key)))
+
+(defun sfmm:binding--key-query (key)
+  (sfmm:binding--key
+   (concat sfmm:query-keymap-prefix " " key)))
+
+#+end_src
+*** HOOK FUNCTIONS
+#+begin_src emacs-lisp :tangle yes
 (defun sfmm:hook-on-handler ()
   (setq org-default-alias (sfdx-org-default))
   (when org-default-alias
@@ -40,7 +80,7 @@
 
 #+end_src
 
-** GLOBAL FUNCTIONS
+** MINOR MODE
 #+begin_src emacs-lisp :tangle yes
 (define-minor-mode salesforce-minor-mode
   "Toggles global salesforce minor mode."
@@ -51,9 +91,13 @@
   :keymap
   (list (cons (sfmm:binding--key "r") #'sfdx-retrieve-file)
         (cons (sfmm:binding--key "d") #'sfdx-push-file)
-        (cons (sfmm:binding--key "a") #'sfdx-authorize-web)
-        (cons (sfmm:binding--key "e") #'sfdx-execute-apex-code)
-        (cons (sfmm:binding--key "s") #'sfdx-fetch-record-through-soql))
+        (cons (sfmm:binding--key-auth "a") #'sfdx-authorize-web)
+        (cons (sfmm:binding--key-apex "e") #'sfdx-execute-apex-code)
+        (cons (sfmm:binding--key-query "s") #'sfdx-fetch-record-through-soql)
+        (cons (sfmm:binding--key-org "a") #'sfdx-display-all-scratch-orgs)
+        (cons (sfmm:binding--key-org "A") #'sfdx-display-all-non-scratch-orgs)
+        (cons (sfmm:binding--key-org "o") #'sfdx-org-open))
+        
 
 
   (add-hook 'salesforce-minor-mode-on-hook #'sfmm:hook-on-handler)
