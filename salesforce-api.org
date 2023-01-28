@@ -22,14 +22,20 @@
    :type 'string
    :group 'salesforce-api)
 
-(defcustom sfdx:org-header-display
-  '("instanceUrl" "orgId" "isDevHub" "instanceApiVersion" "alias" "lastUsed" "connectedStatus")
-  "Custom define header display on table orgs"
+(defcustom sfdx:non-scratch-org-header-display
+  '("username" "instanceUrl" "orgId" "isDevHub" "instanceApiVersion" "alias" "lastUsed" "connectedStatus")
+  "Custom define header display on table non scratch orgs"
+  :type 'list
+  :group 'salesforce-api)
+
+(defcustom sfdx:scratch-org-header-display
+  '("username" "password" "instanceUrl" "orgId" "expirationDate" "instanceApiVersion" "alias" "connectedStatus")
+  "Custom define header display on table scratch orgs"
   :type 'list
   :group 'salesforce-api)
 #+end_src
 
-** SALESFORCE API FUNCTIONS
+** SALESFORCE UTILS FUNCTIONS
 #+begin_src emacs-lisp :tangle yes
 (add-to-list
  'display-buffer-alist
@@ -43,7 +49,7 @@
    "Push source salesforce to org"
    (interactive)
    (let
-    ((push-command (message "sfdx force:source:deploy -p %s" buffer-file-name)))
+    ((push-command (list "sfdx" "force:source:deploy" "-p" buffer-file-name)))
     (sfdx--helper:execute-command push-command (format "Deploy %s success" (buffer-file-name)))))
 #+end_src
 *** RETRIEVE SOURCE SALESFORCE FROM ORG
@@ -52,7 +58,7 @@
    "Retrieve source salesforce form org"
    (interactive)
    (let
-    ((retrieve-command (message "sfdx force:source:retrieve -p %s" buffer-file-name)))
+    ((retrieve-command (list "sfdx" "force:source:retrieve" "-p" buffer-file-name)))
     (sfdx--helper:execute-command retrieve-command (format "Retrieve %s success" (buffer-file-name)))))
 #+end_src
 *** AUTHORIZE SALESFORCE ORG
@@ -62,7 +68,7 @@
    (let*
     ((alias (read-string "alias: "))
      (authorize-command
-       (format "sfdx auth:web:login --setalias %s --instanceurl %s" alias url)))
+       (list "sfdx" "auth:web:login" "--setalias" alias "--instanceurl" url)))
     (sfdx--execute-command authorize-command "Authorize success")))
 #+end_src
 **** SCRATCH/SANBOX ORG
@@ -82,94 +88,6 @@
   (let* ((url "https://login.salesforce.com"))
 
     (sfdx--authorize:web url)))
-#+end_src
-*** DISPLAY ALL ORG
-#+begin_src emacs-lisp :tangle yes
-(defun sfdx-display-all-connect-org ()
-  "Display all current connect org"
-  (interactive)
-  (let ((command "sfdx force:org:list --json"))
-
-    (sfdx--helper:execute-process
-     command
-     `(lambda (process output buffer)
-        (if (json-available-p)
-            (let ((json-instance (json-parse-string output))
-                  (start-index 1)
-                  (column-header-map #s(hash-table test equal data ("No" ((:align . 'left) (:title . "No"))))))
-              (mapcar
-               `(lambda (item)
-                  (puthash
-                   (format "%s" item)
-                   `((:align . ,'left) (:title . ,item))
-                   column-header-map))
-               sfdx:org-header-display)
-
-              (if (= (gethash "status" json-instance) 0)
-                  (let* ((non-scratch-orgs
-                          (sfdx--helper:get-data-hashtable "result.nonScratchOrgs" json-instance))
-                         (data
-                          (mapcar
-                           (lambda (element)
-                             (let ((row
-                                    (sfdx--helper:convert-hashtable-data-to-list
-                                     :hashtable-data element
-                                     :include-key
-                                     (hash-table-keys column-header-map)
-                                     :post-process
-                                     (lambda (key value)
-                                       (let ((column-config
-                                              `((:align . ,'left) (:title . ,key))))
-
-                                         (when (length> value 50)
-                                             (add-to-list 'column-config `(:max-width . ,'50)))
-
-                                         (puthash (format "%s" key) column-config column-header-map))))))
-
-                               (progn
-                                 (add-to-list 'row start-index
-                                             nil (lambda (el1 el2) nil))
-                                 (setq start-index
-                                       (1+ start-index))
-                                 row)))
-                           non-scratch-orgs)))
-                          
-                    (sfdx--build:make-table-component
-                               :column-header (hash-table-values column-header-map)
-                               :data data
-                               :buffer buffer)))))))))
-#+end_src
-
-*** GET DEFAULT ORG
-#+begin_src emacs-lisp :tangle yes
-(defun sfdx-org-default ()
-  (if (and
-       (projectile-project-root)
-       (file-exists-p
-        (concat
-         (projectile-project-root) sfdx--package-dir "/" "package.xml")))
-      (let ((file-content
-                  (with-temp-buffer
-                    (insert-file-contents (concat (projectile-project-root) ".sf/config.json"))
-                    (goto-char (point-min))
-                    (json-read))))
-           (cdr (assq 'target-org file-content)))
-    ""))
-#+end_src
-*** SHOW ORG CONNECT STATUS
-#+begin_src emacs-lisp :tangle yes
-(defun sfdx-org-connect-status ()
-  "Check connect status to org"
-  (let ((display-org-information-command "sfdx force:org:display --json"))
-
-    (sfdx--helper:execute-process display-org-information-command
-                           (lambda (process output buffer)
-                              (let* ((result-json (gethash "result" (json-parse-string output))))
-                                (when
-                                    (not
-                                     (string=
-                                      (gethash "connectedStatus" result-json) "connected"))
-                                  (alert "Token expired !!" :title "test")))))))
 #+end_src
 *** FETCH SALESFORCE RECORDS
 **** SOQL STRING
@@ -191,7 +109,119 @@
  (interactive)
  (sfdx--helper:execute-apex (point-min)))
 #+end_src
+*** LIBRARY SALESFORCE ORG
+**** OPEN ORG WITH USER NAME
+#+begin_src emacs-lisp :tangle yes
+(defun sfdx-org-open ()
+   "Use a specific user name to open org"
+   (interactive)
+   (let ((user-name
+          (ctbl:cp-get-selected-data-cell (ctbl:cp-get-component))))
 
+     (unless user-name
+       (read-string "user-name: "))
+
+     (sfdx--helper:execute-command
+      (list "sfdx" "force:org:open" "-u" user-name) "")))
+#+end_src
+**** SHOW ORG CONNECT STATUS
+#+begin_src emacs-lisp :tangle yes
+(defun sfdx-org-connect-status ()
+  "Check connect status to org"
+  (let ((display-org-information-command '("sfdx" "force:org:display" "--json")))
+
+    (sfdx--helper:execute-process display-org-information-command
+                           (lambda (process output buffer)
+                              (let* ((result-json (gethash "result" (json-parse-string output))))
+                                (when
+                                    (not
+                                     (string=
+                                      (gethash "connectedStatus" result-json) "connected"))
+                                  (alert "Token expired !!" :title "test")))))))
+#+end_src
+**** DISPLAY ALL ORG
+#+begin_src emacs-lisp :tangle yes
+(defun sfdx-display-org (org-type)
+  "Display all current connect org"
+  (interactive)
+  (let ((command '("sfdx" "force:org:list" "--json")))
+
+    (sfdx--helper:execute-process
+     command
+     `(lambda (process output buffer)
+        (if (json-available-p)
+            (let ((json-instance (json-parse-string output))
+                  (start-index 1)
+                  (column-header-map #s(hash-table test equal data ("No" ((:align . 'left) (:title . "No"))))))
+              (mapcar
+               `(lambda (item)
+                  (puthash
+                   (format "%s" item)
+                   `((:align . ,'left) (:title . ,item))
+                   column-header-map))
+               sfdx:org-header-display)
+
+              (if (= (gethash "status" json-instance) 0)
+                  (let* ((non-scratch-orgs
+                          (sfdx--helper:get-data-hashtable
+                           (concat "result." org-type) json-instance))
+                         (data
+                          (mapcar
+                           (lambda (element)
+                             (let ((row
+                                    (sfdx--helper:convert-hashtable-data-to-list
+                                     :hashtable-data element
+                                     :columns
+                                     sfdx:org-header-display
+                                     :post-process
+                                     (lambda (key value)
+                                       (let ((column-config
+                                              `((:align . ,'left) (:title . ,key))))
+
+                                         (when (length> value 50)
+                                             (add-to-list 'column-config `(:max-width . ,'50)))
+
+                                         (puthash (format "%s" key) column-config column-header-map))))))
+
+                               (progn
+                                 (add-to-list 'row start-index
+                                             nil (lambda (el1 el2) nil))
+                                 (setq start-index
+                                       (1+ start-index))
+                                 row)))
+                           non-scratch-orgs)))
+
+                    (sfdx--build:make-table-component
+                               :column-header (hash-table-values column-header-map)
+                               :data data
+                               :buffer buffer)))))))))
+#+end_src
+***** NON SCRATCH ORG
+#+begin_src emacs-lisp :tangle yes
+(defun sfdx-display-all-non-scratch-orgs ()
+  (sfdx-display-org "nonScratchOrgs"))
+#+end_src
+***** SCRATCH ORG
+#+begin_src emacs-lisp :tangle yes
+(defun sfdx-display-all-scratch-orgs ()
+  (sfdx-display-org "scratchOrgs"))
+#+end_src
+**** GET DEFAULT ORG
+#+begin_src emacs-lisp :tangle yes
+(defun sfdx-org-default ()
+  (if (and
+       (projectile-project-root)
+       (file-exists-p
+        (concat
+         (projectile-project-root) sfdx--package-dir "/" "package.xml")))
+      (let ((file-content
+                  (with-temp-buffer
+                    (insert-file-contents (concat (projectile-project-root) ".sf/config.json"))
+                    (goto-char (point-min))
+                    (json-read))))
+           (cdr (assq 'target-org file-content)))
+    ""))
+#+end_src
 ** HELPER FUNCTIONS
 *** EXECUTE APEX CODE
 #+begin_src emacs-lisp :tangle yes
@@ -207,7 +237,7 @@
 
    (write-region (point-min) (point-max) temp-file)
    (setq execute-apex-code-command
-     (message "sfdx force:apex:execute -f %s" temp-file))
+     (list "sfdx" "force:apex:execute" "-f" temp-file))
 
    (async-shell-command execute-apex-code-command buffer)))
 #+end_src
@@ -232,60 +262,63 @@ This function execute [[https://developer.salesforce.com/docs/atlas.en-us.sfdx_c
               (:query . "-q")
               (:file . "-f")
               (:format . "-r")))
-         (params
-             (sfdx--helpers:recursive-list
-               params-command
-               `(lambda (item)
-                  (let* ((key (car item)))
-                    (when (assq key param-support)
-                      (format "%s \'%s\'"
-                       (cdr (assq key param-support))
-                       (cdr item)))))))
          (execute-soql-code
-           (message "sfdx force:data:soql:query %s" (string-join params " "))))
+          (append '("sfdx" "force:data:soql:query"))))
 
-        (sfdx--helper:execute-process
-         execute-soql-code
-         `(lambda (process output buffer)
-                (if (json-available-p)
-                    (let* ((json-instance (json-parse-string output)))
-                      (when (= (gethash "status" json-instance) 0)
-                            (let* ((result-instance (gethash "result" json-instance))
-                                   (records-list (gethash "records" result-instance))
-                                   (start-index 1)
-                                   (column-header-map #s(hash-table test equal data ("No" ((:align . 'left) (:title . "No")))))
-                                   (data
-                                     (mapcar
-                                      (lambda (element)
+    (sfdx--helper:recursive-list
+      params-command
+      (lambda (item)
+        (let* ((key (car item)))
+          (when (assq key param-support)
+            (setq
+             execute-soql-code
+             (append
+              execute-soql-code
+              (list
+               (cdr (assq key param-support))
+               (cdr item))))))))
 
-                                         (let ((row `(,start-index)))
-                                           (maphash
-                                            (lambda (key value)
-                                              (let ((column-config `((:align . ,'left) (:title . ,key))))
-                                                (unless (hash-table-p value)
-                                                   (when (eq value ':null)
-                                                     (setq value " "))
-                                                   (when (eq value ':false)
-                                                     (setq value "False"))
-                                                   (when (eq value 't)
-                                                     (setq value "True"))
+    (sfdx--helper:execute-process
+     execute-soql-code
+     `(lambda (process output buffer)
+            (if (json-available-p)
+                (let* ((json-instance (json-parse-string output)))
+                  (when (= (gethash "status" json-instance) 0)
+                        (let* ((records-list (sfdx--helper:get-data-hashtable "result.records" json-instance))
+                               (start-index 1)
+                               (column-header-map #s(hash-table test equal data ("No" ((:align . 'left) (:title . "No")))))
+                               (data
+                                 (mapcar
+                                  (lambda (element)
 
-                                                   (add-to-list 'row
-                                                                (replace-regexp-in-string "\\([\n]\\)" "" value) 1
-                                                                '(lambda (element1 element2) nil))
+                                     (let ((row `(,start-index)))
+                                       (maphash
+                                        (lambda (key value)
+                                          (let ((column-config `((:align . ,'left) (:title . ,key))))
+                                            (unless (hash-table-p value)
+                                               (when (eq value ':null)
+                                                 (setq value " "))
+                                               (when (eq value ':false)
+                                                 (setq value "False"))
+                                               (when (eq value 't)
+                                                 (setq value "True"))
 
-                                                   (when (length> value 50)
-                                                     (add-to-list 'column-config `(:max-width . ,'50)))
+                                               (add-to-list 'row
+                                                            (replace-regexp-in-string "\\([\n]\\)" "" value) 1
+                                                            '(lambda (element1 element2) nil))
 
-                                                   (puthash (format "%s" key) column-config column-header-map))))
-                                            element)
-                                           (setq start-index (1+ start-index))
-                                           row))
-                                      records-list)))
-                              (sfdx--build:make-table-component
-                               :column-header (hash-table-values column-header-map)
-                               :data data
-                               :buffer buffer)))))))))
+                                               (when (length> value 50)
+                                                 (add-to-list 'column-config `(:max-width . ,'50)))
+
+                                               (puthash (format "%s" key) column-config column-header-map))))
+                                        element)
+                                       (setq start-index (1+ start-index))
+                                       row))
+                                  records-list)))
+                          (sfdx--build:make-table-component
+                           :column-header (hash-table-values column-header-map)
+                           :data data
+                           :buffer buffer)))))))))
 #+end_src
 
 *** TODO EXECUTE SYNCHRONOUS PROCESS
@@ -297,12 +330,14 @@ This function execute [[https://developer.salesforce.com/docs/atlas.en-us.sfdx_c
          (buffer-view-post-process (generate-new-buffer "Salesforce Overview"))
          (process-output "")
          (process
-          (start-process-shell-command process-identity buffer-stdout command)))
-
-    (set-process-filter
-     process
-     `(lambda (process output)
-        (setq process-output (concat process-output output))))
+          (make-process
+           :name process-identity
+           :buffer buffer-stdout
+           :command command
+           :connection-type 'pipe
+           :filter
+           (lambda (process output)
+             (setq process-output (concat process-output output))))))
     (when (accept-process-output process))
         ; clear old content
     (with-current-buffer buffer-stdout
@@ -318,42 +353,44 @@ This function execute [[https://developer.salesforce.com/docs/atlas.en-us.sfdx_c
 #+begin_src emacs-lisp :tangle yes
 (defun sfdx--helper:execute-command (command message-success)
 
-  (sfdx--api:execute-process
+  (sfdx--helper:execute-process
    command
    `(lambda (process output buffer)
-      (alert ,message-success :title "Salesforce Alert"))))
+      (unless (string= message-success "")
+        (alert ,message-success :title "Salesforce Alert")))))
 #+end_src
 
 *** CONVERT HASHTABLE TO LIST DATA
 #+begin_src emacs-lisp :tangle yes
 (cl-defun sfdx--helper:convert-hashtable-data-to-list
-    (&key hashtable-data &option include-key post-process)
+    (&key hashtable-data columns &option post-process)
   "Convert hashtable data to list"
  (let ((data '()))
 
-   (maphash
-      `(lambda (key value)
-         (when (or
-                (not include-key)
-                (member key include-key))
+   (mapcar
+      `(lambda (key)
+         (when (member key columns)
+           (let ((value (gethash key hashtable-data)))
 
-           (when (eq value ':null)
-              (setq value " "))
-           (when (eq value ':false)
-              (setq value "False"))
-           (when (eq value 't)
-              (setq value "True"))
+             (when (eq value ':null)
+               (setq value " "))
+             (when (eq value ':false)
+               (setq value "False"))
+             (when (eq value 't)
+               (setq value "True"))
+             (when (eq value 'nil)
+               (setq value " "))
 
-           (add-to-list 'data value 1
-                        '(lambda (element1 element2) nil))
+             (add-to-list 'data value 1
+                          '(lambda (element1 element2) nil))
 
-           (funcall ,post-process key value)))
-      hashtable-data)
+             (funcall ,post-process key value))))
+      columns)
    data))
 #+end_src
 *** CUSTOM MAP LIST FUNCTION
 #+begin_src emacs-lisp :tangle yes
-(defun sfdx--helpers:recursive-list (list-data lambda-function)
+(defun sfdx--helper:recursive-list (list-data lambda-function)
   (let* ((new-list (cdr list-data))
          (first-item (car list-data))
          (remap-list '()))
@@ -361,7 +398,7 @@ This function execute [[https://developer.salesforce.com/docs/atlas.en-us.sfdx_c
     (when (length> new-list 0)
         (setq remap-list
               (append remap-list
-                      (sfdx--recursive-list new-list lambda-function))))
+                      (sfdx--helper:recursive-list new-list lambda-function))))
 
     (add-to-list 'remap-list (funcall lambda-function first-item))))
 #+end_src
