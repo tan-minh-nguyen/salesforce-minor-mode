@@ -90,13 +90,13 @@ any later version.
 (defun org-babel-expand-body:apex (body params &optional processed-params)
   "Expand BODY according to PARAMS, return the expanded body."
   (require 'inf-template nil t)
-  (let ((vars (org-babel--get-vars (or processed-params (org-babel-process-params params)))))
+  (let ((vars
+         (org-babel--get-vars
+          (or processed-params
+              (org-babel-process-params params)))))
+
     (concat
-     (mapconcat ;; define any variables
-      (lambda (pair)
-        (format "%s=%S"
-                (car pair) (org-babel-template-var-to-template (cdr pair))))
-      vars "\n")
+     (mapconcat #'binding-declare-variable vars "\n")
      "\n" body "\n")))
 #+end_src
 
@@ -123,13 +123,12 @@ specified by the user will be available in the PARAMS variable.
 
 #+begin_src emacs-lisp :tangle yes
 (defun org-babel-execute:apex (body params)
-  (let*
-      ((processed-params (org-babel-process-params params))
-       (filter-type (assq :filter-type processed-params))
-       (full-body (org-babel-expand-body:apex
-                      body params processed-params)))
-     (execute-async-apex full-body)))
+  (let* ((processed-params (org-babel-process-params params))
+         (filter-type (assq :filter-type processed-params))
+         (full-body (org-babel-expand-body:apex
+                        body params processed-params)))
 
+    (execute-async-apex full-body)))
 #+end_src
 
 ** EXECUTE APEX BLOCK CODE
@@ -170,6 +169,24 @@ specified by the user will be available in the PARAMS variable.
                (split-string output "\n")
                "\n"))))))))
 
+(defun binding-declare-variable (pair)
+  (let* ((var
+          (split-string
+            (format "%s"(car pair)) "\\."))
+         (var-type (car var))
+         (var-name (car (cdr var)))
+         (value
+          (org-babel-template-var-to-template
+           (cdr pair))))
+
+    (format
+     "%s %s = %s;"
+     var-type
+     var-name
+     (if (string= var-type "String")
+       (format "'%s'" value)
+       value))))
+
 (defun org-babel-prep-session:apex (session params)
   "Prepare SESSION according to the header arguments specified in PARAMS.")
 
@@ -177,7 +194,7 @@ specified by the user will be available in the PARAMS variable.
 (defun org-babel-template-var-to-template (var)
   "Convert an elisp var into a string of template source code
 specifying a var of the same value."
-  (format "%S" var))
+  (format "%s" var))
 
 (defun org-babel-template-table-or-string (results)
   "If the results look like a table, then convert them into an

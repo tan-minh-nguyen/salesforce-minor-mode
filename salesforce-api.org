@@ -8,16 +8,17 @@
 (require 'projectile)
 (require 'ctable)
 (require 'subr-x)
+(require 'cl-lib)
 #+end_src
 
 ** CUSTOM DEFINE VARIABLE
 #+begin_src emacs-lisp :tangle yes
-(defcustom sfdx--api-version nil
+(defcustom sfdx:api-version nil
   "Custom define api version for command"
    :type 'string
    :group 'salesforce-api)
 
-(defcustom sfdx--package-dir "manifest"
+(defcustom sfdx:package-dir "manifest"
   "Custom define api version for command"
    :type 'string
    :group 'salesforce-api)
@@ -45,35 +46,39 @@
 
 *** PUSH SOURCE SALESFORCE TO ORG
 #+begin_src emacs-lisp :tangle yes
-(defun sfdx-push-file ()
+(defun sfdx:push-file
+    (file-path)
    "Push source salesforce to org"
    (interactive)
-   (let
-    ((push-command (list "sfdx" "force:source:deploy" "-p" buffer-file-name)))
-    (sfdx--helper:execute-command push-command (format "Deploy %s success" (buffer-file-name)))))
+   (let* ((file (cond (file-path file-path)
+                      ((not file-path) (buffer-file-name))))
+          (push-command (list "sfdx" "force:source:deploy" "-p" file)))
+    (sfdx--helper:execute-async-command push-command (format "Deploy %s success" file))))
 #+end_src
 *** RETRIEVE SOURCE SALESFORCE FROM ORG
 #+begin_src emacs-lisp :tangle yes
-(defun sfdx-retrieve-file ()
+(defun sfdx:retrieve-file
+    (file-path)
    "Retrieve source salesforce form org"
    (interactive)
-   (let
-    ((retrieve-command (list "sfdx" "force:source:retrieve" "-p" buffer-file-name)))
-    (sfdx--helper:execute-command retrieve-command (format "Retrieve %s success" (buffer-file-name)))))
+   (let ((file (cond (file-path file-path)
+                     ((not file-path) (buffer-file-name))))
+         (retrieve-command (list "sfdx" "force:source:retrieve" "-p" file)))
+
+    (sfdx--helper:execute-async-command retrieve-command (format "Retrieve %s success" file))))
 #+end_src
 *** AUTHORIZE SALESFORCE ORG
 #+begin_src emacs-lisp :tangle yes
 (defun sfdx--authorize:web (url)
    "Authorize to salesforce org"
-   (let*
-    ((alias (read-string "alias: "))
-     (authorize-command
-       (list "sfdx" "auth:web:login" "--setalias" alias "--instanceurl" url)))
-    (sfdx--execute-command authorize-command "Authorize success")))
+   (let* ((alias (read-string "alias: "))
+          (authorize-command
+            (list "sfdx" "auth:web:login" "--setalias" alias "--instanceurl" url)))
+    (sfdx--helper:execute-async-command authorize-command "Authorize success")))
 #+end_src
 **** SCRATCH/SANBOX ORG
 #+begin_src emacs-lisp :tangle yes
-(defun sfdx-authorize-test-org ()
+(defun sfdx:authorize-sandbox-org ()
   "Authorize use for scratch org and sanbox org"
   (interactive)
   (let* ((url "https://test.salesforce.com"))
@@ -82,17 +87,18 @@
 #+end_src
 **** PRODUCTION/DEV ORG
 #+begin_src emacs-lisp :tangle yes
-(defun sfdx-authorize-production-org ()
+(defun sfdx:authorize-production-org ()
   "Authorize use for dev org and production org"
   (interactive)
   (let* ((url "https://login.salesforce.com"))
 
     (sfdx--authorize:web url)))
 #+end_src
+
 *** FETCH SALESFORCE RECORDS
 **** SOQL STRING
 #+begin_src emacs-lisp :tangle yes
-(defun sfdx-fetch-record-through-soql ()
+(defun sfdx:fetch-record-through-soql ()
   "Fetch salesforce record by calling API through Salesforce CLI library"
   (interactive)
   (let ((soql-string (read-string "SOQL: ")))
@@ -105,14 +111,14 @@
 #+end_src
 *** EXECUTE APEX CODE
 #+begin_src emacs-lisp :tangle yes
-(defun sfdx-execute-apex-code ()
+(defun sfdx:execute-apex-code ()
  (interactive)
  (sfdx--helper:execute-apex (point-min)))
 #+end_src
-*** LIBRARY SALESFORCE ORG
+*** INTERACTIVE SALESFORCE ORG
 **** OPEN ORG WITH USER NAME
 #+begin_src emacs-lisp :tangle yes
-(defun sfdx-org-open ()
+(defun sfdx:org-open ()
    "Use a specific user name to open org"
    (interactive)
    (let ((user-name
@@ -121,32 +127,32 @@
      (unless user-name
        (read-string "user-name: "))
 
-     (sfdx--helper:execute-command
+     (sfdx--helper:execute-async-command
       (list "sfdx" "force:org:open" "-u" user-name) "")))
 #+end_src
 **** SHOW ORG CONNECT STATUS
 #+begin_src emacs-lisp :tangle yes
-(defun sfdx-org-connect-status ()
+(defun sfdx:org-connect-status ()
   "Check connect status to org"
   (let ((display-org-information-command '("sfdx" "force:org:display" "--json")))
 
-    (sfdx--helper:execute-process display-org-information-command
-                           (lambda (process output buffer)
-                              (let* ((result-json (gethash "result" (json-parse-string output))))
-                                (when
-                                    (not
-                                     (string=
-                                      (gethash "connectedStatus" result-json) "connected"))
-                                  (alert "Token expired !!" :title "test")))))))
+    (sfdx--helper:make-async-process
+     display-org-information-command
+     (lambda (process output buffer)
+        (let* ((result-json (gethash "result" (json-parse-string output))))
+          (when
+             (string=
+              (gethash "connectedStatus" result-json) "RefreshTokenAuthError")
+            (alert "Token expired !!" :title "test")))))))
 #+end_src
 **** DISPLAY ALL ORG
 #+begin_src emacs-lisp :tangle yes
-(defun sfdx-display-org (org-type)
+(defun sfdx:display-org (org-type)
   "Display all current connect org"
   (interactive)
   (let ((command '("sfdx" "force:org:list" "--json")))
 
-    (sfdx--helper:execute-process
+    (sfdx--helper:make-async-process
      command
      `(lambda (process output buffer)
         (if (json-available-p)
@@ -198,22 +204,22 @@
 #+end_src
 ***** NON SCRATCH ORG
 #+begin_src emacs-lisp :tangle yes
-(defun sfdx-display-all-non-scratch-orgs ()
-  (sfdx-display-org "nonScratchOrgs"))
+(defun sfdx:display-all-non-scratch-orgs ()
+  (sfdx:display-org "nonScratchOrgs"))
 #+end_src
 ***** SCRATCH ORG
 #+begin_src emacs-lisp :tangle yes
-(defun sfdx-display-all-scratch-orgs ()
-  (sfdx-display-org "scratchOrgs"))
+(defun sfdx:display-all-scratch-orgs ()
+  (sfdx:display-org "scratchOrgs"))
 #+end_src
 **** GET DEFAULT ORG
 #+begin_src emacs-lisp :tangle yes
-(defun sfdx-org-default ()
+(defun sfdx:org-default ()
   (if (and
        (projectile-project-root)
        (file-exists-p
         (concat
-         (projectile-project-root) sfdx--package-dir "/" "package.xml")))
+         (projectile-project-root) sfdx:package-dir "/" "package.xml")))
       (let ((file-content
                   (with-temp-buffer
                     (insert-file-contents (concat (projectile-project-root) ".sf/config.json"))
@@ -221,6 +227,24 @@
                     (json-read))))
            (cdr (assq 'target-org file-content)))
     ""))
+#+end_src
+**** REFRESH ORG
+#+begin_src emacs-lisp :tangle yes
+(defun sfdx:refresh-default-org
+    ()
+  "Refresh current default org on layout"
+  (interactive)
+  (sfdx:org-default))
+#+end_src
+*** COMPARE LOCAL FILE WITH ORG FILE
+#+begin_src emacs-lisp :tangle yes
+(defun sfdx:fetch-salesforce-file
+    ()
+  "Retrieve org file from salesforce"
+  (let* ((local-path (expand-file-name "~/.cache/sfdx"))
+         ())
+
+    ))
 #+end_src
 ** HELPER FUNCTIONS
 *** EXECUTE APEX CODE
@@ -278,7 +302,7 @@ This function execute [[https://developer.salesforce.com/docs/atlas.en-us.sfdx_c
                (cdr (assq key param-support))
                (cdr item))))))))
 
-    (sfdx--helper:execute-process
+    (sfdx--helper:make-async-process
      execute-soql-code
      `(lambda (process output buffer)
             (if (json-available-p)
@@ -321,7 +345,7 @@ This function execute [[https://developer.salesforce.com/docs/atlas.en-us.sfdx_c
                            :buffer buffer)))))))))
 #+end_src
 
-*** TODO EXECUTE SYNCHRONOUS PROCESS
+*** MAKE SYNCHRONOUS PROCESS
 + set readonly for overview buffer, edit the buffer through key-bind
 #+begin_src emacs-lisp :tangle yes
 (defun sfdx--helper:execute-process (command lambda-function)
@@ -343,12 +367,37 @@ This function execute [[https://developer.salesforce.com/docs/atlas.en-us.sfdx_c
     (with-current-buffer buffer-stdout
       (setf (buffer-string) ""))
     (funcall lambda-function process process-output buffer-view-post-process)))
-        
 #+end_src
 
-*** EXECUTE ASYNCHRONOUS PROCESS
+*** MAKE ASYNCHRONOUS PROCESS
+#+begin_src emacs-lisp :tangle yes
+(defun sfdx--helper:make-async-process (command lambda-function)
+  (let* ((buffer-command-history "salesforce-command-history")
+         (buffer-stdout (generate-new-buffer "salesforce-process"))
+         (process-identity "salesforce-process")
+         (buffer-view-post-process (generate-new-buffer "salesforce outcome")))
 
-*** TODO EXECUTE SALESFORCE COMMAND
+    (make-process
+     :name process-identity
+     :buffer buffer-command-history
+     :command command
+     :filter
+     `(lambda (process output)
+       (with-current-buffer ,buffer-stdout
+         (insert
+          (concat (buffer-string) output))))
+     :sentinel
+     `(lambda (process event)
+       (when (string= event "finished\n")
+         (let ((buffer-content ""))
+
+           (with-current-buffer ,buffer-stdout
+             (setq buffer-content (buffer-string)))
+           (kill-buffer ,buffer-stdout)
+           (funcall ,lambda-function process buffer-content ,buffer-view-post-process)))))))
+#+end_src
+
+*** TODO EXECUTE SYNCHRONOUS SALESFORCE COMMAND
 + override api version with custom once
 #+begin_src emacs-lisp :tangle yes
 (defun sfdx--helper:execute-command (command message-success)
@@ -359,11 +408,20 @@ This function execute [[https://developer.salesforce.com/docs/atlas.en-us.sfdx_c
       (unless (string= message-success "")
         (alert ,message-success :title "Salesforce Alert")))))
 #+end_src
+*** EXECUTE ASYNCHRONOUS SALESFORCE COMMAND
+#+begin_src emacs-lisp :tangle yes
+(defun sfdx--helper:execute-async-command (command message-success)
 
+  (sfdx--helper:make-async-process
+   command
+   `(lambda (process output buffer)
+      (unless (string= message-success "")
+        (alert ,message-success :title "Salesforce Alert")))))
+#+end_src
 *** CONVERT HASHTABLE TO LIST DATA
 #+begin_src emacs-lisp :tangle yes
 (cl-defun sfdx--helper:convert-hashtable-data-to-list
-    (&key hashtable-data columns &option post-process)
+    (&key hashtable-data columns (post-process nil))
   "Convert hashtable data to list"
  (let ((data '()))
 
@@ -384,7 +442,8 @@ This function execute [[https://developer.salesforce.com/docs/atlas.en-us.sfdx_c
              (add-to-list 'data value 1
                           '(lambda (element1 element2) nil))
 
-             (funcall ,post-process key value))))
+             (when ,post-process
+               (funcall ,post-process key value)))))
       columns)
    data))
 #+end_src
@@ -412,7 +471,7 @@ This function execute [[https://developer.salesforce.com/docs/atlas.en-us.sfdx_c
 
     (if key-remain
       (sfdx--helper:get-data-hashtable
-       (string-join key-remain "\\.")
+       (string-join key-remain ".")
        (gethash key table))
 
      (gethash key table))))
@@ -456,11 +515,12 @@ This function execute [[https://developer.salesforce.com/docs/atlas.en-us.sfdx_c
 
     (make-ctbl:cmodel
      :title title
-     :sorter 'cbtbl:sort-number-lessp
+     :sorter 'ctbl:sort-number-lessp
      :min-width min-width
      :max-width max-width
      :align align)))
 #+end_src
+
 
 ** PACKAGE NAME
 #+begin_src emacs-lisp :tangle yes
