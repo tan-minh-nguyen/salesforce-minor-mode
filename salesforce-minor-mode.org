@@ -6,22 +6,28 @@
   - [[#requirement-library][REQUIREMENT LIBRARY]]
   - [[#custom-define-variable][CUSTOM DEFINE VARIABLE]]
   - [[#salesforce-utils-functions][SALESFORCE UTILS FUNCTIONS]]
-    - [[#push-source-salesforce-to-org][PUSH SOURCE SALESFORCE TO ORG]]
-    - [[#retrieve-source-salesforce-from-org][RETRIEVE SOURCE SALESFORCE FROM ORG]]
+    - [[#get-errors][GET ERRORS]]
+    - [[#generate-command][GENERATE COMMAND]]
+    - [[#functions-use-force-prefix][FUNCTIONS USE FORCE PREFIX]]
+      - [[#push-source-salesforce-to-org][PUSH SOURCE SALESFORCE TO ORG]]
+      - [[#retrieve-source-salesforce-from-org][RETRIEVE SOURCE SALESFORCE FROM ORG]]
+    - [[#functions-use-org-prefix][FUNCTIONS USE ORG PREFIX]]
+      - [[#interactive-salesforce-org][INTERACTIVE SALESFORCE ORG]]
+      - [[#display-all-org][DISPLAY ALL ORG]]
+      - [[#show-org-connect-status][SHOW ORG CONNECT STATUS]]
+      - [[#get-default-org][GET DEFAULT ORG]]
+      - [[#refresh-org][REFRESH ORG]]
     - [[#authorize-salesforce-org][AUTHORIZE SALESFORCE ORG]]
       - [[#scratchsanbox-org][SCRATCH/SANBOX ORG]]
       - [[#productiondev-org][PRODUCTION/DEV ORG]]
-    - [[#fetch-salesforce-records][FETCH SALESFORCE RECORDS]]
+    - [[#execute-apex-code][EXECUTE APEX CODE]]
+    - [[#functions-salesforce-query-records][FUNCTIONS SALESFORCE QUERY RECORDS]]
       - [[#soql-string][SOQL STRING]]
       - [[#soql-file][SOQL FILE]]
-    - [[#execute-apex-code][EXECUTE APEX CODE]]
-    - [[#interactive-salesforce-org][INTERACTIVE SALESFORCE ORG]]
-      - [[#open-org-with-user-name][OPEN ORG WITH USER NAME]]
-      - [[#show-org-connect-status][SHOW ORG CONNECT STATUS]]
-      - [[#display-all-org][DISPLAY ALL ORG]]
-      - [[#get-default-org][GET DEFAULT ORG]]
-      - [[#refresh-org][REFRESH ORG]]
     - [[#compare-local-file-with-org-file][COMPARE LOCAL FILE WITH ORG FILE]]
+    - [[#functioncs-generate-metadata][FUNCTIONCS GENERATE METADATA]]
+      - [[#apex-class][APEX CLASS]]
+      - [[#lightning-metadata][LIGHTNING METADATA]]
   - [[#helper-functions][HELPER FUNCTIONS]]
     - [[#execute-apex-code-1][EXECUTE APEX CODE]]
     - [[#excute-soql-block][EXCUTE SOQL BLOCK]]
@@ -37,7 +43,6 @@
     - [[#build-ctable-component][BUILD CTABLE COMPONENT]]
     - [[#build-ctable-header-table][BUILD CTABLE HEADER TABLE]]
   - [[#helpers-functions][HELPERS FUNCTIONS]]
-    - [[#key-binding-functions][KEY BINDING FUNCTIONS]]
     - [[#hook-functions][HOOK FUNCTIONS]]
   - [[#minor-mode][MINOR MODE]]
 
@@ -104,6 +109,78 @@
   "Custom define header display on table scratch orgs"
   :type 'list
   :group 'salesforce-cli)
+
+(defcustom sfmm:sfdx-lib-alias "sf"
+  ""
+  :type 'string
+  :group 'command-alias)
+
+(defcustom sfmm:sfdx-legacy-alias "force"
+ ""
+ :type 'string
+ :group 'command-alias)
+
+(defcustom sfmm:project-command-alias "project"
+  ""
+  :type 'string
+  :group 'command-alias)
+
+(defcustom sfmm:data-command-alias "data"
+  ""
+  :type 'string
+  :group 'command-alias)
+
+(defcustom sfmm:apex-command-alias "apex"
+  ""
+  :type 'string
+  :group 'command-alias)
+
+(defcustom sfmm:org-command-alias "org"
+  ""
+  :type 'string
+  :group 'command-alias)
+
+(defcustom sfmm:lightning-command-alias "lightning"
+  ""
+  :type 'string
+  :group 'command-alias)
+
+(defcustom sfmm:project-deploy-command
+  (concat sfmm:project-command-alias " " "deploy")
+  ""
+  :type 'string
+  :group 'project-command)
+
+(defcustom sfmm:project-retrieve-command
+  (concat sfmm:project-command-alias " " "retrieve")
+  ""
+  :type 'string
+  :group 'project-command)
+
+(defcustom sfmm:default-browser "qutebrowser"
+  "Browser use for open url"
+  :type 'string
+  :group 'sfdx-cli)
+
+(defcustom sfmm:default-apex-class-path "force-app/main/default/classes"
+ "Path save apex classes"
+ :type 'string
+ :group 'sfdx-config)
+
+(defcustom sfmm:default-lwc-path "force-app/main/default/lwc"
+ "Path save lwc components"
+ :type 'string
+ :group 'sfdx-config)
+
+(defcustom sfmm:default-aura-path "force-app/main/default/aura"
+ "Path save aura components"
+ :type 'string
+ :group 'sfdx-config)
+
+(defcustom sfmm:default-test-path "force-app/main/default/lightningTests"
+ "Path save test components"
+ :type 'string
+ :group 'sfdx-config)
 #+end_src
 
 ** SALESFORCE UTILS FUNCTIONS
@@ -113,331 +190,183 @@
   '("salesforce api.*" . (display-buffer-no-window . nil)))
 
 #+end_src
+*** GET ERRORS
+#+begin_src emacs-lisp :tangle yes
+(defun sfdx--helper:get-errors-json (data)
+   "Get errors from json data"
+   (let ((component-failures (sfdx--helper:get-data-hashtable "result.deployedSource" data)))
 
-*** PUSH SOURCE SALESFORCE TO ORG
+     (mapconcat
+      (lambda (component)
+        (let ((problem (gethash "error" component))
+              (problem-type (gethash "problemType" component))
+              (line-number (gethash "lineNumber" component))
+              (file-name (gethash "filePath" component)))
+
+          (format "problem-type: %s \n problem: %s \n %s:%s"
+                  problem-type
+                  problem
+                  file-name
+                  line-number)))
+
+      component-failures
+      "\n")))
+#+end_src
+*** GENERATE COMMAND
+#+begin_src emacs-lisp :tangle yes
+(defun sfdx--helper:generate-command (commands)
+  (add-to-list 'commands sfmm:sfdx-lib-alias))
+#+end_src
+*** FUNCTIONS USE FORCE PREFIX
+**** PUSH SOURCE SALESFORCE TO ORG
 #+begin_src emacs-lisp :tangle yes
 (defun sfmm:push-file
     ()
-   "Push source salesforce to org"
-   (interactive)
-   (let* ((push-command (list "sfdx" "force:source:deploy" "-p" buffer-file-name)))
+  "Push source salesforce to org"
+  (interactive)
+  (let* ((push-command (list sfmm:sfdx-lib-alias "force" "source" "deploy" "-p" buffer-file-name "--json")))
 
-    (sfdx--helper:execute-async-command push-command (format "Deploy %s success" buffer-file-name))))
+    (sfdx--helper:make-sync-process
+     :command push-command
+     :handle-success-lambda
+     `(lambda (process json-instance buffer)
+       (alert (format "Deploy %s success" ,buffer-file-name))
+              :title "Salesforce Alert")
+
+     :handle-error-lambda
+     `(lambda (process json-instance buffer)
+       (alert (format "Deploy %s failures:\n %s"
+                     ,buffer-file-name
+                     (sfdx--helper:get-errors-json json-instance)
+              :title "Salesforce Alert"))))))
 #+end_src
- * Note:
-   {
-  "status": 1,
-  "result": {
-    "checkOnly": false,
-    "completedDate": "2023-04-17T06:43:18.000Z",
-    "createdBy": "0055h000004vO83",
-    "createdByName": "Dreamforce Vietnam Info",
-    "createdDate": "2023-04-17T06:43:16.000Z",
-    "details": {
-      "componentFailures": [
-        {
-          "changed": false,
-          "columnNumber": 23,
-          "componentType": "ApexClass",
-          "created": false,
-          "createdDate": "2023-04-17T06:43:17.000Z",
-          "deleted": false,
-          "fileName": "classes/JICA_RegistrantUserEditCC.cls",
-          "fullName": "JICA_RegistrantUserEditCC",
-          "lineNumber": 1314,
-          "problem": "Field does not exist: Account__r on Contact",
-          "problemType": "Error",
-          "success": false
-        }
-      ],
-      "componentSuccesses": [
-        {
-          "changed": true,
-          "componentType": "",
-          "created": false,
-          "createdDate": "2023-04-17T06:43:18.000Z",
-          "deleted": false,
-          "fileName": "package.xml",
-          "fullName": "package.xml",
-          "success": true
-        }
-      ],
-      "runTestResult": {
-        "numFailures": 0,
-        "numTestsRun": 0,
-        "totalTime": 0,
-        "codeCoverage": [],
-        "codeCoverageWarnings": [],
-        "failures": [],
-        "flowCoverage": [],
-        "flowCoverageWarnings": [],
-        "successes": []
-      }
-    },
-    "done": true,
-    "id": "0Af1s00001EdG3DCAV",
-    "ignoreWarnings": false,
-    "lastModifiedDate": "2023-04-17T06:43:18.000Z",
-    "numberComponentErrors": 1,
-    "numberComponentsDeployed": 0,
-    "numberComponentsTotal": 1,
-    "numberTestErrors": 0,
-    "numberTestsCompleted": 0,
-    "numberTestsTotal": 0,
-    "rollbackOnError": false,
-    "runTestsEnabled": false,
-    "startDate": "2023-04-17T06:43:16.000Z",
-    "status": "Failed",
-    "success": false,
-    "deployedSource": [
-      {
-        "fullName": "JICA_RegistrantUserEditCC",
-        "type": "ApexClass",
-        "state": "Failed",
-        "error": "Field does not exist: Account__r on Contact (1314:23)",
-        "problemType": "Error",
-        "filePath": "/home/tan_nguyen/workspace/jica/force-app/main/default/classes/JICA_RegistrantUserEditCC.cls",
-        "lineNumber": 1314,
-        "columnNumber": 23
-      }
-    ],
-    "outboundFiles": [],
-    "deploys": [
-      {
-        "checkOnly": false,
-        "completedDate": "2023-04-17T06:43:18.000Z",
-        "createdBy": "0055h000004vO83",
-        "createdByName": "Dreamforce Vietnam Info",
-        "createdDate": "2023-04-17T06:43:16.000Z",
-        "details": {
-          "componentFailures": [
-            {
-              "changed": false,
-              "columnNumber": 23,
-              "componentType": "ApexClass",
-              "created": false,
-              "createdDate": "2023-04-17T06:43:17.000Z",
-              "deleted": false,
-              "fileName": "classes/JICA_RegistrantUserEditCC.cls",
-              "fullName": "JICA_RegistrantUserEditCC",
-              "lineNumber": 1314,
-              "problem": "Field does not exist: Account__r on Contact",
-              "problemType": "Error",
-              "success": false
-            }
-          ],
-          "componentSuccesses": [
-            {
-              "changed": true,
-              "componentType": "",
-              "created": false,
-              "createdDate": "2023-04-17T06:43:18.000Z",
-              "deleted": false,
-              "fileName": "package.xml",
-              "fullName": "package.xml",
-              "success": true
-            }
-          ],
-          "runTestResult": {
-            "numFailures": 0,
-            "numTestsRun": 0,
-            "totalTime": 0,
-            "codeCoverage": [],
-            "codeCoverageWarnings": [],
-            "failures": [],
-            "flowCoverage": [],
-            "flowCoverageWarnings": [],
-            "successes": []
-          }
-        },
-        "done": true,
-        "id": "0Af1s00001EdG3DCAV",
-        "ignoreWarnings": false,
-        "lastModifiedDate": "2023-04-17T06:43:18.000Z",
-        "numberComponentErrors": 1,
-        "numberComponentsDeployed": 0,
-        "numberComponentsTotal": 1,
-        "numberTestErrors": 0,
-        "numberTestsCompleted": 0,
-        "numberTestsTotal": 0,
-        "rollbackOnError": false,
-        "runTestsEnabled": false,
-        "startDate": "2023-04-17T06:43:16.000Z",
-        "status": "Failed",
-        "success": false,
-        "deployedSource": [
-          {
-            "fullName": "JICA_RegistrantUserEditCC",
-            "type": "ApexClass",
-            "state": "Failed",
-            "error": "Field does not exist: Account__r on Contact (1314:23)",
-            "problemType": "Error",
-            "filePath": "/home/tan_nguyen/workspace/jica/force-app/main/default/classes/JICA_RegistrantUserEditCC.cls",
-            "lineNumber": 1314,
-            "columnNumber": 23
-          }
-        ],
-        "outboundFiles": []
-      }
-    ]
-  }
-}
-*** RETRIEVE SOURCE SALESFORCE FROM ORG
+**** RETRIEVE SOURCE SALESFORCE FROM ORG
 #+begin_src emacs-lisp :tangle yes
 (defun sfmm:retrieve-file
     ()
-   "Retrieve source salesforce form org"
-   (interactive)
-   (let ((retrieve-command (list "sfdx" "force:source:retrieve" "-p" buffer-file-name)))
-
-    (sfdx--helper:execute-async-command retrieve-command (format "Retrieve %s success" buffer-file-name))))
-#+end_src
-*** AUTHORIZE SALESFORCE ORG
-#+begin_src emacs-lisp :tangle yes
-(defun sfdx--authorize:web (url)
-   "Authorize to salesforce org"
-   (let* ((alias (read-string "alias: "))
-          (authorize-command
-            (list "sfdx" "auth:web:login" "--setalias" alias "--instanceurl" url)))
-    (sfdx--helper:execute-async-command authorize-command "Authorize success")))
-#+end_src
-**** SCRATCH/SANBOX ORG
-#+begin_src emacs-lisp :tangle yes
-(defun sfmm:authorize-sandbox-org ()
-  "Authorize use for scratch org and sanbox org"
+  "Retrieve source salesforce form org"
   (interactive)
-  (let* ((url "https://test.salesforce.com"))
+  (let ((retrieve-command (list sfmm:sfdx-lib-alias "force" "source" "retrieve" "-p" buffer-file-name "--json")))
 
-    (sfdx--authorize:web url)))
-#+end_src
-**** PRODUCTION/DEV ORG
-#+begin_src emacs-lisp :tangle yes
-(defun sfmm:authorize-production-org ()
-  "Authorize use for dev org and production org"
-  (interactive)
-  (let* ((url "https://login.salesforce.com"))
+    (sfdx--helper:make-sync-process
+     :command retrieve-command
+     :handle-success-lambda
+     `(lambda (process json-instance buffer)
+        (alert (format "Retrieve %s success" ,buffer-file-name)
+               :title "Salesforce Alert"))
 
-    (sfdx--authorize:web url)))
+     :handle-error-lambda
+     `(lambda (process json-instance buffer)
+        (alert (format "Retrieve %s failures:\n %s"
+                       ,buffer-file-name
+                       (sfdx--helper:get-errors-json json-instance))
+               :title "Salesforce Alert")))))
 #+end_src
-
-*** FETCH SALESFORCE RECORDS
-**** SOQL STRING
-#+begin_src emacs-lisp :tangle yes
-(defun sfmm:fetch-record-through-soql ()
-  "Fetch salesforce record by calling API through Salesforce CLI library"
-  (interactive)
-  (let ((soql-string (read-string "SOQL: ")))
-
-    (sfdx--helper:execute-soql `((:query . ,soql-string) (:format . "json")))))
-#+end_src
-**** SOQL FILE
-#+begin_src emacs-lisp :tangle yes
-
-#+end_src
-*** EXECUTE APEX CODE
-#+begin_src emacs-lisp :tangle yes
-(defun sfmm:execute-apex-code ()
- (interactive)
- (sfdx--helper:execute-apex (point-min)))
-#+end_src
-*** INTERACTIVE SALESFORCE ORG
-**** OPEN ORG WITH USER NAME
+*** FUNCTIONS USE ORG PREFIX
+**** INTERACTIVE SALESFORCE ORG
+***** OPEN ORG WITH USER NAME
 #+begin_src emacs-lisp :tangle yes
 (defun sfmm:org-open ()
    "Use a specific user name to open org"
    (interactive)
-   (let ((user-name (ctbl:cmodel-p)
-          (ctbl:cp-get-selected-data-cell (ctbl:cp-get-component))))
+   (let ((user-name (ctbl:cp-get-selected-data-cell (ctbl:cp-get-component))))
 
      (unless user-name
-       (read-string "user-name: "))
+       (setq user-name (read-string "user-name: ")))
 
-     (sfdx--helper:execute-async-command
-      (list "sfdx" "force:org:open" "-u" user-name) "")))
+     (sfdx--helper:make-sync-process
+      :command
+      (sfdx--helper:generate-command (list "org" "open" "--json" "-o" user-name))
+      :handle-success-lambda
+      (lambda (process json-instance buffer)
+        (let ((url (sfdx--helper:get-data-hashtable "result.url" json-instance)))
+
+          (shell-command (concat sfmm:default-browser " " (format "%S" url) " " "&")))))))
 #+end_src
-**** SHOW ORG CONNECT STATUS
+**** DISPLAY ALL ORG
 #+begin_src emacs-lisp :tangle yes
-(defun sfmm:org-connect-status ()
+(defun sfmm:display-all-org (org-type)
+  "Display all current connect org"
+  (let ((command (sfdx--helper:generate-command (list sfmm:org-command-alias "list" "--json"))))
+
+    (sfdx--helper:make-sync-process
+     :command command
+     :handle-success-lambda
+     (lambda (process json-instance buffer)
+       (let ((start-index 1)
+             (column-header-map #s(hash-table test equal data ("No" ((:align . 'left) (:title . "No"))))))
+         (mapcar
+          (lambda (item)
+            (puthash
+             (format "%s" item)
+             `((:align . ,'left) (:title . ,item))
+             column-header-map))
+          (cond ((string= org-type "nonScratchOrgs") sfmm:non-scratch-org-header-display)
+                ((string= org-type "scratchOrgs")) sfmm:scratch-org-header-display))
+
+         (if (= (gethash "status" json-instance) 0)
+             (let* ((non-scratch-orgs
+                     (sfdx--helper:get-data-hashtable
+                      (concat "result." org-type) json-instance))
+                    (data
+                     (mapcar
+                      (lambda (element)
+                        (let ((row
+                               (sfdx--helper:convert-hashtable-data-to-list
+                                :hashtable-data element
+                                :columns
+                                (cond ((string= org-type "nonScratchOrgs") sfmm:non-scratch-org-header-display)
+                                      ((string= org-type "scratchOrgs")) sfmm:scratch-org-header-display)
+                                :post-process
+                                (lambda (key value)
+                                  (let ((column-config
+                                         `((:align . ,'left) (:title . ,key))))
+
+                                    (when (length> value 50)
+                                        (add-to-list 'column-config `(:max-width . ,'50))
+
+                                        (puthash (format "%s" key) column-config column-header-map)))))))
+
+                          (progn
+                            (add-to-list 'row start-index
+                                         nil (lambda (el1 el2) nil))
+                            (setq start-index
+                                  (1+ start-index))
+                            row)))
+                      non-scratch-orgs)))
+
+               (sfdx--build:make-table-component
+                :column-header (hash-table-values column-header-map)
+                :data data
+                :buffer buffer))))))))
+#+end_src
+***** NON SCRATCH ORG
+#+begin_src emacs-lisp :tangle yes
+(defun sfmm:display-all-non-scratch-orgs ()
+  (interactive)
+  (sfmm:display-all-org "nonScratchOrgs"))
+#+end_src
+***** SCRATCH ORG
+#+begin_src emacs-lisp :tangle yes
+(defun sfmm:display-all-scratch-orgs ()
+  (interactive)
+  (sfmm:display-all-org "scratchOrgs"))
+#+end_src
+**** TODO SHOW ORG CONNECT STATUS
+#+begin_src emacs-lisp :tangle yes
+(defun sf:org:connect-status ()
   "Check connect status to org"
-  (let ((display-org-information-command '("sfdx" "force:org:display" "--json")))
+  (let ((display-org-information-command (sfdx--helper:generate-command sfmm:org-command-alias "display" "--json")))
 
     (sfdx--helper:make-async-process
      display-org-information-command
      (lambda (process output buffer)
         (let* ((result-json (gethash "result" (json-parse-string output))))
-          (when
-             (string=
-              (gethash "connectedStatus" result-json) "RefreshTokenAuthError")
+          (when (string= (gethash "connectedStatus" result-json)
+                         "RefreshTokenAuthError")
             (alert "Token expired !!" :title "test")))))))
 #+end_src
-**** DISPLAY ALL ORG
-#+begin_src emacs-lisp :tangle yes
-(defun sfmm:display-org (org-type)
-  "Display all current connect org"
-  (interactive)
-  (let ((command '("sfdx" "force:org:list" "--json")))
-
-    (sfdx--helper:make-async-process
-     command
-     `(lambda (process output buffer)
-        (if (json-available-p)
-            (let ((json-instance (json-parse-string output))
-                  (start-index 1)
-                  (column-header-map #s(hash-table test equal data ("No" ((:align . 'left) (:title . "No"))))))
-              (mapcar
-               `(lambda (item)
-                  (puthash
-                   (format "%s" item)
-                   `((:align . ,'left) (:title . ,item))
-                   column-header-map))
-               sfmm:org-header-display)
-
-              (if (= (gethash "status" json-instance) 0)
-                  (let* ((non-scratch-orgs
-                          (sfdx--helper:get-data-hashtable
-                           (concat "result." org-type) json-instance))
-                         (data
-                          (mapcar
-                           (lambda (element)
-                             (let ((row
-                                    (sfdx--helper:convert-hashtable-data-to-list
-                                     :hashtable-data element
-                                     :columns
-                                     sfmm:org-header-display
-                                     :post-process
-                                     (lambda (key value)
-                                       (let ((column-config
-                                              `((:align . ,'left) (:title . ,key))))
-
-                                         (when (length> value 50)
-                                             (add-to-list 'column-config `(:max-width . ,'50)))
-
-                                         (puthash (format "%s" key) column-config column-header-map))))))
-
-                               (progn
-                                 (add-to-list 'row start-index
-                                             nil (lambda (el1 el2) nil))
-                                 (setq start-index
-                                       (1+ start-index))
-                                 row)))
-                           non-scratch-orgs)))
-
-                    (sfdx--build:make-table-component
-                               :column-header (hash-table-values column-header-map)
-                               :data data
-                               :buffer buffer)))))))))
-#+end_src
-***** NON SCRATCH ORG
-#+begin_src emacs-lisp :tangle yes
-(defun sfmm:display-all-non-scratch-orgs ()
-  (sfmm:display-org "nonScratchOrgs"))
-#+end_src
-***** SCRATCH ORG
-#+begin_src emacs-lisp :tangle yes
-(defun sfmm:display-all-scratch-orgs ()
-  (sfmm:display-org "scratchOrgs"))
-#+end_src
-**** GET DEFAULT ORG
+**** TODO GET DEFAULT ORG
 #+begin_src emacs-lisp :tangle yes
 (defun sfmm:org-default ()
   (if (and
@@ -461,6 +390,69 @@
   (interactive)
   (sfmm:org-default))
 #+end_src
+*** TODO AUTHORIZE SALESFORCE ORG
+#+begin_src emacs-lisp :tangle yes
+(defun sfdx--helper:org:login (url)
+   "Authorize to salesforce org"
+   (let* ((alias (read-string "alias: "))
+          (authorize-command
+            (sfdx--helper:generate-command (list sfmm:org-command-alias "login" "web" "-a" alias "--instanceurl" url "--set-default" "--json"))))
+    (sfdx--helper:make-async-process
+     :command
+     authorize-command
+     :handle-success-lambda
+     (lambda (process json-instance buffer)
+       (let ((user-name (sfdx--helper:get-data-hashtable "result.username" json-instance)))
+
+         (alert "Authorize success" :title "Salesforce Alert")
+         (sfdx--helper:make-sync-process
+          :command
+          (sfdx--helper:generate-command (list "org" "open" "--json" "-o" user-name))
+          :handle-success-lambda
+          (lambda (process json-instance buffer)
+            (let ((url (sfdx--helper:get-data-hashtable "result.url" json-instance)))
+
+              (shell-command (concat sfmm:default-browser " " (format "%S" url) " " "&"))))))))))
+#+end_src
+**** SCRATCH/SANBOX ORG
+#+begin_src emacs-lisp :tangle yes
+(defun sfmm:org:authorize-sandbox ()
+  "Authorize use for scratch org and sanbox org"
+  (interactive)
+  (let* ((url "https://test.salesforce.com"))
+
+    (sfdx--helper:org:login url)))
+#+end_src
+**** PRODUCTION/DEV ORG
+#+begin_src emacs-lisp :tangle yes
+(defun sfmm:org:authorize-production ()
+  "Authorize use for dev org and production org"
+  (interactive)
+  (let* ((url "https://login.salesforce.com"))
+
+    (sfdx--helper:org:login url)))
+#+end_src
+
+*** TODO EXECUTE APEX CODE
+#+begin_src emacs-lisp :tangle yes
+(defun sfmm:execute-apex-code ()
+ (interactive)
+ (sfdx--helper:execute-apex (point-min)))
+#+end_src
+*** FUNCTIONS SALESFORCE QUERY RECORDS
+**** SOQL STRING
+#+begin_src emacs-lisp :tangle yes
+(defun sfmm:fetch-record-through-soql ()
+  "Fetch salesforce record by calling API through Salesforce CLI library"
+  (interactive)
+  (let ((soql-string (read-string "SOQL: ")))
+
+    (sfdx--helper:execute-soql :query soql-string)))
+#+end_src
+**** SOQL FILE
+#+begin_src emacs-lisp :tangle yes
+
+#+end_src
 *** COMPARE LOCAL FILE WITH ORG FILE
 #+begin_src emacs-lisp :tangle yes
 (defun sfmm:fetch-salesforce-file
@@ -471,22 +463,127 @@
 
     ))
 #+end_src
+*** FUNCTIONCS GENERATE METADATA
+**** APEX CLASS
+#+begin_src emacs-lisp :tangle yes
+(defun sfmm:create-apex-class ()
+  "Generate apex class"
+  (interactive)
+  (let* ((class-name (read-string "class name: "))
+         (class-extend (read-string "class parent: "))
+         (class-implements (read-string "class implements: "))
+         (command (sfdx--helper:generate-command
+                   (list sfmm:apex-command-alias "generate" "class" "--name" class-name "--output-dir" (projectile-expand-root sfmm:default-apex-class-path "--json"))))
+         (class-expand ""))
+
+    (progn
+      (unless (string= class-extend "")
+        (setq class-expand (concat class-expand "extends" " " class-extend " ")))
+      (unless (string= class-implements "")
+        (setq class-expand (concat class-expand "implements" " " class-implements " "))))
+
+    (sfdx--helper:make-sync-process
+     :command command
+     :handle-success-lambda
+     `(lambda (process json-instance buffer)
+
+        (shell-command
+         ,(format "sed -ir 's/(public|private|global)\\s?(abstract|virtual)?\\s?(without sharing|with sharing)?\\s?(class|interface)\\s?(\\S*)/\0 %s/g' %s"
+                 (concat sfmm:default-apex-class-path "/" class-name ".cls")))))))
+#+end_src
+**** LIGHTNING METADATA
+#+begin_src emacs-lisp :tangle yes
+(cl-defun sfmm:lightning:generate
+    (&key type output-dir message-success (component-type ""))
+  ""
+  (let* ((component-name (read-string "lwc name: "))
+         (command (sfdx--helper:generate-command
+                    (list sfmm:lightning-command-alias "generate" "component" "--output-dir" output-dir "--name" component-name "--json"))))
+
+    (when (string= type "component")
+      (append command (list "--type" component-type)))
+
+    (sfdx--helper:make-sync-process
+     :command command
+     :handle-success-lambda
+     `(lambda (process json-instance buffer)
+        (alert (format message-success ,component-name)
+               :title "Salesforce Alert")))))
+#+end_src
+***** LWC
+#+begin_src emacs-lisp :tangle yes
+(defun sfmm:lightning-component:generate-lwc ()
+  ""
+  (interactive)
+  (sfmm:lightning:generate
+   :type "component"
+   :output-dir (projectile-expand-root sfmm:default-lwc-path)
+   :message-success "Create %s success"
+   :component-type "lwc"))
+#+end_src
+***** AURA
+#+begin_src emacs-lisp :tangle yes
+(defun sfmm:lightning-component:generate-aura ()
+  "Generate Aura Component"
+  (interactive)
+  (sfmm:lightning:generate
+   :type "component"
+   :output-dir (projectile-expand-root sfmm:default-aura-path)
+   :message-success "Create aura component %s success"
+   :component-type "aura"))
+#+end_src
+***** LIGHTNING APP
+#+begin_src emacs-lisp :tangle yes
+(defun sfmm:lightning-app:generate ()
+  "Create lightning app"
+  (interactive)
+  (sfmm:lightning:generate
+   :type "app"
+   :output-dir (projectile-expand-root sfmm:default-aura-path)
+   :message-success "Create app %s sucesss"))
+#+end_src
+***** EVENT
+#+begin_src emacs-lisp :tangle yes
+(defun sfmm:lightning-event:generate ()
+  "Create lightning event"
+  (interactive)
+  (sfmm:lightning:generate
+   :type "event"
+   :output-dir (projectile-expand-root sfmm:default-aura-path)))
+#+end_src
+***** INTERFACE
+#+begin_src emacs-lisp :tangle yes
+(defun sfmm:lightning-interface:generate ()
+  "Create lightning interface"
+  (interactive)
+  (sfmm:lightning:generate
+   :type "interface"
+   :output-dir (projectile-expand-root sfmm:default-aura-path)
+   :message-success "Create interface %s success"))
+#+end_src
+***** TEST
+#+begin_src emacs-lisp :tangle yes
+(defun sfmm:lightning-test:generate ()
+  "Create lightning test"
+  (interactive)
+  (sfmm:lightning:generate
+   :type "test"
+   :output-dir (projectile-expand-root sfmm:default-test-path)
+   :message-success "Create test %s sucess"))
+#+end_src
 ** HELPER FUNCTIONS
 *** EXECUTE APEX CODE
 #+begin_src emacs-lisp :tangle yes
 (defun sfdx--helper:execute-apex (content)
   "Execute code"
-  (let
-   ((code
-     (unless
-      content
-      (point-min)
-      content))
-    (temp-file (make-temp-file "temp_code")))
+  (let ((code (unless content
+               (point-min)
+               content))
+        (temp-file (make-temp-file "temp_code")))
 
    (write-region (point-min) (point-max) temp-file)
    (setq execute-apex-code-command
-     (list "sfdx" "force:apex:execute" "-f" temp-file))
+     (sfdx--helper:generate-command "apex" "run" "-f" temp-file))
 
    (async-shell-command execute-apex-code-command buffer)))
 #+end_src
@@ -503,123 +600,139 @@ This function execute [[https://developer.salesforce.com/docs/atlas.en-us.sfdx_c
 
 **** Body
 #+begin_src emacs-lisp :tangle yes
-(defun sfdx--helper:execute-soql (params-command)
+(cl-defun sfdx--helper:execute-soql (&key query (type 'string) (options '("--json")))
   "Excute command fetch records from Salesforce through API"
-  (let* ((param-support
-            '((:user . "-u")
-              (:api-version . "--apiversion")
-              (:query . "-q")
-              (:file . "-f")
-              (:format . "-r")))
-         (execute-soql-code
-          (append '("sfdx" "force:data:soql:query"))))
+  (progn
+    (cond ((string= type 'string)
+           (setq options (append options (list "--query" query))))
+          ((string= type 'file)
+           (setq options (append options (list "--file" query)))))
+    (let* ((execute-soql-code
+            (append (sfdx--helper:generate-command (list sfmm:data-command-alias "query"))
+                    options)))
 
-    (sfdx--helper:recursive-list
-      params-command
-      (lambda (item)
-        (let* ((key (car item)))
-          (when (assq key param-support)
-            (setq
-             execute-soql-code
-             (append
-              execute-soql-code
-              (list
-               (cdr (assq key param-support))
-               (cdr item))))))))
+      (sfdx--helper:make-sync-process
+       :command execute-soql-code
+       :handle-success-lambda
+       (lambda (process json-instance buffer)
+         (let* ((records-list (sfdx--helper:get-data-hashtable "result.records" json-instance))
+                (start-index 1)
+                (column-header-map #s(hash-table test equal data ("No" ((:align . 'left) (:title . "No")))))
+                (data
+                 (mapcar
+                  (lambda (element)
 
-    (sfdx--helper:make-async-process
-     execute-soql-code
-     `(lambda (process output buffer)
-            (if (json-available-p)
-                (let* ((json-instance (json-parse-string output)))
-                  (when (= (gethash "status" json-instance) 0)
-                        (let* ((records-list (sfdx--helper:get-data-hashtable "result.records" json-instance))
-                               (start-index 1)
-                               (column-header-map #s(hash-table test equal data ("No" ((:align . 'left) (:title . "No")))))
-                               (data
-                                 (mapcar
-                                  (lambda (element)
+                    (let ((row `(,start-index)))
+                      (maphash
+                       (lambda (key value)
+                         (let ((column-config `((:align . ,'left) (:title . ,key))))
+                           (unless (hash-table-p value)
+                             (when (eq value ':null)
+                               (setq value " "))
+                             (when (eq value ':false)
+                               (setq value "False"))
+                             (when (eq value 't)
+                               (setq value "True"))
 
-                                     (let ((row `(,start-index)))
-                                       (maphash
-                                        (lambda (key value)
-                                          (let ((column-config `((:align . ,'left) (:title . ,key))))
-                                            (unless (hash-table-p value)
-                                               (when (eq value ':null)
-                                                 (setq value " "))
-                                               (when (eq value ':false)
-                                                 (setq value "False"))
-                                               (when (eq value 't)
-                                                 (setq value "True"))
+                             (add-to-list 'row
+                                          (replace-regexp-in-string "\\([\n]\\)" "" value) 1
+                                          '(lambda (element1 element2) nil))
 
-                                               (add-to-list 'row
-                                                            (replace-regexp-in-string "\\([\n]\\)" "" value) 1
-                                                            '(lambda (element1 element2) nil))
+                             (when (length> value 50)
+                               (add-to-list 'column-config `(:max-width . ,'50)))
 
-                                               (when (length> value 50)
-                                                 (add-to-list 'column-config `(:max-width . ,'50)))
+                             (puthash (format "%s" key) column-config column-header-map))))
+                       element)
+                      (setq start-index (1+ start-index))
+                      row))
+                  records-list)))
+           (sfdx--build:make-table-component
+            :column-header (hash-table-values column-header-map)
+            :data data
+            :buffer buffer)))))))
 
-                                               (puthash (format "%s" key) column-config column-header-map))))
-                                        element)
-                                       (setq start-index (1+ start-index))
-                                       row))
-                                  records-list)))
-                          (sfdx--build:make-table-component
-                           :column-header (hash-table-values column-header-map)
-                           :data data
-                           :buffer buffer)))))))))
 #+end_src
 
 *** MAKE SYNCHRONOUS PROCESS
 + set readonly for overview buffer, edit the buffer through key-bind
 #+begin_src emacs-lisp :tangle yes
-(defun sfdx--helper:execute-process (command lambda-function)
-  (let* ((buffer-stdout (format "*%s*" "salesforce-api"))
-         (process-identity "salesforce-api")
-         (buffer-view-post-process (generate-new-buffer "Salesforce Overview"))
-         (process-output "")
-         (process
-          (make-process
-           :name process-identity
-           :buffer buffer-stdout
-           :command command
-           :connection-type 'pipe
-           :filter
-           (lambda (process output)
-             (setq process-output (concat process-output output))))))
-    (when (accept-process-output process))
-        ; clear old content
-    (with-current-buffer buffer-stdout
-      (setf (buffer-string) ""))
-    (funcall lambda-function process process-output buffer-view-post-process)))
+(cl-defun sfdx--helper:make-sync-process (&key command handle-success-lambda (handle-error-lambda))
+  (with-environment-variables (("NODE_NO_WARNINGS" "1"))
+
+    (let* ((buffer-stdout (generate-new-buffer "salesforce-process"))
+           (process-identity "salesforce-process")
+           (buffer-view-post-process (generate-new-buffer "Salesforce Overview"))
+           (process-output "")
+           (process
+            (make-process
+             :name process-identity
+             :buffer buffer-stdout
+             :command command
+             :connection-type 'pipe
+             :filter
+             (lambda (process output)
+               (setq process-output (concat process-output output)))
+             :sentinel
+             (lambda (process event)
+              (cond ((string= event "deleted\n")
+                     (kill-buffer (process-buffer process))))))))
+
+      (when (accept-process-output process))
+
+      (if (json-available-p)
+          (let ((json-instance (json-parse-string process-output)))
+            (if (= (gethash "status" json-instance) 0)
+                (funcall handle-success-lambda process json-instance buffer-view-post-process)
+              (if handle-error-lambda
+                  (funcall handle-error-lambda process json-instance buffer-view-post-process)
+
+                (alert (format "context: %s \nmessage: %s "
+                               (gethash "context" json-instance)
+                               (gethash "message" json-instance)
+                               :title "Salesforce Alert")))))))))
 #+end_src
 
 *** MAKE ASYNCHRONOUS PROCESS
 #+begin_src emacs-lisp :tangle yes
-(defun sfdx--helper:make-async-process (command lambda-function)
-  (let* ((buffer-command-history "salesforce-command-history")
-         (buffer-stdout (generate-new-buffer "salesforce-process"))
-         (process-identity "salesforce-process")
-         (buffer-view-post-process (generate-new-buffer "salesforce outcome")))
+(cl-defun sfdx--helper:make-async-process
+    (&key command handle-success-lambda handle-error-lambda)
+  "Make async process"
+  (let ((buffer-command-history "salesforce-command-history")
+        (buffer-stdout (generate-new-buffer "salesforce-process"))
+        (process-identity "salesforce-process")
+        (buffer-view-post-process (generate-new-buffer "salesforce outcome")))
 
-    (make-process
-     :name process-identity
-     :buffer buffer-command-history
-     :command command
-     :filter
-     `(lambda (process output)
-       (with-current-buffer ,buffer-stdout
-         (insert
-          (concat (buffer-string) output))))
-     :sentinel
-     `(lambda (process event)
-       (when (string= event "finished\n")
-         (let ((buffer-content ""))
+    (with-environment-variables (("NODE_NO_WARNINGS" "1"))
 
-           (with-current-buffer ,buffer-stdout
-             (setq buffer-content (buffer-string)))
-           (kill-buffer ,buffer-stdout)
-           (funcall ,lambda-function process buffer-content ,buffer-view-post-process)))))))
+      (make-process
+       :name process-identity
+       :buffer buffer-command-history
+       :command command
+       :filter
+       `(lambda (process output)
+          (with-current-buffer ,buffer-stdout
+             (insert
+              (concat (buffer-string) output))))
+       :sentinel
+       `(lambda (process event)
+          (cond ((string= event "finished\n")
+
+                 (with-current-buffer ,buffer-stdout
+                   (if (json-available-p)
+                       (let ((json-instance (json-parse-string (buffer-string))))
+
+                         (if (= (gethash "status" json-instance) 0)
+                             (funcall ,handle-success-lambda process json-instance ,buffer-view-post-process)
+
+                           (if ,handle-error-lambda
+                               (funcall ,handle-error-lambda process json-instance ,buffer-view-post-process)
+
+                             (alert (format "context: %s \nmessage: %s "
+                                            (gethash "context" json-instance)
+                                            (gethash "message" json-instance)
+                                            :title "Salesforce Alert"))))))))
+                ((string= event "deleted\n")
+                 (kill-buffer (process-buffer process)))))))))
 #+end_src
 
 *** TODO EXECUTE SYNCHRONOUS SALESFORCE COMMAND
@@ -627,7 +740,7 @@ This function execute [[https://developer.salesforce.com/docs/atlas.en-us.sfdx_c
 #+begin_src emacs-lisp :tangle yes
 (defun sfdx--helper:execute-command (command message-success)
 
-  (sfdx--helper:execute-process
+  (sfdx--helper:make-sync-process
    command
    `(lambda (process output buffer)
       (unless (string= message-success "")
@@ -635,13 +748,19 @@ This function execute [[https://developer.salesforce.com/docs/atlas.en-us.sfdx_c
 #+end_src
 *** EXECUTE ASYNCHRONOUS SALESFORCE COMMAND
 #+begin_src emacs-lisp :tangle yes
-(defun sfdx--helper:execute-async-command (command message-success)
+(cl-defun sfdx--helper:execute-async-command
+    (&key command (message-success "") (message-failures ""))
 
   (sfdx--helper:make-async-process
    command
    `(lambda (process output buffer)
-      (unless (string= ,message-success "")
-        (alert ,message-success :title "Salesforce Alert")))))
+      (let* ((json (json-parse-string output))
+             (is-success (sfdx--helper:get-data-hashtable "status" json)))
+
+        (if (= is-success 1)
+            (unless (string= ,message-success "")
+             (alert ,message-success :title "Salesforce Alert"))
+          (alert ,message-failures :title "Salesforce Alert"))))))
 #+end_src
 *** CONVERT HASHTABLE TO LIST DATA
 #+begin_src emacs-lisp :tangle yes
@@ -747,8 +866,8 @@ This function execute [[https://developer.salesforce.com/docs/atlas.en-us.sfdx_c
 #+end_src
 
 ** HELPERS FUNCTIONS
-*** KEY BINDING FUNCTIONS
-#+begin_src emacs-lisp :tangle yes
+	*** KEY BINDING FUNCTIONS
+	#+begin_src emacs-lisp :tangle yes
 (defun sfmm:binding--key (key)
   (kbd (concat sfmm:keymap-prefix " " key)))
 
@@ -771,11 +890,11 @@ This function execute [[https://developer.salesforce.com/docs/atlas.en-us.sfdx_c
 #+end_src
 *** HOOK FUNCTIONS
 #+begin_src emacs-lisp :tangle yes
-(defun sfmm:hook-on-handler ()
-  (setq org-default-alias (sfmm:org-default))
-  (when org-default-alias
-    (add-to-list 'mode-line-misc-info '(" " org-default-alias " "))
-    (sfmm:org-connect-status)))
+(defun sfmm:hook-on-handler ())
+  ;; (setq org-default-alias (sfmm:org-default))
+  ;; (when org-default-alias
+  ;;   (add-to-list 'mode-line-misc-info '(" " org-default-alias " "))
+  ;;   (sf:org:connect-status)))
 
 
 (defun sfmm:hook-off-handler ()
