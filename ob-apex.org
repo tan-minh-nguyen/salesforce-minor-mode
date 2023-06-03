@@ -134,14 +134,13 @@ specified by the user will be available in the PARAMS variable.
 ** EXECUTE APEX BLOCK CODE
 #+begin_src emacs-lisp :tangle yes
 (defun execute-async-apex (content)
-  (let*
-   ((uuid (org-id-uuid))
-    (current-buffer (buffer-file-name))
-    (buffer-name (format "*%s*" uuid))
-    (tempfile (make-temp-file "temp-code"))
-    (execute-apex-command
-      (list "sfdx" "force:apex:execute" "-f" tempfile))
-    process)
+  (let* ((uuid (org-id-uuid))
+         (current-buffer (buffer-file-name))
+         (buffer-name (format "*%s*" uuid))
+         (tempfile (make-temp-file "temp-code"))
+         (execute-apex-command
+           (list "sfdx" "force:apex:execute" "-f" tempfile))
+         process nil)
 
    (write-region content nil tempfile)
 
