@@ -30,6 +30,8 @@
       - [[#soql-file][SOQL FILE]]
     - [[#compare-local-file-with-org-file][COMPARE LOCAL FILE WITH ORG FILE]]
     - [[#functioncs-generate-metadata][FUNCTIONCS GENERATE METADATA]]
+      - [[#visualforce-page][VISUALFORCE PAGE]]
+      - [[#visualforce-component][VISUALFORCE COMPONENT]]
       - [[#apex-class][APEX CLASS]]
       - [[#lightning-metadata][LIGHTNING METADATA]]
     - [[#function-apex-test-01][FUNCTION APEX TEST]]
@@ -149,6 +151,11 @@
   :group 'command-alias)
 
 (defcustom sfmm:data-command-alias "data"
+  ""
+  :type 'string
+  :group 'command-alias)
+
+(defcustom sfmm:visualforce-command-alias "visualforce"
   ""
   :type 'string
   :group 'command-alias)
@@ -550,6 +557,40 @@
     ))
 #+end_src
 *** FUNCTIONCS GENERATE METADATA
+**** VISUALFORCE PAGE
+#+begin_src emacs-lisp :tangle yes
+(defun sfmm:visualforce:generate-page ()
+  (interactive)
+  (let* ((page-name (read-string "page name: "))
+         (page-label (read-string "page label: "))
+         (command (sfdx--helper:generate-command
+                   (list sfmm:visualforce-command-alias "generate" "page" "--name" page-name "--label" page-label))))
+
+    (sfdx--helper:make-sync-process
+     :command command
+     :handle-success-lambda
+     `(lambda (process json-instance buffer)
+
+        (alert (format "Create visualforce page" ,page-name)
+               :title "Salesforce Alert")))))
+#+end_src
+**** VISUALFORCE COMPONENT
+#+begin_src emacs-lisp :tangle yes
+(defun sfmm:visualforce:generate-component ()
+  (interactive)
+  (let* ((page-name (read-string "page name: "))
+         (page-label (read-string "page label: "))
+         (command (sfdx--helper:generate-command
+                   (list sfmm:visualforce-command-alias "generate" "component" "--name" page-name "--label" page-label))))
+
+    (sfdx--helper:make-sync-process
+     :command command
+     :handle-success-lambda
+     `(lambda (process json-instance buffer)
+
+        (alert (format "Create visualforce page" ,page-name)
+               :title "Salesforce Alert")))))
+#+end_src
 **** APEX CLASS
 #+begin_src emacs-lisp :tangle yes
 (defun sfmm:apex:generate-class ()
@@ -572,11 +613,14 @@
      :command command
      :handle-success-lambda
      `(lambda (process json-instance buffer)
-        (let* ((full-path-file (concat (projectile-expand-root ,sfmm:default-apex-class-path) "/" ,class-name ".cls"))
-               (replace-command (format "sed -ir 's/(public|private|global)\\s?(abstract|virtual)?\\s?(without sharing|with sharing)?\\s?(class|interface)\\s?(\\S*)/ test/g' %s"
-                                        full-path-file)))
+        (let ((full-path-file ,(concat (projectile-expand-root sfmm:default-apex-class-path) "/" class-name ".cls")))
 
-          (shell-command replace-command))))))
+          (with-current-buffer (org-open-file full-path-file)
+
+            (beginning-of-buffer)
+            (re-search-forward ,class-name)
+            (goto-char (+ (point) (length ,class-name)))
+            (insert ,class-expand)))))))
 #+end_src
 **** LIGHTNING METADATA
 #+begin_src emacs-lisp :tangle yes
@@ -1228,7 +1272,8 @@ This function execute [[https://developer.salesforce.com/docs/atlas.en-us.sfdx_c
 ** DEFAULT HEADER ARGS
 #+begin_src emacs-lisp :tangle ./ob-apex.el
 ;; optionally declare default header arguments for this language
-(defvar org-babel-default-header-args:apex '((:tangle . "yes")))
+(defvar org-babel-default-header-args:apex '((:tangle . "yes")
+                                             (:org . "")))
 #+end_src
 
 ** EXPAND SOURCE CODE
@@ -1316,7 +1361,6 @@ This function execute [[https://developer.salesforce.com/docs/atlas.en-us.sfdx_c
         (beginning-of-line)
         (kill-line)
         (insert (sfdx--helper:get-data-hashtable "result.logs" json-instance)))))))
-                  
 
 (defun binding-declare-variable (pair)
   (let* ((var
