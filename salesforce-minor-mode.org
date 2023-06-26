@@ -1,13 +1,13 @@
-#+title:     SALESFORCE-MONOR-MODE
+#+title:     SALESFORCE-MINOR-MODE
 #+author:    tan.nguyen
 #+email:     tan.nguyen@furucrm.com
 
 
 * TABLE OF CONTENTS :toc_4:
 - [[#minor-mode][MINOR MODE]]
-  - [[#requirement-library][REQUIREMENT LIBRARY]]
-  - [[#custom-define-variable][CUSTOM DEFINE VARIABLE]]
-  - [[#salesforce-utils-functions][SALESFORCE UTILS FUNCTIONS]]
+  - [[#requirement][REQUIREMENT]]
+  - [[#config-variable][CONFIG VARIABLE]]
+  - [[#salesforce-functions][SALESFORCE FUNCTIONS]]
     - [[#functions-use-force-prefix][FUNCTIONS USE FORCE PREFIX]]
       - [[#push-source-salesforce-to-org][PUSH SOURCE SALESFORCE TO ORG]]
       - [[#retrieve-source-salesforce-from-org][RETRIEVE SOURCE SALESFORCE FROM ORG]]
@@ -72,7 +72,7 @@
   - [[#filter-log-content][FILTER LOG CONTENT]]
 
 * MINOR MODE
-** REQUIREMENT LIBRARY
+** REQUIREMENT
 #+begin_src emacs-lisp :tangle yes
 (require 'alert)
 (require 'projectile)
@@ -81,7 +81,7 @@
 (require 'cl-lib)
 #+end_src
 
-** CUSTOM DEFINE VARIABLE
+** CONFIG VARIABLE
 #+begin_src emacs-lisp :tangle yes
 (defcustom sfmm:keymap-prefix "M-o"
   "The prefix for salesforce-mode key bindings."
@@ -213,7 +213,7 @@
  :group 'sfdx-config)
 #+end_src
 
-** SALESFORCE UTILS FUNCTIONS
+** SALESFORCE FUNCTIONS
 #+begin_src emacs-lisp :tangle yes
 (add-to-list
  'display-buffer-alist
@@ -455,6 +455,7 @@
                 records-list))))))))
 #+end_src
 **** PROJ APEX LOG
+***** GET LOG
 #+begin_src emacs-lisp :tangle yes
 (cl-defun sfmm:apex:get-log (&key log-id number org post-log-handle)
   "Get log apex"
@@ -473,11 +474,16 @@
 
         (setq json-result (gethash "result" json-instance))
         (funcall ,post-log-handle (gethash "log" (aref json-result 0)))))))
+#+end_src
+***** PROJ GET FILTER LOG
+#+begin_src emacs-lisp :tangle no
+(cl-defun sfmm:log:get-filter-log ()
+  "Get log with filter condition"
+  (interactive)
+  (let ((filter-type (read-string "Filter: "))
+        (log-id-or-number-log (read-string "Log id or number log: "))
+        (org (read-string "read-string")))))
 
-       ;; (with-current-buffer buffer
-       ;;   (beginning-of-buffer)
-       ;;   (insert log-content)
-       ;;   (toggle-read-only))))))
 #+end_src
 **** TODO EXECUTE APEX CODE
 #+begin_src emacs-lisp :tangle yes
@@ -641,7 +647,7 @@
   (let ((method-name (read-string "method name: ")))
 
     (end-of-buffer)
-    (previous-line)
+    (forward-line -1)
     (insert (format "\n%s\nprivate static void %s () {\n}"
                     "@isTest"
                     method-name))))
@@ -837,55 +843,54 @@ This function execute [[https://developer.salesforce.com/docs/atlas.en-us.sfdx_c
 #+begin_src emacs-lisp :tangle yes
 (cl-defun sfdx--helper:execute-soql (&key query (type 'string) (options '("--json")))
   "Excute command fetch records from Salesforce through API"
-  (progn
-    (cond ((string= type 'string)
-           (setq options (append options (list "--query" query))))
-          ((string= type 'file)
-           (setq options (append options (list "--file" query)))))
-    (let* ((execute-soql-code
-            (append (sfdx--helper:generate-command (list sfmm:data-command-alias "query"))
-                    options)))
+  (let* ((options
+          (cond ((equal type 'string)
+                 (list "--query" query))
+                ((equal type 'file)
+                 (list "--file" query))))
+         (execute-soql-code
+          (append (sfdx--helper:generate-command (list sfmm:data-command-alias "query"))
+                  options)))
 
-      (sfdx--helper:make-sync-process
-       :command execute-soql-code
-       :handle-success-lambda
-       (lambda (process json-instance buffer)
-         (let* ((records-list (sfdx--helper:get-data-hashtable "result.records" json-instance))
-                (start-index 1)
-                (column-header-map #s(hash-table test equal data ("No" ((:align . 'left) (:title . "No")))))
-                (data
-                 (mapcar
-                  (lambda (element)
+    (sfdx--helper:make-async-process
+     :command execute-soql-code
+     :handle-success-lambda
+     (lambda (process json-instance buffer)
+       (let* ((records-list (sfdx--helper:get-data-hashtable "result.records" json-instance))
+              (start-index 1)
+              (column-header-map #s(hash-table test equal data ("No" ((:align . 'left) (:title . "No")))))
+              (data
+               (mapcar
+                (lambda (element)
 
-                    (let ((row `(,start-index)))
-                      (maphash
-                       (lambda (key value)
-                         (let ((column-config `((:align . ,'left) (:title . ,key))))
-                           (unless (hash-table-p value)
-                             (when (eq value ':null)
-                               (setq value " "))
-                             (when (eq value ':false)
-                               (setq value "False"))
-                             (when (eq value 't)
-                               (setq value "True"))
+                  (let ((row `(,start-index)))
+                    (maphash
+                     (lambda (key value)
+                       (let ((column-config `((:align . ,'left) (:title . ,key))))
+                         (unless (hash-table-p value)
+                           (when (eq value ':null)
+                             (setq value " "))
+                           (when (eq value ':false)
+                             (setq value "False"))
+                           (when (eq value 't)
+                             (setq value "True"))
 
-                             (add-to-list 'row
-                                          (replace-regexp-in-string "\\([\n]\\)" "" value) 1
-                                          '(lambda (element1 element2) nil))
+                           (add-to-list 'row
+                                        (replace-regexp-in-string "\\([\n]\\)" "" value) 1
+                                        '(lambda (element1 element2) nil))
 
-                             (when (length> value 50)
-                               (add-to-list 'column-config `(:max-width . ,'50)))
+                           (when (length> value 50)
+                             (add-to-list 'column-config `(:max-width . ,'50)))
 
-                             (puthash (format "%s" key) column-config column-header-map))))
-                       element)
-                      (setq start-index (1+ start-index))
-                      row))
-                  records-list)))
-           (sfdx--build:make-table-component
-            :column-header (hash-table-values column-header-map)
-            :data data
-            :buffer buffer)))))))
-
+                           (puthash (format "%s" key) column-config column-header-map))))
+                     element)
+                    (setq start-index (1+ start-index))
+                    row))
+                records-list)))
+         (sfdx--build:make-table-component
+          :column-header (hash-table-values column-header-map)
+          :data data
+          :buffer buffer))))))
 #+end_src
 
 *** MAKE SYNCHRONOUS PROCESS
@@ -1681,8 +1686,6 @@ This function is called by `org-babel-execute-src-block'"
          (log-id (cdr (assq :log-id processed-params)))
          (org (cdr (assq :org processed-params)))
          (number (format "%s" (cdr (assq :number processed-params))))
-         (filter-type (upcase (cdr (assq :filter-type processed-params))))
-         (filter-value (cdr (assq :filter-value processed-params)))
          (buffer (current-buffer)))
 
          ;; (filterd-content (mapconcat
@@ -1703,46 +1706,55 @@ This function is called by `org-babel-execute-src-block'"
      :org org
      :post-log-handle
      `(lambda (log-content)
+        (let ((filter-type ,(upcase (cdr (assq :filter-type processed-params))))
+              (filter-value ,(cdr (assq :filter-value processed-params))))
 
-        (unless (string= ,filter-type "")
-           (setq log-content
-                 (mapconcat (lambda (line)
-                             (cond ((and (string= ,filter-type "DEBUG")
-                                         (search "DEBUG" line))
-                                    (concat line "\n"))
-                                   ((and (string= ,filter-type "FILTER")
-                                         (search ,filter-value line))
-                                    (concat line "\n"))
-                                   ((and (string= ,filter-type "EXECUTABLE")
-                                         (or (search "VARIABLE_ASSIGNMENT" line)
-                                             (search "STATEMENT_EXECUTE" line)
-                                             (search "METHOD_ENTRY" line)
-                                             (search "METHOD_EXIT" line)
-                                             (search "CONSTRUCTOR_EXIT" line)
-                                             (search "CODE_UNIT_STARTED" line)))
-                                    (concat line "\n"))
-                                   ((and (string= ,filter-type "SYSTEM")
-                                        (or (search "VARIABLE_SCOPE_BEGIN" line)
-                                            (search "USER_INFO" line)
-                                            (search "EXECUTION_STARTED" line)
-                                            (search "CODE_UNIT_STARTED" line)
-                                            (search "HEAP_ALLOCATE" line)
-                                            (search "STATEMENT_EXECUTE" line)
-                                            (search "METHOD_ENTRY" line)))
-                                    (concat line "\n"))
-                                   ((and (string= ,filter-type "GOVERNMENT")
-                                         (or (search "LIMIT_USAGE_FOR_NS" line)
-                                             (search "Number of" line)
-                                             (search "Maximum CPU" line)
-                                             (search "Maximum heap" line)))
-                                    (concat line "\n"))))
-                           (split-string log-content "\n")
-                           "")))
+          (unless (or (equal filter-type "none"
+                       (null filter-type)))
+             (let ((debug-keywords '("DEBUG"))
+                   (executable-keywords '("VARIABLE_ASSIGNMENT"
+                                          "STATEMENT_EXECUTE"
+                                          "METHOD_ENTRY"
+                                          "CONSTRUCTOR_EXIT"
+                                          "CODE_UNIT_STARTED"))
+                   (system-keywords '("VARIABLE_SCOPE_BEGIN"
+                                      "USER_INFO"
+                                      "EXECUTION_STARTED"
+                                      "CODE_UNIT_STARTED"
+                                      "HEAP_ALLOCATE"
+                                      "STATEMENT_EXECUTE"
+                                      "METHOD_ENTRY"))
+                   (groverment-keywords '("LIMIT_USAGE_FOR_NS"
+                                          "Number of"
+                                          "Maximum CPU"
+                                          "Maximum heap")))
+
+                (setq log-content
+                      (mapconcat (lambda (line)
+                                   (cond ((and (equal filter-type "DEBUG")
+                                               (string-match (regexp-opt debug-keywords) line))
+
+                                          (concat line "\n"))
+                                         ((and (equal filter-type "FILTER")
+                                               (search filter-value line))
+                                          (concat line "\n"))
+                                         ((and (equal filter-type "EXECUTABLE")
+                                               (string-match (regexp-opt executable-keywords) line))
+                                          (concat line "\n"))
+                                         ((and (equal filter-type "SYSTEM")
+                                               (string-match (regexp-opt system-keywords) line))
+
+                                          (concat line "\n"))
+                                         ((and (eq filter-type "GOVERNMENT")
+                                               (match-string (regexp-opt groverment-keywords) line))
+                                          (concat line "\n"))))
+                                (split-string log-content "\n")
+                                "")))))
 
         (with-current-buffer ,buffer
           (beginning-of-buffer)
           (re-search-forward ,uuid)
-          (previous-line)
+          (forward-line -1)
           (newline)
           (insert (concat "|-------------------LOG--------------------------|"
                    "\n" log-content))
