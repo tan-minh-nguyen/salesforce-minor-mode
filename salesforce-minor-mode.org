@@ -6,7 +6,7 @@
 * TABLE OF CONTENTS :toc_4:
 - [[#minor-mode][MINOR MODE]]
   - [[#requirement][REQUIREMENT]]
-  - [[#config-variable][CONFIG VARIABLE]]
+  - [[#config-variable][Config variable]]
   - [[#salesforce-functions][SALESFORCE FUNCTIONS]]
     - [[#functions-use-force-prefix][FUNCTIONS USE FORCE PREFIX]]
       - [[#push-source-salesforce-to-org][PUSH SOURCE SALESFORCE TO ORG]]
@@ -19,20 +19,22 @@
       - [[#get-default-org][GET DEFAULT ORG]]
       - [[#refresh-org][REFRESH ORG]]
     - [[#functions-use-apex-prefix][FUNCTIONS USE APEX PREFIX]]
-      - [[#idea-apex-logs][IDEA APEX LOGS]]
-      - [[#proj-apex-log][PROJ APEX LOG]]
+      - [[#apex-logs][APEX LOGS]]
+      - [[#apex-log][Apex Log]]
       - [[#execute-apex-code][EXECUTE APEX CODE]]
-    - [[#functions-use-login-prefix][FUNCTIONS USE LOGIN PREFIX]]
-      - [[#scratchsanbox-org][SCRATCH/SANBOX ORG]]
-      - [[#productiondev-org][PRODUCTION/DEV ORG]]
-    - [[#functions-salesforce-query-records][FUNCTIONS SALESFORCE QUERY RECORDS]]
-      - [[#soql-string][SOQL STRING]]
-      - [[#soql-file][SOQL FILE]]
-    - [[#compare-local-file-with-org-file][COMPARE LOCAL FILE WITH ORG FILE]]
+    - [[#functions-use-login-prefix][Functions use login prefix]]
+      - [[#scratchsanbox-org][Scratch/Sanbox org]]
+      - [[#productiondev-org][Production/Dev org]]
+      - [[#custom-instance-url-org][Custom instance url org]]
+    - [[#functions-salesforce-query-records][Functions salesforce query records]]
+      - [[#soql-string][SOQL string]]
+      - [[#soql-file][SOQL file]]
+    - [[#compare-local-file-with-org-file][Compare local file with org file]]
     - [[#functioncs-generate-metadata][FUNCTIONCS GENERATE METADATA]]
       - [[#visualforce-page][VISUALFORCE PAGE]]
       - [[#visualforce-component][VISUALFORCE COMPONENT]]
-      - [[#apex-class][APEX CLASS]]
+      - [[#apex-trigger][Apex trigger]]
+      - [[#apex-class][Apex class]]
       - [[#lightning-metadata][LIGHTNING METADATA]]
     - [[#function-apex-test-01][FUNCTION APEX TEST]]
       - [[#run-all-tests-class][RUN ALL TESTS CLASS]]
@@ -51,20 +53,22 @@
     - [[#convert-hashtable-to-list-data][CONVERT HASHTABLE TO LIST DATA]]
     - [[#custom-map-list-function][CUSTOM MAP LIST FUNCTION]]
     - [[#extract-data-in-hashtable][EXTRACT DATA IN HASHTABLE]]
-  - [[#build-table-functions][BUILD TABLE FUNCTIONS]]
-    - [[#build-ctable-component][BUILD CTABLE COMPONENT]]
-    - [[#build-ctable-header-table][BUILD CTABLE HEADER TABLE]]
+  - [[#build-table-functions][Build table functions]]
+    - [[#build-ctable-component][Build ctable component]]
+    - [[#build-ctable-header][Build ctable header]]
+    - [[#build-ctable-data][Build ctable data]]
+    - [[#site-list][Site list]]
   - [[#helpers-functions][HELPERS FUNCTIONS]]
     - [[#key-binding-functions][KEY BINDING FUNCTIONS]]
     - [[#hook-functions][HOOK FUNCTIONS]]
   - [[#define-minor-mode][DEFINE MINOR MODE]]
 - [[#org-babel-apex][ORG BABEL APEX]]
-  - [[#dependencies][DEPENDENCIES]]
+  - [[#dependencies][Dependencies]]
   - [[#extensions][Extensions]]
-  - [[#default-header-args][DEFAULT HEADER ARGS]]
-  - [[#expand-source-code][EXPAND SOURCE CODE]]
-  - [[#evaluate-apex-code][EVALUATE APEX CODE]]
-  - [[#execute-apex-block-code][EXECUTE APEX BLOCK CODE]]
+  - [[#default-header-args][Default Header Args]]
+  - [[#expand-rource-code][Expand Rource Code]]
+  - [[#evaluate-apex-code][Evaluate Apex Code]]
+  - [[#execute-apex-block-code][Execute Apex Block Code]]
 - [[#log-mode][LOG MODE]]
 - [[#org-babel-apex-log][ORG BABEL APEX LOG]]
   - [[#dependencies-1][DEPENDENCIES]]
@@ -84,7 +88,7 @@
 (require 'cl-lib)
 #+end_src
 
-** CONFIG VARIABLE
+** Config variable
 #+begin_src emacs-lisp :tangle yes
 (defcustom sfmm:keymap-prefix "M-o"
   "The prefix for salesforce-mode key bindings."
@@ -194,6 +198,11 @@
   "Browser use for open url"
   :type 'string
   :group 'sfdx-cli)
+
+(defcustom sfmm:default-apex-trigger-path "force-app/main/default/triggers"
+ "Path save apex classes"
+ :type 'string
+ :group 'sfdx-config)
 
 (defcustom sfmm:default-apex-class-path "force-app/main/default/classes"
  "Path save apex classes"
@@ -407,14 +416,14 @@
   (sfmm:org:show-current-org))
 #+end_src
 *** FUNCTIONS USE APEX PREFIX
-**** IDEA APEX LOGS
+**** APEX LOGS
 #+begin_src emacs-lisp :tangle no
 (defun sfmm:apex:get-all-log ()
   "Get log apex"
   (interactive)
   (let ((command (sfmm--helper:generate-command (list sfmm:apex-command-alias "list" "log" "--json"))))
 
-    (sfmm--helper:make-sync-process
+    (sfmm--helper:make-async-process
      :command command
      :handle-success-lambda
      (lambda (process json-instance buffer)
@@ -429,29 +438,17 @@
                     (maphash
                      (lambda (key value)
                        (let ((column-config `((:align . ,'left) (:title . ,key))))
-                         (unless (hash-table-p value)
-                           (when (eq value ':null)
-                             (setq value " "))
-                           (when (eq value ':false)
-                             (setq value "False"))
-                           (when (eq value 't)
-                             (setq value "True"))
 
-                           (add-to-list 'row
-                                        (replace-regexp-in-string "\\([\n]\\)" "" value) 1
-                                        '(lambda (element1 element2) nil))
+                           (add-to-list 'row value)
 
-                           (when (length> value 50)
-                             (add-to-list 'column-config `(:max-width . ,'50)))
-
-                           (puthash (format "%s" key) column-config column-header-map))))
+                           (puthash (format "%s" key) column-config column-header-map)))
                      element)
                     (setq start-index (1+ start-index))
                     row))
                 records-list))))))))
 #+end_src
-**** PROJ APEX LOG
-***** GET LOG
+**** Apex Log
+***** Get Log
 #+begin_src emacs-lisp :tangle yes
 (cl-defun sfmm:apex:get-log (&key log-id number org post-log-handle)
   "Get log apex"
@@ -487,7 +484,7 @@
  (interactive)
  (sfmm--helper:execute-apex (point-min)))
 #+end_src
-*** FUNCTIONS USE LOGIN PREFIX
+*** Functions use login prefix
 #+begin_src emacs-lisp :tangle yes
 (defun sfmm--helper:org:login (url)
    "Authorize to salesforce org"
@@ -511,7 +508,7 @@
 
               (shell-command (concat sfmm:default-browser " " (format "%S" url) " " "&"))))))))))
 #+end_src
-**** SCRATCH/SANBOX ORG
+**** Scratch/Sanbox org
 #+begin_src emacs-lisp :tangle yes
 (defun sfmm:org:authorize-sandbox ()
   "Authorize use for scratch org and sanbox org"
@@ -520,7 +517,7 @@
 
     (sfmm--helper:org:login url)))
 #+end_src
-**** PRODUCTION/DEV ORG
+**** Production/Dev org
 #+begin_src emacs-lisp :tangle yes
 (defun sfmm:org:authorize-production ()
   "Authorize use for dev org and production org"
@@ -530,8 +527,18 @@
     (sfmm--helper:org:login url)))
 #+end_src
 
-*** FUNCTIONS SALESFORCE QUERY RECORDS
-**** SOQL STRING
+**** Custom instance url org
+#+begin_src emacs-lisp :tangle yes
+(defun sfmm:org:authorize-custom-url ()
+  "Authorize use custom instance url for org"
+  (interactive)
+  (let* ((url (read-string "url: ")))
+
+    (sfmm--helper:org:login url)))
+#+end_src
+
+*** Functions salesforce query records
+**** SOQL string
 #+begin_src emacs-lisp :tangle yes
 (defun sfmm:fetch-record-through-soql ()
   "Fetch salesforce record by calling API through Salesforce CLI library"
@@ -540,11 +547,11 @@
 
     (sfmm--helper:execute-soql :query soql-string)))
 #+end_src
-**** SOQL FILE
+**** SOQL file
 #+begin_src emacs-lisp :tangle yes
 
 #+end_src
-*** COMPARE LOCAL FILE WITH ORG FILE
+*** Compare local file with org file
 #+begin_src emacs-lisp :tangle yes
 (defun sfmm:fetch-salesforce-file
     ()
@@ -589,7 +596,32 @@
         (alert (format "Create visualforce page" ,page-name)
                :title "Salesforce Alert")))))
 #+end_src
-**** APEX CLASS
+**** Apex trigger
+#+begin_src emacs-lisp
+(defun sfmm:apex:generate-trigger ()
+  "Generate apex class"
+  (interactive)
+  (let* ((class-name (read-string "class name: "))
+         (sobject-name (read-string "sobject name: "))
+         (events-name (read-string "event name: "))
+         (command (sfmm--helper:generate-command
+                   (list sfmm:apex-command-alias "generate" "trigger" "--name" class-name "--output-dir" (projectile-expand-root sfmm:default-apex-trigger-path) "--json")))
+         (class-expand ""))
+
+    (sfmm--helper:make-async-process
+     :command command
+     :handle-success-lambda
+     `(lambda (process json-instance buffer)
+        (let ((full-path-file ,(concat (projectile-expand-root sfmm:default-apex-class-path) "/" class-name ".trigger")))
+          (with-current-buffer (find-file full-path-file)
+            (when ,sobject-name
+                (re-search-forward "SOBJECT")
+                (replace-match ,sobject-name))
+            (when ,events-name
+                (re-search-forward "beforce insert")
+                (replace-match ,events-name))))))))
+#+end_src
+**** Apex class
 #+begin_src emacs-lisp :tangle yes
 (defun sfmm:apex:generate-class ()
   "Generate apex class"
@@ -867,7 +899,7 @@ This function execute [[https://developer.salesforce.com/docs/atlas.en-us.sfdx_c
     + format: format for result return from API
 
 #+begin_src emacs-lisp :tangle yes
-(cl-defun sfmm--helper:execute-soql (&key query (type 'string) (options '("--json")))
+(cl-defun sfmm--helper:execute-soql (&key query (type 'string) options)
   "Excute command fetch records from Salesforce through API"
   (let* ((options
           (cond ((equal type 'string)
@@ -875,7 +907,7 @@ This function execute [[https://developer.salesforce.com/docs/atlas.en-us.sfdx_c
                 ((equal type 'file)
                  (list "--file" query))))
          (execute-soql-code
-          (append (sfmm--helper:generate-command (list sfmm:data-command-alias "query"))
+          (append (sfmm--helper:generate-command (list sfmm:data-command-alias "query" "--json"))
                   options)))
 
     (sfmm--helper:make-async-process
@@ -883,38 +915,16 @@ This function execute [[https://developer.salesforce.com/docs/atlas.en-us.sfdx_c
      :handle-success-lambda
      (lambda (process json-instance buffer)
        (let* ((records-list (sfmm--helper:get-data-hashtable "result.records" json-instance))
-              (start-index 1)
-              (column-header-map #s(hash-table test equal data ("No" ((:align . 'left) (:title . "No")))))
-              (data
-               (mapcar
-                (lambda (element)
-
-                  (let ((row `(,start-index)))
-                    (maphash
-                     (lambda (key value)
-                       (let ((column-config `((:align . ,'left) (:title . ,key))))
-                         (unless (hash-table-p value)
-                           (when (eq value ':null)
-                             (setq value " "))
-                           (when (eq value ':false)
-                             (setq value "False"))
-                           (when (eq value 't)
-                             (setq value "True"))
-
-                           (add-to-list 'row
-                                        (replace-regexp-in-string "\\([\n]\\)" "" value) 1
-                                        '(lambda (element1 element2) nil))
-
-                           (when (length> value 50)
-                             (add-to-list 'column-config `(:max-width . ,'50)))
-
-                           (puthash (format "%s" key) column-config column-header-map))))
-                     element)
-                    (setq start-index (1+ start-index))
-                    row))
-                records-list)))
+              (header-columns (hash-table-keys (aref records-list 0)))
+              (data (sfdx--build:make-data-table-from-vector
+                     :header-columns header-columns
+                     :data records-list)))
+         (debug data)
          (sfdx--build:make-table-component
-          :column-header (hash-table-values column-header-map)
+          :column-header
+          (cl-loop for key in header-columns
+                   when (not (string= key "attributes"))
+                   collect `((:align . ,'left) (:title . ,key) `(:max-width . ,'50)))
           :data data
           :buffer buffer))))))
 #+end_src
@@ -961,12 +971,16 @@ This function execute [[https://developer.salesforce.com/docs/atlas.en-us.sfdx_c
 *** MAKE ASYNCHRONOUS PROCESS
 #+begin_src emacs-lisp :tangle yes
 (cl-defun sfmm--helper:make-async-process
-    (&key command handle-success-lambda handle-error-lambda)
+    (&key command buffer-name handle-success-lambda handle-error-lambda)
   "Make async process"
   (let ((buffer-command-history "salesforce-command-history")
         (buffer-stdout (generate-new-buffer "salesforce-process"))
         (process-identity "salesforce-process")
-        (buffer-view-post-process (generate-new-buffer "salesforce outcome"))
+        (buffer-view-post-process (cond ((or (null buffer-name)
+                                             (string= buffer-name ""))
+                                         (generate-new-buffer "salesforce outcome"))
+                                        (buffer-name
+                                         (generate-new-buffer buffer-name))))
         (process-output ""))
 
     (with-environment-variables (("NODE_NO_WARNINGS" "1"))
@@ -1100,8 +1114,8 @@ This function execute [[https://developer.salesforce.com/docs/atlas.en-us.sfdx_c
 
      (gethash key table))))
 #+end_src
-** BUILD TABLE FUNCTIONS
-*** BUILD CTABLE COMPONENT
+** Build table functions
+*** Build ctable component
 #+begin_src emacs-lisp :tangle yes
 (cl-defun sfdx--build:make-table-component (&key column-header data buffer)
   "Use ctable to build table data"
@@ -1119,7 +1133,7 @@ This function execute [[https://developer.salesforce.com/docs/atlas.en-us.sfdx_c
       (beginning-of-buffer)
       (read-only-mode))))
 #+end_src
-*** BUILD CTABLE HEADER TABLE
+*** Build ctable header
 #+begin_src emacs-lisp :tangle yes
 (defun sfdx--build:make-header-table (column)
   "Build header ctable"
@@ -1144,7 +1158,54 @@ This function execute [[https://developer.salesforce.com/docs/atlas.en-us.sfdx_c
      :max-width max-width
      :align align)))
 #+end_src
+*** Build ctable data
+#+begin_src emacs-lisp :tangle yes
+(cl-defun sfdx--build:make-data-table-from-vector
+    (&key header-columns data (enable-count-rows t))
+  "Build data from input hash table and header-columns"
+  (cl-loop for i below (length data)
+           with row
+           do (cl-block 'iteration
+                (let ((row-count (+ i 1))
+                      (item (aref data i)))
 
+                  (push (mapcar (lambda (header-column)
+                                 (let ((column-data (gethash header-column item)))
+
+                                   (cond ((or (eq column-data ':null)
+                                              (eq column-data 'nil)
+                                              (hash-table-p column-data))
+                                          " ")
+                                         ((eq column-data ':false)
+                                          "False")
+                                         ((eq column-data 't)
+                                          "True")
+                                         (t column-data))))
+                                header-columns)
+                        row)))
+
+           collect row))
+(sfdx--build:make-data-table-from-vector
+ :header-columns '("Id", "Name")
+ :data (json-parse-string "[{\"attributes\":{\"type\":\"Account\",\"url\":\"\/services\/data\/v58.0\/sobjects\/Account\/0012w00001O0ntRAAR\"},\"Id\":\"0012w00001O0ntRAAR\",\"Name\":\"Edge Communications\"},{\"attributes\":{\"type\":\"Account\",\"url\":\"\/services\/data\/v58.0\/sobjects\/Account\/0012w00001O0ntSAAR\"},\"Id\":\"0012w00001O0ntSAAR\",\"Name\":\"Burlington Textiles Corp of America\"},{\"attributes\":{\"type\":\"Account\",\"url\":\"\/services\/data\/v58.0\/sobjects\/Account\/0012w00001O0ntTAAR\"},\"Id\":\"0012w00001O0ntTAAR\",\"Name\":\"Pyramid Construction Inc.\"},{\"attributes\":{\"type\":\"Account\",\"url\":\"\/services\/data\/v58.0\/sobjects\/Account\/0012w00001O0ntUAAR\"},\"Id\":\"0012w00001O0ntUAAR\",\"Name\":\"Dickenson plc\"},{\"attributes\":{\"type\":\"Account\",\"url\":\"\/services\/data\/v58.0\/sobjects\/Account\/0012w00001O0ntVAAR\"},\"Id\":\"0012w00001O0ntVAAR\",\"Name\":\"Grand Hotels & Resorts Ltd\"},{\"attributes\":{\"type\":\"Account\",\"url\":\"\/services\/data\/v58.0\/sobjects\/Account\/0012w00001O0ntWAAR\"},\"Id\":\"0012w00001O0ntWAAR\",\"Name\":\"United Oil & Gas Corp.\"},{\"attributes\":{\"type\":\"Account\",\"url\":\"\/services\/data\/v58.0\/sobjects\/Account\/0012w00001O0ntXAAR\"},\"Id\":\"0012w00001O0ntXAAR\",\"Name\":\"Express Logistics and Transport\"},{\"attributes\":{\"type\":\"Account\",\"url\":\"\/services\/data\/v58.0\/sobjects\/Account\/0012w00001O0ntYAAR\"},\"Id\":\"0012w00001O0ntYAAR\",\"Name\":\"University of Arizona\"},{\"attributes\":{\"type\":\"Account\",\"url\":\"\/services\/data\/v58.0\/sobjects\/Account\/0012w00001O0ntbAAB\"},\"Id\":\"0012w00001O0ntbAAB\",\"Name\":\"GenePoint\"},{\"attributes\":{\"type\":\"Account\",\"url\":\"\/services\/data\/v58.0\/sobjects\/Account\/0012w00001O0ntcAAB\"},\"Id\":\"0012w00001O0ntcAAB\",\"Name\":\"sForce\"},{\"attributes\":{\"type\":\"Account\",\"url\":\"\/services\/data\/v58.0\/sobjects\/Account\/0012w00001O0ntdAAB\"},\"Id\":\"0012w00001O0ntdAAB\",\"Name\":\"Sample Account for Entitlements\"},{\"attributes\":{\"type\":\"Account\",\"url\":\"\/services\/data\/v58.0\/sobjects\/Account\/0012w00001O0ntZAAR\"},\"Id\":\"0012w00001O0ntZAAR\",\"Name\":\"United Oil & Gas, UK\"},{\"attributes\":{\"type\":\"Account\",\"url\":\"\/services\/data\/v58.0\/sobjects\/Account\/0012w00001O0ntaAAB\"},\"Id\":\"0012w00001O0ntaAAB\",\"Name\":\"United Oil & Gas, Singapore\"}]"))
+#+end_src
+
+#+RESULTS:
+| (0012w00001O0ntRAAR  ) |                        |                        |                        |                        |                        |                        |                        |                        |                        |                        |                        |                        |
+| (0012w00001O0ntSAAR  ) | (0012w00001O0ntRAAR  ) |                        |                        |                        |                        |                        |                        |                        |                        |                        |                        |                        |
+| (0012w00001O0ntTAAR  ) | (0012w00001O0ntSAAR  ) | (0012w00001O0ntRAAR  ) |                        |                        |                        |                        |                        |                        |                        |                        |                        |                        |
+| (0012w00001O0ntUAAR  ) | (0012w00001O0ntTAAR  ) | (0012w00001O0ntSAAR  ) | (0012w00001O0ntRAAR  ) |                        |                        |                        |                        |                        |                        |                        |                        |                        |
+| (0012w00001O0ntVAAR  ) | (0012w00001O0ntUAAR  ) | (0012w00001O0ntTAAR  ) | (0012w00001O0ntSAAR  ) | (0012w00001O0ntRAAR  ) |                        |                        |                        |                        |                        |                        |                        |                        |
+| (0012w00001O0ntWAAR  ) | (0012w00001O0ntVAAR  ) | (0012w00001O0ntUAAR  ) | (0012w00001O0ntTAAR  ) | (0012w00001O0ntSAAR  ) | (0012w00001O0ntRAAR  ) |                        |                        |                        |                        |                        |                        |                        |
+| (0012w00001O0ntXAAR  ) | (0012w00001O0ntWAAR  ) | (0012w00001O0ntVAAR  ) | (0012w00001O0ntUAAR  ) | (0012w00001O0ntTAAR  ) | (0012w00001O0ntSAAR  ) | (0012w00001O0ntRAAR  ) |                        |                        |                        |                        |                        |                        |
+| (0012w00001O0ntYAAR  ) | (0012w00001O0ntXAAR  ) | (0012w00001O0ntWAAR  ) | (0012w00001O0ntVAAR  ) | (0012w00001O0ntUAAR  ) | (0012w00001O0ntTAAR  ) | (0012w00001O0ntSAAR  ) | (0012w00001O0ntRAAR  ) |                        |                        |                        |                        |                        |
+| (0012w00001O0ntbAAB  ) | (0012w00001O0ntYAAR  ) | (0012w00001O0ntXAAR  ) | (0012w00001O0ntWAAR  ) | (0012w00001O0ntVAAR  ) | (0012w00001O0ntUAAR  ) | (0012w00001O0ntTAAR  ) | (0012w00001O0ntSAAR  ) | (0012w00001O0ntRAAR  ) |                        |                        |                        |                        |
+| (0012w00001O0ntcAAB  ) | (0012w00001O0ntbAAB  ) | (0012w00001O0ntYAAR  ) | (0012w00001O0ntXAAR  ) | (0012w00001O0ntWAAR  ) | (0012w00001O0ntVAAR  ) | (0012w00001O0ntUAAR  ) | (0012w00001O0ntTAAR  ) | (0012w00001O0ntSAAR  ) | (0012w00001O0ntRAAR  ) |                        |                        |                        |
+| (0012w00001O0ntdAAB  ) | (0012w00001O0ntcAAB  ) | (0012w00001O0ntbAAB  ) | (0012w00001O0ntYAAR  ) | (0012w00001O0ntXAAR  ) | (0012w00001O0ntWAAR  ) | (0012w00001O0ntVAAR  ) | (0012w00001O0ntUAAR  ) | (0012w00001O0ntTAAR  ) | (0012w00001O0ntSAAR  ) | (0012w00001O0ntRAAR  ) |                        |                        |
+| (0012w00001O0ntZAAR  ) | (0012w00001O0ntdAAB  ) | (0012w00001O0ntcAAB  ) | (0012w00001O0ntbAAB  ) | (0012w00001O0ntYAAR  ) | (0012w00001O0ntXAAR  ) | (0012w00001O0ntWAAR  ) | (0012w00001O0ntVAAR  ) | (0012w00001O0ntUAAR  ) | (0012w00001O0ntTAAR  ) | (0012w00001O0ntSAAR  ) | (0012w00001O0ntRAAR  ) |                        |
+| (0012w00001O0ntaAAB  ) | (0012w00001O0ntZAAR  ) | (0012w00001O0ntdAAB  ) | (0012w00001O0ntcAAB  ) | (0012w00001O0ntbAAB  ) | (0012w00001O0ntYAAR  ) | (0012w00001O0ntXAAR  ) | (0012w00001O0ntWAAR  ) | (0012w00001O0ntVAAR  ) | (0012w00001O0ntUAAR  ) | (0012w00001O0ntTAAR  ) | (0012w00001O0ntSAAR  ) | (0012w00001O0ntRAAR  ) |
+
+*** Site list
 #+begin_src emacs-lisp :tangle yes
 (defun sfmm:site:list ()
   ""
@@ -1249,7 +1310,7 @@ This function execute [[https://developer.salesforce.com/docs/atlas.en-us.sfdx_c
 
 #+end_src
 * ORG BABEL APEX
-** DEPENDENCIES
+** Dependencies
 #+begin_src emacs-lisp :tangle ./ob-apex.el
 ;;; ob-template.el --- org-babel functions for template evaluation
 
@@ -1336,7 +1397,7 @@ This function execute [[https://developer.salesforce.com/docs/atlas.en-us.sfdx_c
 (add-to-list 'org-babel-tangle-lang-exts '("cls" . "apex"))
 #+end_src
 
-** DEFAULT HEADER ARGS
+** Default Header Args
 #+begin_src emacs-lisp :tangle ./ob-apex.el
 ;; optionally declare default header arguments for this language
 (defvar org-babel-default-header-args:apex '((:results . "none")
@@ -1351,7 +1412,7 @@ This function execute [[https://developer.salesforce.com/docs/atlas.en-us.sfdx_c
                                                     (:log-filter-value . "none")))
 #+end_src
 
-** EXPAND SOURCE CODE
+** Expand Rource Code
 #+begin_src emacs-lisp :tangle ./ob-apex.el
 ;; This function expands the body of a source code block by doing things like
 ;; prepending argument definitions to the body, it should be called by the
@@ -1372,7 +1433,7 @@ This function execute [[https://developer.salesforce.com/docs/atlas.en-us.sfdx_c
      "\n" body "\n")))
 #+end_src
 
-** EVALUATE APEX CODE
+** Evaluate Apex Code
 #+begin_src emacs-lisp :tangle ./ob-apex.el
 ;; This is the main function which is called to evaluate a code
 ;; block.
@@ -1400,7 +1461,7 @@ This function execute [[https://developer.salesforce.com/docs/atlas.en-us.sfdx_c
     (execute-apex-code processed-params full-body)))
 #+end_src
 
-** EXECUTE APEX BLOCK CODE
+** Execute Apex Block Code
 #+begin_src emacs-lisp :tangle ./ob-apex.el
 (defun execute-apex-code (processed-params content)
   (let* ((uuid (org-id-uuid))
@@ -1428,9 +1489,10 @@ This function execute [[https://developer.salesforce.com/docs/atlas.en-us.sfdx_c
                      uuid
                      uuid)))
 
-   
+
    (sfmm--helper:make-async-process
     :command command
+    :buffer-name uuid
     :handle-success-lambda
     `(lambda (process json-instance buffer)
 
@@ -1484,7 +1546,7 @@ This function execute [[https://developer.salesforce.com/docs/atlas.en-us.sfdx_c
 
            (with-current-buffer (find-file-noselect ,buffer)
              (beginning-of-buffer)
-             (re-search-forward ,uuid)
+             (re-search-forward ,uuid nil t 2)
              (delete-line)
 
              (insert log-content)))

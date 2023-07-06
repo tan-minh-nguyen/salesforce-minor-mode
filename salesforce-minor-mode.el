@@ -113,6 +113,11 @@
   :type 'string
   :group 'sfdx-cli)
 
+(defcustom sfmm:default-apex-trigger-path "force-app/main/default/triggers"
+ "Path save apex classes"
+ :type 'string
+ :group 'sfdx-config)
+
 (defcustom sfmm:default-apex-class-path "force-app/main/default/classes"
  "Path save apex classes"
  :type 'string
@@ -350,6 +355,13 @@
   "Authorize use for dev org and production org"
   (interactive)
   (let* ((url "https://login.salesforce.com"))
+
+    (sfmm--helper:org:login url)))
+
+(defun sfmm:org:authorize-custom-url ()
+  "Authorize use custom instance url for org"
+  (interactive)
+  (let* ((url (read-string "url: ")))
 
     (sfmm--helper:org:login url)))
 
@@ -615,7 +627,7 @@ emacs make-process pipe  "Execute code"
 
    (async-shell-command execute-apex-code-command buffer)))
 
-(cl-defun sfmm--helper:execute-soql (&key query (type 'string) (options '("--json")))
+(cl-defun sfmm--helper:execute-soql (&key query (type 'string) options)
   "Excute command fetch records from Salesforce through API"
   (let* ((options
           (cond ((equal type 'string)
@@ -623,7 +635,7 @@ emacs make-process pipe  "Execute code"
                 ((equal type 'file)
                  (list "--file" query))))
          (execute-soql-code
-          (append (sfmm--helper:generate-command (list sfmm:data-command-alias "query"))
+          (append (sfmm--helper:generate-command (list sfmm:data-command-alias "query" "--json"))
                   options)))
 
     (sfmm--helper:make-async-process
@@ -631,38 +643,16 @@ emacs make-process pipe  "Execute code"
      :handle-success-lambda
      (lambda (process json-instance buffer)
        (let* ((records-list (sfmm--helper:get-data-hashtable "result.records" json-instance))
-              (start-index 1)
-              (column-header-map #s(hash-table test equal data ("No" ((:align . 'left) (:title . "No")))))
-              (data
-               (mapcar
-                (lambda (element)
-
-                  (let ((row `(,start-index)))
-                    (maphash
-                     (lambda (key value)
-                       (let ((column-config `((:align . ,'left) (:title . ,key))))
-                         (unless (hash-table-p value)
-                           (when (eq value ':null)
-                             (setq value " "))
-                           (when (eq value ':false)
-                             (setq value "False"))
-                           (when (eq value 't)
-                             (setq value "True"))
-
-                           (add-to-list 'row
-                                        (replace-regexp-in-string "\\([\n]\\)" "" value) 1
-                                        '(lambda (element1 element2) nil))
-
-                           (when (length> value 50)
-                             (add-to-list 'column-config `(:max-width . ,'50)))
-
-                           (puthash (format "%s" key) column-config column-header-map))))
-                     element)
-                    (setq start-index (1+ start-index))
-                    row))
-                records-list)))
+              (header-columns (hash-table-keys (aref records-list 0)))
+              (data (sfdx--build:make-data-table-from-vector
+                     :header-columns header-columns
+                     :data records-list)))
+         (debug data)
          (sfdx--build:make-table-component
-          :column-header (hash-table-values column-header-map)
+          :column-header
+          (cl-loop for key in header-columns
+                   when (not (string= key "attributes"))
+                   collect `((:align . ,'left) (:title . ,key) `(:max-width . ,'50)))
           :data data
           :buffer buffer))))))
 
@@ -702,12 +692,16 @@ emacs make-process pipe  "Execute code"
                                :title "Salesforce Alert")))))))))
 
 (cl-defun sfmm--helper:make-async-process
-    (&key command handle-success-lambda handle-error-lambda)
+    (&key command buffer-name handle-success-lambda handle-error-lambda)
   "Make async process"
   (let ((buffer-command-history "salesforce-command-history")
         (buffer-stdout (generate-new-buffer "salesforce-process"))
         (process-identity "salesforce-process")
-        (buffer-view-post-process (generate-new-buffer "salesforce outcome"))
+        (buffer-view-post-process (cond ((or (null buffer-name)
+                                             (string= buffer-name ""))
+                                         (generate-new-buffer "salesforce outcome"))
+                                        (buffer-name
+                                         (generate-new-buffer buffer-name))))
         (process-output ""))
 
     (with-environment-variables (("NODE_NO_WARNINGS" "1"))
@@ -866,6 +860,28 @@ emacs make-process pipe  "Execute code"
      :min-width min-width
      :max-width max-width
      :align align)))
+
+(cl-defun sfdx--build:make-data-table-from-vector
+    (&key header-columns data (enable-count-rows t))
+  "Build data from input hash table and header-columns"
+  (cl-loop for i below (length data)
+               for row-count = (+ i 1)
+               for header-column in header-columns
+               for item = (aref data i)
+               for column-data = (gethash header-column item)
+               collect (cond ((or (eq column-data ':null)
+                                  (eq column-data 'nil)
+                                  (hash-table-p column-data))
+                              " ")
+                             ((eq column-data ':false)
+                              "False")
+                             ((eq column-data 't)
+                              "True")
+                             (t column-data))
+                       into row-data
+           finally (return (if enable-count-rows
+                                (append (list row-count) row-data)
+                               row-data))))
 
 (defun sfmm:site:list ()
   ""

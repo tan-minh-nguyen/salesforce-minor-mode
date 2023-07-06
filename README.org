@@ -1,0 +1,22 @@
+#+title:    Salesforce-Minor-Mode
+
+* Table Of Contents :toc_1:
+- [[#dependencies][Dependencies]]
+- [[#quick-setup][Quick Setup]]
+- [[#features][Features]]
+
+* Dependencies
++ [[https://developer.salesforce.com/docs/atlas.en-us.sfdx_setup.meta/sfdx_setup/sfdx_setup_install_cli.htm#sfdx_setup_install_cli_npm][Salesforce CLI]]
+
+* Quick Setup
+** Doom Package
+#+begin_src emacs-lisp
+(use-package! salesforce-miner-mode
+   :recipe (:host github :repo "furucrm-minhtan/salesforce-minor-mode" :fiels ("*.el")))
+#+end_src
+* Features
+** Deploy metadata [:white_check_mark:]
+** Retrieve metadata [:white_check_mark:]
+** Open default org [:white_check_mark:]
+** Run test class [:white_check_mark:]
+** Run all test class [:white_check_mark:]

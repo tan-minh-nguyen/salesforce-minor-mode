@@ -160,9 +160,10 @@
                      uuid
                      uuid)))
 
-   
+
    (sfmm--helper:make-async-process
     :command command
+    :buffer-name uuid
     :handle-success-lambda
     `(lambda (process json-instance buffer)
 
@@ -216,7 +217,7 @@
 
            (with-current-buffer (find-file-noselect ,buffer)
              (beginning-of-buffer)
-             (re-search-forward ,uuid)
+             (re-search-forward ,uuid nil t 2)
              (delete-line)
 
              (insert log-content)))
