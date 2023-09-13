@@ -80,16 +80,22 @@
 (add-to-list 'org-babel-tangle-lang-exts '("cls" . "apex"))
 
 ;; optionally declare default header arguments for this language
-(defvar org-babel-default-header-args:apex '((:results . "none")
-                                             (:org . "")
-                                             (:log-filter-type . "none")
-                                             (:log-filter-value . "none")))
+(defvar org-babel-default-header-args:apex (list '(:results . "none")
+                                                 '(:org . "")
+                                                 '(:log-filter-type . "none")
+                                                 '(:log-filter-value . "none")))
+                                                  ;; (assq-delete-all :session org-babel-default-header-args:apex)
+                                                  ;; (assq-delete-all :noweb org-babel-default-header-args:apex)
+                                                  ;; (assq-delete-all :cache org-babel-default-header-args:apex)
+                                                  ;; (assq-delete-all :hlines org-babel-default-header-args:apex)))
 
 
-(defvar org-babel-default-inline-header-args:apex '((:results . "none")
-                                                    (:org . "")
-                                                    (:log-filter-type . "none")
-                                                    (:log-filter-value . "none")))
+(defvar org-babel-default-inline-header-args:apex (list '(:results . "none")
+                                                        '(:org . "")
+                                                        '(:log-filter-type . "none")
+                                                        '(:log-filter-value . "none")))
+                                                         ;; (assq-delete-all :session org-babel-default-header-args:apex)
+                                                         ;; (assq-delete-all :hlines org-babel-default-header-args:apex)))
 
 ;; This function expands the body of a source code block by doing things like
 ;; prepending argument definitions to the body, it should be called by the
@@ -127,6 +133,7 @@
 ;; specified by the user will be available in the PARAMS variable.
 
 (defun org-babel-execute:apex (body params)
+  ""
   (let* ((processed-params (org-babel-process-params params))
          (filter-type (assq :filter-type processed-params))
          (full-body (org-babel-expand-body:apex
@@ -135,6 +142,7 @@
     (execute-apex-code processed-params full-body)))
 
 (defun execute-apex-code (processed-params content)
+  ""
   (let* ((uuid (org-id-uuid))
          (buffer (buffer-file-name))
          (tempfile (make-temp-file "temp-code"))
@@ -226,6 +234,7 @@
                 :title "Salesforce Alert"))))))
 
 (defun binding-declare-variable (pair)
+  ""
   (let* ((var
           (split-string
             (format "%s"(car pair)) "\\."))

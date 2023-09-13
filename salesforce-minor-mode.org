@@ -4,24 +4,26 @@
 
 
 * TABLE OF CONTENTS :toc_4:
-- [[#minor-mode][MINOR MODE]]
-  - [[#requirement][REQUIREMENT]]
+- [[#minor-mode][Minor Mode]]
+  - [[#requirements][Requirements]]
   - [[#config-variable][Config variable]]
   - [[#salesforce-functions][SALESFORCE FUNCTIONS]]
-    - [[#functions-use-force-prefix][FUNCTIONS USE FORCE PREFIX]]
-      - [[#push-source-salesforce-to-org][PUSH SOURCE SALESFORCE TO ORG]]
-      - [[#retrieve-source-salesforce-from-org][RETRIEVE SOURCE SALESFORCE FROM ORG]]
-    - [[#functions-use-org-prefix][FUNCTIONS USE ORG PREFIX]]
-      - [[#open-org-within-ctable][OPEN ORG WITHIN CTABLE]]
-      - [[#open-org-project][OPEN ORG PROJECT]]
-      - [[#display-all-org][DISPLAY ALL ORG]]
+    - [[#project-prefix-functions][Project prefix functions]]
+      - [[#create-project][Create project]]
+    - [[#functions-use-force-prefix][Functions use force prefix]]
+      - [[#push-source-salesforce-to-org][Push source salesforce to org]]
+      - [[#retrieve-source-salesforce-from-org][Retrieve source salesforce from org]]
+    - [[#functions-use-org-prefix][Functions use org prefix]]
+      - [[#open-org-within-ctable][Open org within ctable]]
+      - [[#open-org-project][Open org project]]
+      - [[#display-all-org][Display all org]]
       - [[#show-org-connect-status][SHOW ORG CONNECT STATUS]]
       - [[#get-default-org][GET DEFAULT ORG]]
       - [[#refresh-org][REFRESH ORG]]
-    - [[#functions-use-apex-prefix][FUNCTIONS USE APEX PREFIX]]
-      - [[#apex-logs][APEX LOGS]]
+    - [[#functions-use-apex-prefix][Functions use apex prefix]]
+      - [[#apex-logs][Apex logs]]
       - [[#apex-log][Apex Log]]
-      - [[#execute-apex-code][EXECUTE APEX CODE]]
+      - [[#execute-apex-code][Execute apex code]]
     - [[#functions-use-login-prefix][Functions use login prefix]]
       - [[#scratchsanbox-org][Scratch/Sanbox org]]
       - [[#productiondev-org][Production/Dev org]]
@@ -30,24 +32,23 @@
       - [[#soql-string][SOQL string]]
       - [[#soql-file][SOQL file]]
     - [[#compare-local-file-with-org-file][Compare local file with org file]]
-    - [[#functioncs-generate-metadata][FUNCTIONCS GENERATE METADATA]]
-      - [[#visualforce-page][VISUALFORCE PAGE]]
-      - [[#visualforce-component][VISUALFORCE COMPONENT]]
+    - [[#functioncs-generate-metadata][Functioncs Generate Metadata]]
+      - [[#visualforce-page][Visualforce Page]]
+      - [[#visualforce-component][Visualforce Component]]
       - [[#apex-trigger][Apex trigger]]
       - [[#apex-class][Apex class]]
-      - [[#lightning-metadata][LIGHTNING METADATA]]
+      - [[#lightning-metadata][Lightning Metadata]]
     - [[#function-apex-test-01][FUNCTION APEX TEST]]
       - [[#run-all-tests-class][RUN ALL TESTS CLASS]]
       - [[#run-local-test-classes][RUN LOCAL TEST CLASSES]]
       - [[#--run-specific-unit-test][[ ] RUN SPECIFIC UNIT TEST]]
     - [[#run-lwc-local-server][RUN LWC LOCAL SERVER]]
-  - [[#internal-functions][INTERNAL FUNCTIONS]]
-    - [[#get-errors][GET ERRORS]]
-    - [[#generate-command][GENERATE COMMAND]]
+  - [[#internal-functions][Internal functions]]
+    - [[#generate-command][Generate command]]
     - [[#execute-apex-code-1][EXECUTE APEX CODE]]
-    - [[#excute-soql-block][EXCUTE SOQL BLOCK]]
-    - [[#make-synchronous-process][MAKE SYNCHRONOUS PROCESS]]
-    - [[#make-asynchronous-process][MAKE ASYNCHRONOUS PROCESS]]
+    - [[#excute-soql-block][Excute soql block]]
+    - [[#make-synchronous-process][Make synchronous process]]
+    - [[#make-asynchronous-process][Make asynchronous process]]
     - [[#execute-synchronous-salesforce-command][EXECUTE SYNCHRONOUS SALESFORCE COMMAND]]
     - [[#execute-asynchronous-salesforce-command][EXECUTE ASYNCHRONOUS SALESFORCE COMMAND]]
     - [[#convert-hashtable-to-list-data][CONVERT HASHTABLE TO LIST DATA]]
@@ -62,25 +63,20 @@
     - [[#key-binding-functions][KEY BINDING FUNCTIONS]]
     - [[#hook-functions][HOOK FUNCTIONS]]
   - [[#define-minor-mode][DEFINE MINOR MODE]]
-- [[#org-babel-apex][ORG BABEL APEX]]
-  - [[#dependencies][Dependencies]]
-  - [[#extensions][Extensions]]
-  - [[#default-header-args][Default Header Args]]
-  - [[#expand-rource-code][Expand Rource Code]]
-  - [[#evaluate-apex-code][Evaluate Apex Code]]
-  - [[#execute-apex-block-code][Execute Apex Block Code]]
 - [[#log-mode][LOG MODE]]
 - [[#org-babel-apex-log][ORG BABEL APEX LOG]]
-  - [[#dependencies-1][DEPENDENCIES]]
-  - [[#define-headers][DEFINE HEADERS]]
-  - [[#expand-body-apex-log][EXPAND BODY APEX LOG]]
-  - [[#execute-apex-log][EXECUTE APEX LOG]]
-  - [[#run-test-class][RUN TEST CLASS]]
-  - [[#filter-log-content][FILTER LOG CONTENT]]
+  - [[#dependencies][Dependencies]]
+  - [[#define-headers][Define Headers]]
+  - [[#expand-body-apex-log][Expand Body Apex Log]]
+  - [[#execute-apex-log][Execute Apex Log]]
+  - [[#run-test-class][Run test class]]
+  - [[#filter-log-content][Filter Log Content]]
 
-* MINOR MODE
-** REQUIREMENT
+* Minor Mode
+** Requirements
 #+begin_src emacs-lisp :tangle yes
+;;; Salesforce minor mode -- add sf cli to emacs
+
 (require 'alert)
 (require 'projectile)
 (require 'ctable)
@@ -96,22 +92,22 @@
   :group 'salesforce)
 
 (defcustom sfmm:org-keymap-prefix "O"
-  "The keymap prefix for Org function"
+  "The keymap prefix for Org function."
   :type 'string
   :group 'salesforce)
 
 (defcustom sfmm:auth-keymap-prefix "A"
-  "The keymap prefix for Auth function"
+  "The keymap prefix for Auth function."
   :type 'string
   :group 'salesforce)
 
 (defcustom sfmm:apex-keymap-prefix "C"
-  "The keymap prefix for Apex function"
+  "The keymap prefix for Apex function."
   :type 'string
   :group 'salesforce)
 
 (defcustom sfmm:query-keymap-prefix "Q"
-  "The keymap prefix for Database function"
+  "The keymap prefix for Database function."
   :type 'string
   :group 'salesforce)
 
@@ -121,7 +117,7 @@
   :group 'salesforce)
 
 (defcustom sfmm:api-version nil
-  "Custom define api version for command"
+  "Custom define api version for command."
    :type 'string
    :group 'salesforce-cli)
 
@@ -219,6 +215,16 @@
  :type 'string
  :group 'sfdx-config)
 
+(defcustom sfmm:default-vf-path "force-app/main/default/pages"
+ "Path save visualforce page"
+ :type 'string
+ :group 'sfdx-config)
+
+(defcustom sfmm:default-vf-components-path "force-app/main/default/components"
+ "Path save visualforce page"
+ :type 'string
+ :group 'sfdx-config)
+
 (defcustom sfmm:default-test-path "force-app/main/default/lightningTests"
  "Path save test components"
  :type 'string
@@ -232,31 +238,81 @@
   '("salesforce api.*" . (display-buffer-no-window . nil)))
 
 #+end_src
+*** Project prefix functions
+**** Create project
+#+begin_src emacs-lisp :tangle yes
+(defun sfmm:project:create ()
+  "Create dx project"
+  (let ((project-path (read-string "project-path: "))
+        (project-name (read-string "project-name: "))
+        (command (sfmm--helper:generate-command
+                  (list sfmm:project-command-alias "generate"
+                                                   "--name"
+                                                   project-name
+                                                   "--default-package-dir"
+                                                   (cond (project-path
+                                                          project-path)
+                                                         (dired-directory
+                                                          (concat dired-directory
+                                                                  project-path))
+                                                         (t
+                                                          "."))))))
 
-*** FUNCTIONS USE FORCE PREFIX
-**** PUSH SOURCE SALESFORCE TO ORG
+    (sfmm--helper:make-async-process
+     :command command
+     :handle-success-lambda
+     `(lambda (process json-instance buffer)
+        (let ((project-output (sfmm--helper:get-data-hashtable "result.outputDir" json-instance)))
+
+          (alert "Create Project Success"
+                 :title "Salesforce Alert"))))))
+#+end_src
+*** Functions use force prefix
+**** Push source salesforce to org
 #+begin_src emacs-lisp :tangle yes
 (defun sfmm:push-file
     ()
-  "Push source salesforce to org"
+  "Push metadata salesforce to org"
   (interactive)
-  (let* ((push-command (list sfmm:sfdx-lib-alias "force" "source" "deploy" "-p" buffer-file-name "--json")))
+  (let* ((file-name (buffer-file-name))
+         (push-command (list sfmm:sfdx-lib-alias "force" "source" "deploy" "-p" file-name "--json")))
 
     (sfmm--helper:make-async-process
      :command push-command
      :handle-success-lambda
      `(lambda (process json-instance buffer)
-       (alert (format "Deploy %s success" ,buffer-file-name)
-              :title "Salesforce Alert"))
-
+        (alert (format "Deploy %s success" ,file-name)
+               :title "Salesforce Alert"))
      :handle-error-lambda
-     `(lambda (process json-instance buffer)
-       (alert (format "Deploy %s failures:\n %s"
-                     ,buffer-file-name
-                     (sfmm--helper:get-errors-json json-instance)
-               :title "Salesforce Alert"))))))
+     (lambda (process json-instance buffer)
+       (let ((show-message "")
+             (error-name (gethash "name" json-instance))
+             (error-message (gethash "message" json-instance)))
+
+         (cond ((and error-name
+                     error-message)
+                (setq show-message (format "Name: %s\nMessage: \n%s\n")))
+               (t
+                (setq show-message (mapconcat (lambda (component)
+                                               (let ((problem (gethash "error" component))
+                                                     (problem-type (gethash "problemType" component))
+                                                     (line-number (gethash "lineNumber" component))
+                                                     (file-name (gethash "filePath" component)))
+
+                                                 (format "Problem-type: %s\nProblem: %s\n%s:%s"
+                                                         problem-type
+                                                         problem
+                                                         file-name
+                                                         line-number)))
+
+                                             (sfmm--helper:get-data-hashtable "result.deployedSource" json-instance)
+                                             "\n"))))
+
+         (alert show-message
+                :title "Salesforce Alert"
+                :category 'error))))))
 #+end_src
-**** RETRIEVE SOURCE SALESFORCE FROM ORG
+**** Retrieve source salesforce from org
 #+begin_src emacs-lisp :tangle yes
 (defun sfmm:retrieve-file
     ()
@@ -271,8 +327,8 @@
         (alert (format "Retrieve %s success" ,buffer-file-name)
                :title "Salesforce Alert")))))
 #+end_src
-*** FUNCTIONS USE ORG PREFIX
-**** OPEN ORG WITHIN CTABLE
+*** Functions use org prefix
+**** Open org within ctable
 #+begin_src emacs-lisp :tangle yes
 (defun sfmm:org:specific-open ()
    "Use a specific user name to open org"
@@ -295,7 +351,7 @@
                                  url)))))))
 #+end_src
 
-**** OPEN ORG PROJECT
+**** Open org project
 #+begin_src emacs-lisp :tangle yes
 (defun sfmm:org:default-open ()
    "Open default org"
@@ -311,7 +367,7 @@
           (shell-command (concat sfmm:default-browser " " (format "%S" url) " " "&")))))))
 #+end_src
 
-**** DISPLAY ALL ORG
+**** Display all org
 #+begin_src emacs-lisp :tangle yes
 (defun sfmm:display-all-org (org-type)
   "Display all current connect org"
@@ -415,8 +471,8 @@
   (interactive)
   (sfmm:org:show-current-org))
 #+end_src
-*** FUNCTIONS USE APEX PREFIX
-**** APEX LOGS
+*** Functions use apex prefix
+**** Apex logs
 #+begin_src emacs-lisp :tangle no
 (defun sfmm:apex:get-all-log ()
   "Get log apex"
@@ -468,7 +524,7 @@
         (setq json-result (gethash "result" json-instance))
         (funcall ,post-log-handle (gethash "log" (aref json-result 0)))))))
 #+end_src
-***** PROJ GET FILTER LOG
+***** PROJ Get filter log
 #+begin_src emacs-lisp :tangle no
 (cl-defun sfmm:log:get-filter-log ()
   "Get log with filter condition"
@@ -478,7 +534,7 @@
         (org (read-string "read-string")))))
 
 #+end_src
-**** TODO EXECUTE APEX CODE
+**** TODO Execute apex code
 #+begin_src emacs-lisp :tangle yes
 (defun sfmm:execute-apex-code ()
  (interactive)
@@ -561,15 +617,15 @@
 
     ))
 #+end_src
-*** FUNCTIONCS GENERATE METADATA
-**** VISUALFORCE PAGE
+*** Functioncs Generate Metadata
+**** Visualforce Page
 #+begin_src emacs-lisp :tangle yes
 (defun sfmm:visualforce:generate-page ()
   (interactive)
   (let* ((page-name (read-string "page name: "))
          (page-label (read-string "page label: "))
          (command (sfmm--helper:generate-command
-                   (list sfmm:visualforce-command-alias "generate" "page" "--name" page-name "--label" page-label))))
+                   (list sfmm:visualforce-command-alias "generate" "page" "--json" "--name" page-name "--label" page-label "--output-dir" (projectile-expand-root sfmm:default-vf-path)))))
 
     (sfmm--helper:make-sync-process
      :command command
@@ -579,14 +635,14 @@
         (alert (format "Create visualforce page" ,page-name)
                :title "Salesforce Alert")))))
 #+end_src
-**** VISUALFORCE COMPONENT
+**** Visualforce Component
 #+begin_src emacs-lisp :tangle yes
 (defun sfmm:visualforce:generate-component ()
   (interactive)
   (let* ((page-name (read-string "page name: "))
          (page-label (read-string "page label: "))
          (command (sfmm--helper:generate-command
-                   (list sfmm:visualforce-command-alias "generate" "component" "--name" page-name "--label" page-label))))
+                   (list sfmm:visualforce-command-alias "generate" "component" "--json" "--name" page-name "--label" page-label "--output-dir" (projectile-expand-root sfmm:default-vf-components-path)))))
 
     (sfmm--helper:make-sync-process
      :command command
@@ -615,11 +671,9 @@
         (let ((full-path-file ,(concat (projectile-expand-root sfmm:default-apex-class-path) "/" class-name ".trigger")))
           (with-current-buffer (find-file full-path-file)
             (when ,sobject-name
-                (re-search-forward "SOBJECT")
-                (replace-match ,sobject-name))
+                (replace-string "SOBJECT" ,sobject-name))
             (when ,events-name
-                (re-search-forward "beforce insert")
-                (replace-match ,events-name))))))))
+                (replace-string "beforce insert" ,events-name))))))))
 #+end_src
 **** Apex class
 #+begin_src emacs-lisp :tangle yes
@@ -680,17 +734,18 @@
                     "@isTest"
                     method-name))))
 #+end_src
-**** LIGHTNING METADATA
+**** Lightning Metadata
 #+begin_src emacs-lisp :tangle yes
 (cl-defun sfmm:lightning:generate
-    (&key type output-dir message-success (component-type ""))
+    (&key type output-dir message-success component-type)
   ""
   (let* ((component-name (read-string "lwc name: "))
          (command (sfmm--helper:generate-command
                     (list sfmm:lightning-command-alias "generate" "component" "--output-dir" output-dir "--name" component-name "--json"))))
 
     (when (string= type "component")
-      (append command (list "--type" component-type)))
+      (setq command
+            (append command (list "--type" component-type))))
 
     (sfmm--helper:make-sync-process
      :command command
@@ -699,7 +754,7 @@
         (alert (format message-success ,component-name)
                :title "Salesforce Alert")))))
 #+end_src
-***** LWC
+***** lwc
 #+begin_src emacs-lisp :tangle yes
 (defun sfmm:lightning-component:generate-lwc ()
   ""
@@ -710,7 +765,7 @@
    :message-success "Create %s success"
    :component-type "lwc"))
 #+end_src
-***** AURA
+***** aura
 #+begin_src emacs-lisp :tangle yes
 (defun sfmm:lightning-component:generate-aura ()
   "Generate Aura Component"
@@ -843,31 +898,8 @@
         (alert "Start lwc local server success"
                :title "Salesforce Alert")))))
 #+end_src
-** INTERNAL FUNCTIONS
-*** GET ERRORS
-#+begin_src emacs-lisp :tangle yes
-(defun sfmm--helper:get-errors-json (data)
-   "Get errors from json data"
-   (let ((component-failures (sfmm--helper:get-data-hashtable "result.deployedSource" data)))
-
-     (mapconcat
-      (lambda (component)
-        (let ((problem (gethash "error" component))
-              (problem-type (gethash "problemType" component))
-              (line-number (gethash "lineNumber" component))
-              (file-name (gethash "filePath" component)))
-
-          (format "problem-type: %s \n problem: %s \n %s:%s"
-                  problem-type
-                  problem
-                  file-name
-                  line-number)))
-
-      component-failures
-      "\n")))
-#+end_src
-
-*** GENERATE COMMAND
+** Internal functions
+*** Generate command
 #+begin_src emacs-lisp :tangle yes
 (defun sfmm--helper:generate-command (commands)
   (add-to-list 'commands sfmm:sfdx-lib-alias))
@@ -887,7 +919,7 @@ emacs make-process pipe  "Execute code"
 
    (async-shell-command execute-apex-code-command buffer)))
 #+end_src
-*** EXCUTE SOQL BLOCK
+*** Excute soql block
 This function execute [[https://developer.salesforce.com/docs/atlas.en-us.sfdx_cli_reference.meta/sfdx_cli_reference/cli_reference_force_data.htm#cli_reference_force_data_soql_query][command]] from library [[https://developer.salesforce.com/docs/atlas.en-us.sfdx_setup.meta/sfdx_setup/sfdx_setup_intro.htm][Salesforce CLI]]
 - Reference: sfdx-fetch-record-through-soql
 - Params:
@@ -910,6 +942,46 @@ This function execute [[https://developer.salesforce.com/docs/atlas.en-us.sfdx_c
           (append (sfmm--helper:generate-command (list sfmm:data-command-alias "query" "--json"))
                   options)))
 
+    ;; (sfdx--helper:make-async-process
+    ;;      :command execute-soql-code
+    ;;      :handle-success-lambda
+    ;;      (lambda (process json-instance buffer)
+    ;;        (let* ((records-list (sfdx--helper:get-data-hashtable "result.records" json-instance))
+    ;;               (start-index 1)
+    ;;               (column-header-map #s(hash-table test equal data ("No" ((:align . 'left) (:title . "No")))))
+    ;;               (data
+    ;;                (mapcar
+    ;;                 (lambda (element)
+
+    ;;                   (let ((row `(,start-index)))
+    ;;                     (maphash
+    ;;                      (lambda (key value)
+    ;;                        (let ((column-config `((:align . ,'left) (:title . ,key))))
+    ;;                          (unless (hash-table-p value)
+    ;;                            (when (eq value ':null)
+    ;;                              (setq value " "))
+    ;;                            (when (eq value ':false)
+    ;;                              (setq value "False"))
+    ;;                            (when (eq value 't)
+    ;;                              (setq value "True"))
+
+    ;;                            (add-to-list 'row
+    ;;                                         (replace-regexp-in-string "\\([\n]\\)" "" value) 1
+    ;;                                         '(lambda (element1 element2) nil))
+
+    ;;                            (when (length> value 50)
+    ;;                              (add-to-list 'column-config `(:max-width . ,'50)))
+
+    ;;                            (puthash (format "%s" key) column-config column-header-map))))
+    ;;                      element)
+    ;;                     (setq start-index (1+ start-index))
+    ;;                     row))
+    ;;                 records-list)))
+    ;;          (sfdx--build:make-table-component
+    ;;           :column-header (hash-table-values column-header-map)
+    ;;           :data data
+    ;;           :buffer buffer))))))
+
     (sfmm--helper:make-async-process
      :command execute-soql-code
      :handle-success-lambda
@@ -919,7 +991,7 @@ This function execute [[https://developer.salesforce.com/docs/atlas.en-us.sfdx_c
               (data (sfdx--build:make-data-table-from-vector
                      :header-columns header-columns
                      :data records-list)))
-         (debug data)
+
          (sfdx--build:make-table-component
           :column-header
           (cl-loop for key in header-columns
@@ -929,7 +1001,7 @@ This function execute [[https://developer.salesforce.com/docs/atlas.en-us.sfdx_c
           :buffer buffer))))))
 #+end_src
 
-*** MAKE SYNCHRONOUS PROCESS
+*** Make synchronous process
 + set readonly for overview buffer, edit the buffer through key-bind
 #+begin_src emacs-lisp :tangle yes
 (cl-defun sfmm--helper:make-sync-process (&key command handle-success-lambda (handle-error-lambda))
@@ -968,7 +1040,7 @@ This function execute [[https://developer.salesforce.com/docs/atlas.en-us.sfdx_c
                                :title "Salesforce Alert")))))))))
 #+end_src
 
-*** MAKE ASYNCHRONOUS PROCESS
+*** Make asynchronous process
 #+begin_src emacs-lisp :tangle yes
 (cl-defun sfmm--helper:make-async-process
     (&key command buffer-name handle-success-lambda handle-error-lambda)
@@ -1016,11 +1088,11 @@ This function execute [[https://developer.salesforce.com/docs/atlas.en-us.sfdx_c
 
                            (let ((error-name (gethash "name" json-instance))
                                  (error-message (gethash "message" json-instance)))
+
                              (message error-name)
                              (message error-message)
-                             (alert (format "%s \nmessage: %s "
-                                            error-name
-                                            error-message)
+
+                             (alert error-message
                                     :title "Salesforce Alert")
                              (kill-buffer (process-buffer process)))))
 
@@ -1088,6 +1160,7 @@ This function execute [[https://developer.salesforce.com/docs/atlas.en-us.sfdx_c
 *** CUSTOM MAP LIST FUNCTION
 #+begin_src emacs-lisp :tangle yes
 (defun sfmm--helper:recursive-list (list-data lambda-function)
+  ""
   (let* ((new-list (cdr list-data))
          (first-item (car list-data))
          (remap-list '()))
@@ -1163,47 +1236,27 @@ This function execute [[https://developer.salesforce.com/docs/atlas.en-us.sfdx_c
 (cl-defun sfdx--build:make-data-table-from-vector
     (&key header-columns data (enable-count-rows t))
   "Build data from input hash table and header-columns"
-  (cl-loop for i below (length data)
-           with row
-           do (cl-block 'iteration
-                (let ((row-count (+ i 1))
-                      (item (aref data i)))
+  (let ((data-table ()))
+    (dotimes (i (length data))
+      (let ((row (append (list (+ i 1))
+                         (mapcar `(lambda (key)
+                                    (let ((value (gethash key ,(aref data i))))
+                                      (message key)
+                                      (message value)
+                                      (cond ((eq value ':null)
+                                             "")
+                                            ((eq value ':false)
+                                             "False")
+                                            ((eq value 't)
+                                             "True")
+                                            (t
+                                             value))))
 
-                  (push (mapcar (lambda (header-column)
-                                 (let ((column-data (gethash header-column item)))
-
-                                   (cond ((or (eq column-data ':null)
-                                              (eq column-data 'nil)
-                                              (hash-table-p column-data))
-                                          " ")
-                                         ((eq column-data ':false)
-                                          "False")
-                                         ((eq column-data 't)
-                                          "True")
-                                         (t column-data))))
-                                header-columns)
-                        row)))
-
-           collect row))
-(sfdx--build:make-data-table-from-vector
- :header-columns '("Id", "Name")
- :data (json-parse-string "[{\"attributes\":{\"type\":\"Account\",\"url\":\"\/services\/data\/v58.0\/sobjects\/Account\/0012w00001O0ntRAAR\"},\"Id\":\"0012w00001O0ntRAAR\",\"Name\":\"Edge Communications\"},{\"attributes\":{\"type\":\"Account\",\"url\":\"\/services\/data\/v58.0\/sobjects\/Account\/0012w00001O0ntSAAR\"},\"Id\":\"0012w00001O0ntSAAR\",\"Name\":\"Burlington Textiles Corp of America\"},{\"attributes\":{\"type\":\"Account\",\"url\":\"\/services\/data\/v58.0\/sobjects\/Account\/0012w00001O0ntTAAR\"},\"Id\":\"0012w00001O0ntTAAR\",\"Name\":\"Pyramid Construction Inc.\"},{\"attributes\":{\"type\":\"Account\",\"url\":\"\/services\/data\/v58.0\/sobjects\/Account\/0012w00001O0ntUAAR\"},\"Id\":\"0012w00001O0ntUAAR\",\"Name\":\"Dickenson plc\"},{\"attributes\":{\"type\":\"Account\",\"url\":\"\/services\/data\/v58.0\/sobjects\/Account\/0012w00001O0ntVAAR\"},\"Id\":\"0012w00001O0ntVAAR\",\"Name\":\"Grand Hotels & Resorts Ltd\"},{\"attributes\":{\"type\":\"Account\",\"url\":\"\/services\/data\/v58.0\/sobjects\/Account\/0012w00001O0ntWAAR\"},\"Id\":\"0012w00001O0ntWAAR\",\"Name\":\"United Oil & Gas Corp.\"},{\"attributes\":{\"type\":\"Account\",\"url\":\"\/services\/data\/v58.0\/sobjects\/Account\/0012w00001O0ntXAAR\"},\"Id\":\"0012w00001O0ntXAAR\",\"Name\":\"Express Logistics and Transport\"},{\"attributes\":{\"type\":\"Account\",\"url\":\"\/services\/data\/v58.0\/sobjects\/Account\/0012w00001O0ntYAAR\"},\"Id\":\"0012w00001O0ntYAAR\",\"Name\":\"University of Arizona\"},{\"attributes\":{\"type\":\"Account\",\"url\":\"\/services\/data\/v58.0\/sobjects\/Account\/0012w00001O0ntbAAB\"},\"Id\":\"0012w00001O0ntbAAB\",\"Name\":\"GenePoint\"},{\"attributes\":{\"type\":\"Account\",\"url\":\"\/services\/data\/v58.0\/sobjects\/Account\/0012w00001O0ntcAAB\"},\"Id\":\"0012w00001O0ntcAAB\",\"Name\":\"sForce\"},{\"attributes\":{\"type\":\"Account\",\"url\":\"\/services\/data\/v58.0\/sobjects\/Account\/0012w00001O0ntdAAB\"},\"Id\":\"0012w00001O0ntdAAB\",\"Name\":\"Sample Account for Entitlements\"},{\"attributes\":{\"type\":\"Account\",\"url\":\"\/services\/data\/v58.0\/sobjects\/Account\/0012w00001O0ntZAAR\"},\"Id\":\"0012w00001O0ntZAAR\",\"Name\":\"United Oil & Gas, UK\"},{\"attributes\":{\"type\":\"Account\",\"url\":\"\/services\/data\/v58.0\/sobjects\/Account\/0012w00001O0ntaAAB\"},\"Id\":\"0012w00001O0ntaAAB\",\"Name\":\"United Oil & Gas, Singapore\"}]"))
+                                 header-columns))))
+        (add-to-list 'data-table row 1 '(lambda (v1 v2)
+                                             nil))))
+    data-table))
 #+end_src
-
-#+RESULTS:
-| (0012w00001O0ntRAAR  ) |                        |                        |                        |                        |                        |                        |                        |                        |                        |                        |                        |                        |
-| (0012w00001O0ntSAAR  ) | (0012w00001O0ntRAAR  ) |                        |                        |                        |                        |                        |                        |                        |                        |                        |                        |                        |
-| (0012w00001O0ntTAAR  ) | (0012w00001O0ntSAAR  ) | (0012w00001O0ntRAAR  ) |                        |                        |                        |                        |                        |                        |                        |                        |                        |                        |
-| (0012w00001O0ntUAAR  ) | (0012w00001O0ntTAAR  ) | (0012w00001O0ntSAAR  ) | (0012w00001O0ntRAAR  ) |                        |                        |                        |                        |                        |                        |                        |                        |                        |
-| (0012w00001O0ntVAAR  ) | (0012w00001O0ntUAAR  ) | (0012w00001O0ntTAAR  ) | (0012w00001O0ntSAAR  ) | (0012w00001O0ntRAAR  ) |                        |                        |                        |                        |                        |                        |                        |                        |
-| (0012w00001O0ntWAAR  ) | (0012w00001O0ntVAAR  ) | (0012w00001O0ntUAAR  ) | (0012w00001O0ntTAAR  ) | (0012w00001O0ntSAAR  ) | (0012w00001O0ntRAAR  ) |                        |                        |                        |                        |                        |                        |                        |
-| (0012w00001O0ntXAAR  ) | (0012w00001O0ntWAAR  ) | (0012w00001O0ntVAAR  ) | (0012w00001O0ntUAAR  ) | (0012w00001O0ntTAAR  ) | (0012w00001O0ntSAAR  ) | (0012w00001O0ntRAAR  ) |                        |                        |                        |                        |                        |                        |
-| (0012w00001O0ntYAAR  ) | (0012w00001O0ntXAAR  ) | (0012w00001O0ntWAAR  ) | (0012w00001O0ntVAAR  ) | (0012w00001O0ntUAAR  ) | (0012w00001O0ntTAAR  ) | (0012w00001O0ntSAAR  ) | (0012w00001O0ntRAAR  ) |                        |                        |                        |                        |                        |
-| (0012w00001O0ntbAAB  ) | (0012w00001O0ntYAAR  ) | (0012w00001O0ntXAAR  ) | (0012w00001O0ntWAAR  ) | (0012w00001O0ntVAAR  ) | (0012w00001O0ntUAAR  ) | (0012w00001O0ntTAAR  ) | (0012w00001O0ntSAAR  ) | (0012w00001O0ntRAAR  ) |                        |                        |                        |                        |
-| (0012w00001O0ntcAAB  ) | (0012w00001O0ntbAAB  ) | (0012w00001O0ntYAAR  ) | (0012w00001O0ntXAAR  ) | (0012w00001O0ntWAAR  ) | (0012w00001O0ntVAAR  ) | (0012w00001O0ntUAAR  ) | (0012w00001O0ntTAAR  ) | (0012w00001O0ntSAAR  ) | (0012w00001O0ntRAAR  ) |                        |                        |                        |
-| (0012w00001O0ntdAAB  ) | (0012w00001O0ntcAAB  ) | (0012w00001O0ntbAAB  ) | (0012w00001O0ntYAAR  ) | (0012w00001O0ntXAAR  ) | (0012w00001O0ntWAAR  ) | (0012w00001O0ntVAAR  ) | (0012w00001O0ntUAAR  ) | (0012w00001O0ntTAAR  ) | (0012w00001O0ntSAAR  ) | (0012w00001O0ntRAAR  ) |                        |                        |
-| (0012w00001O0ntZAAR  ) | (0012w00001O0ntdAAB  ) | (0012w00001O0ntcAAB  ) | (0012w00001O0ntbAAB  ) | (0012w00001O0ntYAAR  ) | (0012w00001O0ntXAAR  ) | (0012w00001O0ntWAAR  ) | (0012w00001O0ntVAAR  ) | (0012w00001O0ntUAAR  ) | (0012w00001O0ntTAAR  ) | (0012w00001O0ntSAAR  ) | (0012w00001O0ntRAAR  ) |                        |
-| (0012w00001O0ntaAAB  ) | (0012w00001O0ntZAAR  ) | (0012w00001O0ntdAAB  ) | (0012w00001O0ntcAAB  ) | (0012w00001O0ntbAAB  ) | (0012w00001O0ntYAAR  ) | (0012w00001O0ntXAAR  ) | (0012w00001O0ntWAAR  ) | (0012w00001O0ntVAAR  ) | (0012w00001O0ntUAAR  ) | (0012w00001O0ntTAAR  ) | (0012w00001O0ntSAAR  ) | (0012w00001O0ntRAAR  ) |
 
 *** Site list
 #+begin_src emacs-lisp :tangle yes
@@ -1255,23 +1308,28 @@ This function execute [[https://developer.salesforce.com/docs/atlas.en-us.sfdx_c
 #+end_src
 ** HELPERS FUNCTIONS
 *** KEY BINDING FUNCTIONS
-#+begin_src emacs-lisp :tangle yes
+#+begin_src emacs-lisp :tangle no
 (defun sfmm:binding--key (key)
+  ""
   (kbd (concat sfmm:keymap-prefix " " key)))
 
 (defun sfmm:binding--key-org (key)
+  ""
   (sfmm:binding--key
    (concat sfmm:org-keymap-prefix " " key)))
 
 (defun sfmm:binding--key-auth (key)
+  ""
   (sfmm:binding--key
    (concat sfmm:auth-keymap-prefix " " key)))
 
 (defun sfmm:binding--key-apex (key)
+  ""
   (sfmm:binding--key
    (concat sfmm:apex-keymap-prefix " " key)))
 
 (defun sfmm:binding--key-query (key)
+  ""
   (sfmm:binding--key
    (concat sfmm:query-keymap-prefix " " key)))
 
@@ -1279,6 +1337,7 @@ This function execute [[https://developer.salesforce.com/docs/atlas.en-us.sfdx_c
 *** HOOK FUNCTIONS
 #+begin_src emacs-lisp :tangle yes
 (defun sfmm:hook-on-handler ()
+  ""
   (setq org-default-alias (sfmm:org:show-current-org))
   (when org-default-alias
     (add-to-list 'mode-line-misc-info '(" " org-default-alias " "))
@@ -1286,6 +1345,7 @@ This function execute [[https://developer.salesforce.com/docs/atlas.en-us.sfdx_c
 
 
 (defun sfmm:hook-off-handler ()
+  ""
   (setq org-default-alias (sfmm:org:show-current-org))
   (when org-default-alias
     (setq mode-line-misc-info
@@ -1306,292 +1366,7 @@ This function execute [[https://developer.salesforce.com/docs/atlas.en-us.sfdx_c
 
   (add-hook 'salesforce-minor-mode-off-hook #'sfmm:hook-off-handler))
 
-(provide 'salesforce-minor-mode)
-
-#+end_src
-* ORG BABEL APEX
-** Dependencies
-#+begin_src emacs-lisp :tangle ./ob-apex.el
-;;; ob-template.el --- org-babel functions for template evaluation
-
-;; Copyright (C) your name here
-
-;; Author: tan.nguyen@furucrm.com
-;; Keywords: literate programming, reproducible research
-;; Homepage: https://orgmode.org
-;; Version: 0.01
-
-;;; License:
-
-;; This program is free software; you can redistribute it and/or modify
-;; it under the terms of the GNU General Public License as published by
-;; the Free Software Foundation; either version 3, or (at your option)
-;; any later version.
-;;
-;; This program is distributed in the hope that it will be useful,
-;; but WITHOUT ANY WARRANTY; without even the implied warranty of
-;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-;; GNU General Public License for more details.
-;;
-;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs; see the file COPYING.  If not, write to the
-;; Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
-;; Boston, MA 02110-1301, USA.
-
-;;; Commentary:
-
-;; This file is not intended to ever be loaded by org-babel, rather it is a
-;; template for use in adding new language support to Org-babel. Good first
-;; steps are to copy this file to a file named by the language you are adding,
-;; and then use `query-replace' to replace all strings of "template" in this
-;; file with the name of your new language.
-
-;; After the `query-replace' step, it is recommended to load the file and
-;; register it to org-babel either via the customize menu, or by evaluating the
-;; line: (add-to-list 'org-babel-load-languages '(template . t)) where
-;; `template' should have been replaced by the name of the language you are
-;; implementing (note that this applies to all occurrences of 'template' in this
-;; file).
-
-;; After that continue by creating a simple code block that looks like e.g.
-;;
-;; #+begin_src template
-
-;; test
-
-;; #+end_src
-
-;; Finally you can use `edebug' to instrumentalize
-;; `org-babel-expand-body:template' and continue to evaluate the code block. You
-;; try to add header keywords and change the body of the code block and
-;; reevaluate the code block to observe how things get handled.
-
-;;
-;; If you have questions as to any of the portions of the file defined
-;; below please look to existing language support for guidance.
-;;
-;; If you are planning on adding a language to org-babel we would ask
-;; that if possible you fill out the FSF copyright assignment form
-;; available at https://orgmode.org/request-assign-future.txt as this
-;; will make it possible to include your language support in the core
-;; of Org-mode, otherwise unassigned language support files can still
-;; be included in the contrib/ directory of the Org-mode repository.
-
-
-;;; Requirements:
-
-;; Use this section to list the requirements of this language.  Most
-;; languages will require that at least the language be installed on
-;; the user's system, and the Emacs major mode relevant to the
-;; language be installed as well.
-
-(require 'ob)
-(require 'ob-ref)
-(require 'ob-comint)
-(require 'ob-eval)
-(require 'salesforce-minor-mode)
-#+end_src
-
-** Extensions
-#+begin_src emacs-lisp :tangle ./ob-apex.el
-(add-to-list 'org-babel-tangle-lang-exts '("cls" . "apex"))
-#+end_src
-
-** Default Header Args
-#+begin_src emacs-lisp :tangle ./ob-apex.el
-;; optionally declare default header arguments for this language
-(defvar org-babel-default-header-args:apex '((:results . "none")
-                                             (:org . "")
-                                             (:log-filter-type . "none")
-                                             (:log-filter-value . "none")))
-
-
-(defvar org-babel-default-inline-header-args:apex '((:results . "none")
-                                                    (:org . "")
-                                                    (:log-filter-type . "none")
-                                                    (:log-filter-value . "none")))
-#+end_src
-
-** Expand Rource Code
-#+begin_src emacs-lisp :tangle ./ob-apex.el
-;; This function expands the body of a source code block by doing things like
-;; prepending argument definitions to the body, it should be called by the
-;; `org-babel-execute:template' function below. Variables get concatenated in
-;; the `mapconcat' form, therefore to change the formatting you can edit the
-;; `format' form.
-
-(defun org-babel-expand-body:apex (body params &optional processed-params)
-  "Expand BODY according to PARAMS, return the expanded body."
-  (require 'inf-template nil t)
-  (let ((vars
-         (org-babel--get-vars
-          (or processed-params
-              (org-babel-process-params params)))))
-
-    (concat
-     (mapconcat #'binding-declare-variable vars "\n")
-     "\n" body "\n")))
-#+end_src
-
-** Evaluate Apex Code
-#+begin_src emacs-lisp :tangle ./ob-apex.el
-;; This is the main function which is called to evaluate a code
-;; block.
-
-;; This function will evaluate the body of the source code and
-;; return the results as emacs-lisp depending on the value of the
-;; :results header argument
-;; output means that the output to STDOUT will be captured and returned
-;; value means that the value of the last statement in the source code block will be returned
-
-;; The most common first step in this function is the expansion of the
-;; PARAMS argument using `org-babel-process-params'.
-
-;; Please feel free to not implement options which aren't appropriate
-;; for your language (e.g. not all languages support interactive "session" evaluation).  Also you are free to define any new header
-;; arguments which you feel may be useful -- all header arguments
-;; specified by the user will be available in the PARAMS variable.
-
-(defun org-babel-execute:apex (body params)
-  (let* ((processed-params (org-babel-process-params params))
-         (filter-type (assq :filter-type processed-params))
-         (full-body (org-babel-expand-body:apex
-                        body params processed-params)))
-
-    (execute-apex-code processed-params full-body)))
-#+end_src
-
-** Execute Apex Block Code
-#+begin_src emacs-lisp :tangle ./ob-apex.el
-(defun execute-apex-code (processed-params content)
-  (let* ((uuid (org-id-uuid))
-         (buffer (buffer-file-name))
-         (tempfile (make-temp-file "temp-code"))
-         (result-eval (format "%s" (cdr (assq :results processed-params))))
-         (command
-           (sfmm--helper:generate-command (list "apex" "run" "-f" tempfile "--json")))
-         process 'nil)
-
-   (write-region content nil tempfile)
-
-   (cond ((not (eq (cdr (assq :org processed-params))
-                   ""))
-          (setq command (append command
-                                (list "-o" (cdr (assq :org processed-params)))))))
-
-   ;; Clear default result
-   (org-babel-remove-result)
-
-   (unless (string= result-eval "none")
-     (re-search-forward "#\\+end_src")
-     ;; Insert new result with uuid
-     (insert (format "\n\n#+begin_src apex-log :uuid %s\n %s\n#+end_src\n"
-                     uuid
-                     uuid)))
-
-
-   (sfmm--helper:make-async-process
-    :command command
-    :buffer-name uuid
-    :handle-success-lambda
-    `(lambda (process json-instance buffer)
-
-       (let ((log-content (sfmm--helper:get-data-hashtable "result.logs" json-instance))
-             (log-filter-type ,(format "%s" (cdr (assq :log-filter-type processed-params))))
-             (log-filter-value ,(format "%s" (cdr (assq :log-filter-value processed-params)))))
-
-         (unless (or (equal log-filter-type "none")
-                     (null log-filter-type))
-           (let ((debug-keywords '("DEBUG"))
-                 (executable-keywords '("VARIABLE_ASSIGNMENT"
-                                        "STATEMENT_EXECUTE"
-                                        "METHOD_ENTRY"
-                                        "CONSTRUCTOR_EXIT"
-                                        "CODE_UNIT_STARTED"))
-                 (system-keywords '("VARIABLE_SCOPE_BEGIN"
-                                    "USER_INFO"
-                                    "EXECUTION_STARTED"
-                                    "CODE_UNIT_STARTED"
-                                    "HEAP_ALLOCATE"
-                                    "STATEMENT_EXECUTE"
-                                    "METHOD_ENTRY"))
-                 (groverment-keywords '("LIMIT_USAGE_FOR_NS"
-                                        "Number of"
-                                        "Maximum CPU"
-                                        "Maximum heap")))
-
-              (setq log-content
-                    (mapconcat (lambda (line)
-                                 (cond ((and (equal log-filter-type "DEBUG")
-                                             (string-match (regexp-opt debug-keywords) line))
-
-                                        (concat line "\n"))
-                                       ((and (equal log-filter-type "FILTER")
-                                             (search log-filter-value line))
-                                        (concat line "\n"))
-                                       ((and (equal log-filter-type "EXECUTABLE")
-                                             (string-match (regexp-opt executable-keywords) line))
-                                        (concat line "\n"))
-                                       ((and (equal log-filter-type "SYSTEM")
-                                             (string-match (regexp-opt system-keywords) line))
-
-                                        (concat line "\n"))
-                                       ((and (eq log-filter-type "GOVERNMENT")
-                                             (match-string (regexp-opt groverment-keywords) line))
-                                        (concat line "\n"))))
-                              (split-string log-content "\n")
-                              ""))))
-
-         (unless (equal ,result-eval "none")
-
-           (with-current-buffer (find-file-noselect ,buffer)
-             (beginning-of-buffer)
-             (re-search-forward ,uuid nil t 2)
-             (delete-line)
-
-             (insert log-content)))
-
-         (alert "Run apex code complete"
-                :title "Salesforce Alert"))))))
-
-(defun binding-declare-variable (pair)
-  (let* ((var
-          (split-string
-            (format "%s"(car pair)) "\\."))
-         (var-type (car var))
-         (var-name (car (cdr var)))
-         (value
-          (org-babel-template-var-to-template
-           (cdr pair))))
-
-    (format
-     "%s %s = %s;"
-     var-type
-     var-name
-     (if (string= var-type "String")
-       (format "'%s'" value)
-       value))))
-
-(defun org-babel-prep-session:apex (session params)
-  "Prepare SESSION according to the header arguments specified in PARAMS.")
-
-
-(defun org-babel-template-var-to-template (var)
-  "Convert an elisp var into a string of template source code
-specifying a var of the same value."
-  (format "%s" var))
-
-(defun org-babel-template-table-or-string (results)
-  "If the results look like a table, then convert them into an
-Emacs-lisp table, otherwise return the results as a string.")
-
-
-(defun org-babel-template-initiate-session (&optional session)
-  "If there is not a current inferior-process-buffer in SESSION then create.
-Return the initialized session."
-  (unless (string= session "none")))
-
-(provide 'ob-apex)
+(provide 'salesforce-minor-mode) ;;; salesforce-minor-mode end here.
 #+end_src
 * LOG MODE
 #+begin_src emacs-lisp :tangle apex-log-mode.el
@@ -1786,32 +1561,34 @@ Return the initialized session."
 ;; possibly require modes required for your language
 #+end_src
 
-** DEPENDENCIES
+** Dependencies
 #+begin_src emacs-lisp :tangle ./ob-apex-log.el
 ;; optionally define a file extension for this language
 (add-to-list 'org-babel-tangle-lang-exts '("log" . "apex-log"))
 #+end_src
 
-** DEFINE HEADERS
+** Define Headers
 #+begin_src emacs-lisp :tangle ./ob-apex-log.el
 ;; optionally declare default header arguments for this language
-(defvar org-babel-default-header-args:apex-log '((:tangle "yes")
-                                                 (:class-test . "")
-                                                 (:org . "")
-                                                 (:log-id . "")
-                                                 (:number . "1")
-                                                 (:filter-type . "")
-                                                 (:filter-value . "")))
+(defvar org-babel-default-header-args:apex-log (list '(:tangle "yes")
+                                                     '(:class-test . "")
+                                                     '(:org . "")
+                                                     '(:log-id . "")
+                                                     '(:number . "1")
+                                                     '(:filter-type . "")
+                                                     '(:filter-value . "")
+                                                      (assq-delete-all :session org-babel-default-header-args:apex-log)))
 
-(defvar org-babel-default-inline-header-args:apex-log '((:org . "")
-                                                        (:log-id . "")
-                                                        (:class-test . "")
-                                                        (:number . "1")
-                                                        (:filter-type . "")
-                                                        (:filter-value . "")))
+(defvar org-babel-default-inline-header-args:apex-log (list '(:org . "")
+                                                            '(:log-id . "")
+                                                            '(:class-test . "")
+                                                            '(:number . "1")
+                                                            '(:filter-type . "")
+                                                            '(:filter-value . "")
+                                                             (assq-delete-all :session org-babel-default-header-args:apex-log)))
 #+end_src
 
-** EXPAND BODY APEX LOG
+** Expand Body Apex Log
 #+begin_src emacs-lisp :tangle ./ob-apex-log.el
 ;; This function expands the body of a source code block by doing things like
 ;; prepending argument definitions to the body, it should be called by the
@@ -1831,7 +1608,7 @@ Return the initialized session."
      "\n" body "\n")))
 #+end_src
 
-** EXECUTE APEX LOG
+** Execute Apex Log
 #+begin_src emacs-lisp :tangle ./ob-apex-log.el
 ;; This is the main function which is called to evaluate a code
 ;; block.
@@ -1890,16 +1667,17 @@ This function is called by `org-babel-execute-src-block'"
     ;; function is used in the language files)
 
 #+end_src
-** RUN TEST CLASS
-#+begin_src emacs-lisp :tangle yes
-(defun ob-apex-log:get-log-test-class (process-params)
+** Run test class
+#+begin_src emacs-lisp :tangle ./ob-apex-log.el
+(defun ob-apex-log:get-log-test-class (processed-params)
   "Get log from test class executed"
-  (let* ((test-class-name (cdr (assq :test-class process-params)))
-         (sfmm--helper:generate-command (list sfmm:apex-command-alias "run" "test" "--tests" test-class-name "--test-level" "RunSpecifiedTests" "--json")))
+  (let* ((test-class-name (cdr (assq :test-class processed-params)))
+         (uuid (org-id-uuid))
+         (command (sfmm--helper:generate-command (list sfmm:apex-command-alias "run" "test" "--tests" test-class-name "--test-level" "RunSpecifiedTests" "--json"))))
 
     (org-babel-remove-result)
- 
-    (re-search-backward "#\\+end_src")
+
+    (re-search-forward "#\\+end_src")
     (previous-line)
     (newline)
     (insert uuid)
@@ -1907,34 +1685,33 @@ This function is called by `org-babel-execute-src-block'"
     (sfmm--helper:make-async-process
      :command command
      :handle-success-lambda
-     (lambda (process json-instance buffer)
-       (sfmm:apex:get-log
-        :number 1
-        :post-log-handle
-        `(lambda (log-content)
+     `(lambda (process json-instance buffer)
 
-           (let ((filter-type ,(upcase (format "%s" (cdr (assq :filter-type processed-params)))))
-                 (filter-value ,(cdr (format "%s" (assq :filter-value processed-params)))))
+        (sfmm:apex:get-log
+         :number "1"
+         :post-log-handle
+         ,`(lambda (log-content)
 
-             (unless (or (equal filter-type "none"
-                          (null filter-type)))
-                (let ((debug-keywords '("DEBUG"))
-                      (executable-keywords '("VARIABLE_ASSIGNMENT"
-                                             "STATEMENT_EXECUTE"
-                                             "METHOD_ENTRY"
-                                             "CONSTRUCTOR_EXIT"
-                                             "CODE_UNIT_STARTED"))
-                      (system-keywords '("VARIABLE_SCOPE_BEGIN"
-                                         "USER_INFO"
-                                         "EXECUTION_STARTED"
-                                         "CODE_UNIT_STARTED"
-                                         "HEAP_ALLOCATE"
-                                         "STATEMENT_EXECUTE"
-                                         "METHOD_ENTRY"))
-                      (groverment-keywords '("LIMIT_USAGE_FOR_NS"
-                                             "Number of"
-                                             "Maximum CPU"
-                                             "Maximum heap")))
+              (let ((filter-type ,(cdr (assq :filter-type processed-params))))
+                (unless (or (equal filter-type "none")
+                            (null filter-type))
+                  (let ((debug-keywords '("DEBUG"))
+                        (executable-keywords '("VARIABLE_ASSIGNMENT"
+                                               "STATEMENT_EXECUTE"
+                                               "METHOD_ENTRY"
+                                               "CONSTRUCTOR_EXIT"
+                                               "CODE_UNIT_STARTED"))
+                        (system-keywords '("VARIABLE_SCOPE_BEGIN"
+                                           "USER_INFO"
+                                           "EXECUTION_STARTED"
+                                           "CODE_UNIT_STARTED"
+                                           "HEAP_ALLOCATE"
+                                           "STATEMENT_EXECUTE"
+                                           "METHOD_ENTRY"))
+                        (groverment-keywords '("LIMIT_USAGE_FOR_NS"
+                                               "Number of"
+                                               "Maximum CPU"
+                                               "Maximum heap")))
 
                    (setq log-content
                          (mapconcat (lambda (line)
@@ -1943,7 +1720,7 @@ This function is called by `org-babel-execute-src-block'"
 
                                              (concat line "\n"))
                                             ((and (equal filter-type "FILTER")
-                                                  (search filter-value line))
+                                                  (search ,(cdr (assq :filter-value processed-params)) line))
                                              (concat line "\n"))
                                             ((and (equal filter-type "EXECUTABLE")
                                                   (string-match (regexp-opt executable-keywords) line))
@@ -1955,24 +1732,24 @@ This function is called by `org-babel-execute-src-block'"
                                             ((and (eq filter-type "GOVERNMENT")
                                                   (match-string (regexp-opt groverment-keywords) line))
                                              (concat line "\n"))))
-                                   (split-string log-content "\n")
-                                   ""))))))
+                                  (split-string log-content "\n"
+                                    "")))))
 
-        (with-current-buffer ,buffer
-          (beginning-of-buffer)
-          (re-search-forward ,uuid)
-          (forward-line -1)
-          (newline)
-          (insert (concat "|-------------------LOG--------------------------|"
-                   "\n" log-content))
-          (next-line)
-          (delete-line)
+               (with-current-buffer (find-file ,(buffer-file-name))
+                 (beginning-of-buffer)
+                 (re-search-forward ,uuid)
+                 (forward-line -1)
+                 (newline)
+                 (insert (concat "|-------------------LOG--------------------------|"
+                                  "\n" log-content))
+                 (next-line)
+                 (delete-line)
 
-          (alert "get log success"
-                 :title "Salesforce Alert")))))))
+                 (alert "get log success"
+                        :title "Salesforce Alert")))))))))
 #+end_src
 
-** FILTER LOG CONTENT
+** Filter Log Content
 #+begin_src emacs-lisp :tangle ./ob-apex-log.el
 (defun ob-apex-log:filter-log (processed-params)
   "Filter match string in log"
@@ -1990,7 +1767,7 @@ This function is called by `org-babel-execute-src-block'"
          ;;                   "\n")))
    (org-babel-remove-result)
 
-   (re-search-backward "#\\+end_src")
+   (re-search-forward "#\\+end_src")
    (previous-line)
    (newline)
    (insert uuid)

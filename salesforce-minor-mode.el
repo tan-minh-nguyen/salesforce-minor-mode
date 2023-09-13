@@ -1,3 +1,5 @@
+;;; Salesforce minor mode -- add sf cli to emacs
+
 (require 'alert)
 (require 'projectile)
 (require 'ctable)
@@ -10,22 +12,22 @@
   :group 'salesforce)
 
 (defcustom sfmm:org-keymap-prefix "O"
-  "The keymap prefix for Org function"
+  "The keymap prefix for Org function."
   :type 'string
   :group 'salesforce)
 
 (defcustom sfmm:auth-keymap-prefix "A"
-  "The keymap prefix for Auth function"
+  "The keymap prefix for Auth function."
   :type 'string
   :group 'salesforce)
 
 (defcustom sfmm:apex-keymap-prefix "C"
-  "The keymap prefix for Apex function"
+  "The keymap prefix for Apex function."
   :type 'string
   :group 'salesforce)
 
 (defcustom sfmm:query-keymap-prefix "Q"
-  "The keymap prefix for Database function"
+  "The keymap prefix for Database function."
   :type 'string
   :group 'salesforce)
 
@@ -35,7 +37,7 @@
   :group 'salesforce)
 
 (defcustom sfmm:api-version nil
-  "Custom define api version for command"
+  "Custom define api version for command."
    :type 'string
    :group 'salesforce-cli)
 
@@ -133,6 +135,16 @@
  :type 'string
  :group 'sfdx-config)
 
+(defcustom sfmm:default-vf-path "force-app/main/default/pages"
+ "Path save visualforce page"
+ :type 'string
+ :group 'sfdx-config)
+
+(defcustom sfmm:default-vf-components-path "force-app/main/default/components"
+ "Path save visualforce page"
+ :type 'string
+ :group 'sfdx-config)
+
 (defcustom sfmm:default-test-path "force-app/main/default/lightningTests"
  "Path save test components"
  :type 'string
@@ -142,25 +154,73 @@
  'display-buffer-alist
   '("salesforce api.*" . (display-buffer-no-window . nil)))
 
+(defun sfmm:project:create ()
+  "Create dx project"
+  (let ((project-path (read-string "project-path: "))
+        (project-name (read-string "project-name: "))
+        (command (sfmm--helper:generate-command
+                  (list sfmm:project-command-alias "generate"
+                                                   "--name"
+                                                   project-name
+                                                   "--default-package-dir"
+                                                   (cond (project-path
+                                                          project-path)
+                                                         (dired-directory
+                                                          (concat dired-directory
+                                                                  project-path))
+                                                         (t
+                                                          "."))))))
+
+    (sfmm--helper:make-async-process
+     :command command
+     :handle-success-lambda
+     `(lambda (process json-instance buffer)
+        (let ((project-output (sfmm--helper:get-data-hashtable "result.outputDir" json-instance)))
+
+          (alert "Create Project Success"
+                 :title "Salesforce Alert"))))))
+
 (defun sfmm:push-file
     ()
-  "Push source salesforce to org"
+  "Push metadata salesforce to org"
   (interactive)
-  (let* ((push-command (list sfmm:sfdx-lib-alias "force" "source" "deploy" "-p" buffer-file-name "--json")))
+  (let* ((file-name (buffer-file-name))
+         (push-command (list sfmm:sfdx-lib-alias "force" "source" "deploy" "-p" file-name "--json")))
 
     (sfmm--helper:make-async-process
      :command push-command
      :handle-success-lambda
      `(lambda (process json-instance buffer)
-       (alert (format "Deploy %s success" ,buffer-file-name)
-              :title "Salesforce Alert"))
-
+        (alert (format "Deploy %s success" ,file-name)
+               :title "Salesforce Alert"))
      :handle-error-lambda
-     `(lambda (process json-instance buffer)
-       (alert (format "Deploy %s failures:\n %s"
-                     ,buffer-file-name
-                     (sfmm--helper:get-errors-json json-instance)
-               :title "Salesforce Alert"))))))
+     (lambda (process json-instance buffer)
+       (let ((show-message "")
+             (error-name (gethash "name" json-instance))
+             (error-message (gethash "message" json-instance)))
+
+         (cond ((and error-name
+                     error-message)
+                (setq show-message (format "Name: %s\nMessage: \n%s\n")))
+               (t
+                (setq show-message (mapconcat (lambda (component)
+                                               (let ((problem (gethash "error" component))
+                                                     (problem-type (gethash "problemType" component))
+                                                     (line-number (gethash "lineNumber" component))
+                                                     (file-name (gethash "filePath" component)))
+
+                                                 (format "Problem-type: %s\nProblem: %s\n%s:%s"
+                                                         problem-type
+                                                         problem
+                                                         file-name
+                                                         line-number)))
+
+                                             (sfmm--helper:get-data-hashtable "result.deployedSource" json-instance)
+                                             "\n"))))
+
+         (alert show-message
+                :title "Salesforce Alert"
+                :category 'error))))))
 
 (defun sfmm:retrieve-file
     ()
@@ -387,7 +447,7 @@
   (let* ((page-name (read-string "page name: "))
          (page-label (read-string "page label: "))
          (command (sfmm--helper:generate-command
-                   (list sfmm:visualforce-command-alias "generate" "page" "--name" page-name "--label" page-label))))
+                   (list sfmm:visualforce-command-alias "generate" "page" "--json" "--name" page-name "--label" page-label "--output-dir" (projectile-expand-root sfmm:default-vf-path)))))
 
     (sfmm--helper:make-sync-process
      :command command
@@ -402,7 +462,7 @@
   (let* ((page-name (read-string "page name: "))
          (page-label (read-string "page label: "))
          (command (sfmm--helper:generate-command
-                   (list sfmm:visualforce-command-alias "generate" "component" "--name" page-name "--label" page-label))))
+                   (list sfmm:visualforce-command-alias "generate" "component" "--json" "--name" page-name "--label" page-label "--output-dir" (projectile-expand-root sfmm:default-vf-components-path)))))
 
     (sfmm--helper:make-sync-process
      :command command
@@ -466,14 +526,15 @@
                     method-name))))
 
 (cl-defun sfmm:lightning:generate
-    (&key type output-dir message-success (component-type ""))
+    (&key type output-dir message-success component-type)
   ""
   (let* ((component-name (read-string "lwc name: "))
          (command (sfmm--helper:generate-command
                     (list sfmm:lightning-command-alias "generate" "component" "--output-dir" output-dir "--name" component-name "--json"))))
 
     (when (string= type "component")
-      (append command (list "--type" component-type)))
+      (setq command
+            (append command (list "--type" component-type))))
 
     (sfmm--helper:make-sync-process
      :command command
@@ -591,26 +652,6 @@
         (alert "Start lwc local server success"
                :title "Salesforce Alert")))))
 
-(defun sfmm--helper:get-errors-json (data)
-   "Get errors from json data"
-   (let ((component-failures (sfmm--helper:get-data-hashtable "result.deployedSource" data)))
-
-     (mapconcat
-      (lambda (component)
-        (let ((problem (gethash "error" component))
-              (problem-type (gethash "problemType" component))
-              (line-number (gethash "lineNumber" component))
-              (file-name (gethash "filePath" component)))
-
-          (format "problem-type: %s \n problem: %s \n %s:%s"
-                  problem-type
-                  problem
-                  file-name
-                  line-number)))
-
-      component-failures
-      "\n")))
-
 (defun sfmm--helper:generate-command (commands)
   (add-to-list 'commands sfmm:sfdx-lib-alias))
 
@@ -638,6 +679,46 @@ emacs make-process pipe  "Execute code"
           (append (sfmm--helper:generate-command (list sfmm:data-command-alias "query" "--json"))
                   options)))
 
+    ;; (sfdx--helper:make-async-process
+    ;;      :command execute-soql-code
+    ;;      :handle-success-lambda
+    ;;      (lambda (process json-instance buffer)
+    ;;        (let* ((records-list (sfdx--helper:get-data-hashtable "result.records" json-instance))
+    ;;               (start-index 1)
+    ;;               (column-header-map #s(hash-table test equal data ("No" ((:align . 'left) (:title . "No")))))
+    ;;               (data
+    ;;                (mapcar
+    ;;                 (lambda (element)
+
+    ;;                   (let ((row `(,start-index)))
+    ;;                     (maphash
+    ;;                      (lambda (key value)
+    ;;                        (let ((column-config `((:align . ,'left) (:title . ,key))))
+    ;;                          (unless (hash-table-p value)
+    ;;                            (when (eq value ':null)
+    ;;                              (setq value " "))
+    ;;                            (when (eq value ':false)
+    ;;                              (setq value "False"))
+    ;;                            (when (eq value 't)
+    ;;                              (setq value "True"))
+
+    ;;                            (add-to-list 'row
+    ;;                                         (replace-regexp-in-string "\\([\n]\\)" "" value) 1
+    ;;                                         '(lambda (element1 element2) nil))
+
+    ;;                            (when (length> value 50)
+    ;;                              (add-to-list 'column-config `(:max-width . ,'50)))
+
+    ;;                            (puthash (format "%s" key) column-config column-header-map))))
+    ;;                      element)
+    ;;                     (setq start-index (1+ start-index))
+    ;;                     row))
+    ;;                 records-list)))
+    ;;          (sfdx--build:make-table-component
+    ;;           :column-header (hash-table-values column-header-map)
+    ;;           :data data
+    ;;           :buffer buffer))))))
+
     (sfmm--helper:make-async-process
      :command execute-soql-code
      :handle-success-lambda
@@ -647,7 +728,7 @@ emacs make-process pipe  "Execute code"
               (data (sfdx--build:make-data-table-from-vector
                      :header-columns header-columns
                      :data records-list)))
-         (debug data)
+
          (sfdx--build:make-table-component
           :column-header
           (cl-loop for key in header-columns
@@ -737,11 +818,11 @@ emacs make-process pipe  "Execute code"
 
                            (let ((error-name (gethash "name" json-instance))
                                  (error-message (gethash "message" json-instance)))
+
                              (message error-name)
                              (message error-message)
-                             (alert (format "%s \nmessage: %s "
-                                            error-name
-                                            error-message)
+
+                             (alert error-message
                                     :title "Salesforce Alert")
                              (kill-buffer (process-buffer process)))))
 
@@ -798,6 +879,7 @@ emacs make-process pipe  "Execute code"
    data))
 
 (defun sfmm--helper:recursive-list (list-data lambda-function)
+  ""
   (let* ((new-list (cdr list-data))
          (first-item (car list-data))
          (remap-list '()))
@@ -864,24 +946,26 @@ emacs make-process pipe  "Execute code"
 (cl-defun sfdx--build:make-data-table-from-vector
     (&key header-columns data (enable-count-rows t))
   "Build data from input hash table and header-columns"
-  (cl-loop for i below (length data)
-               for row-count = (+ i 1)
-               for header-column in header-columns
-               for item = (aref data i)
-               for column-data = (gethash header-column item)
-               collect (cond ((or (eq column-data ':null)
-                                  (eq column-data 'nil)
-                                  (hash-table-p column-data))
-                              " ")
-                             ((eq column-data ':false)
-                              "False")
-                             ((eq column-data 't)
-                              "True")
-                             (t column-data))
-                       into row-data
-           finally (return (if enable-count-rows
-                                (append (list row-count) row-data)
-                               row-data))))
+  (let ((data-table ()))
+    (dotimes (i (length data))
+      (let ((row (append (list (+ i 1))
+                         (mapcar `(lambda (key)
+                                    (let ((value (gethash key ,(aref data i))))
+                                      (message key)
+                                      (message value)
+                                      (cond ((eq value ':null)
+                                             "")
+                                            ((eq value ':false)
+                                             "False")
+                                            ((eq value 't)
+                                             "True")
+                                            (t
+                                             value))))
+
+                                 header-columns))))
+        (add-to-list 'data-table row 1 '(lambda (v1 v2)
+                                             nil))))
+    data-table))
 
 (defun sfmm:site:list ()
   ""
@@ -929,26 +1013,8 @@ emacs make-process pipe  "Execute code"
           :data records-list
           :buffer buffer))))))
 
-(defun sfmm:binding--key (key)
-  (kbd (concat sfmm:keymap-prefix " " key)))
-
-(defun sfmm:binding--key-org (key)
-  (sfmm:binding--key
-   (concat sfmm:org-keymap-prefix " " key)))
-
-(defun sfmm:binding--key-auth (key)
-  (sfmm:binding--key
-   (concat sfmm:auth-keymap-prefix " " key)))
-
-(defun sfmm:binding--key-apex (key)
-  (sfmm:binding--key
-   (concat sfmm:apex-keymap-prefix " " key)))
-
-(defun sfmm:binding--key-query (key)
-  (sfmm:binding--key
-   (concat sfmm:query-keymap-prefix " " key)))
-
 (defun sfmm:hook-on-handler ()
+  ""
   (setq org-default-alias (sfmm:org:show-current-org))
   (when org-default-alias
     (add-to-list 'mode-line-misc-info '(" " org-default-alias " "))
@@ -956,6 +1022,7 @@ emacs make-process pipe  "Execute code"
 
 
 (defun sfmm:hook-off-handler ()
+  ""
   (setq org-default-alias (sfmm:org:show-current-org))
   (when org-default-alias
     (setq mode-line-misc-info
@@ -972,83 +1039,4 @@ emacs make-process pipe  "Execute code"
 
   (add-hook 'salesforce-minor-mode-off-hook #'sfmm:hook-off-handler))
 
-(provide 'salesforce-minor-mode)
-
-(defun ob-apex-log:get-log-test-class (process-params)
-  "Get log from test class executed"
-  (let* ((test-class-name (cdr (assq :test-class process-params)))
-         (sfmm--helper:generate-command (list sfmm:apex-command-alias "run" "test" "--tests" test-class-name "--test-level" "RunSpecifiedTests" "--json")))
-
-    (org-babel-remove-result)
- 
-    (re-search-backward "#\\+end_src")
-    (previous-line)
-    (newline)
-    (insert uuid)
-
-    (sfmm--helper:make-async-process
-     :command command
-     :handle-success-lambda
-     (lambda (process json-instance buffer)
-       (sfmm:apex:get-log
-        :number 1
-        :post-log-handle
-        `(lambda (log-content)
-
-           (let ((filter-type ,(upcase (format "%s" (cdr (assq :filter-type processed-params)))))
-                 (filter-value ,(cdr (format "%s" (assq :filter-value processed-params)))))
-
-             (unless (or (equal filter-type "none"
-                          (null filter-type)))
-                (let ((debug-keywords '("DEBUG"))
-                      (executable-keywords '("VARIABLE_ASSIGNMENT"
-                                             "STATEMENT_EXECUTE"
-                                             "METHOD_ENTRY"
-                                             "CONSTRUCTOR_EXIT"
-                                             "CODE_UNIT_STARTED"))
-                      (system-keywords '("VARIABLE_SCOPE_BEGIN"
-                                         "USER_INFO"
-                                         "EXECUTION_STARTED"
-                                         "CODE_UNIT_STARTED"
-                                         "HEAP_ALLOCATE"
-                                         "STATEMENT_EXECUTE"
-                                         "METHOD_ENTRY"))
-                      (groverment-keywords '("LIMIT_USAGE_FOR_NS"
-                                             "Number of"
-                                             "Maximum CPU"
-                                             "Maximum heap")))
-
-                   (setq log-content
-                         (mapconcat (lambda (line)
-                                      (cond ((and (equal filter-type "DEBUG")
-                                                  (string-match (regexp-opt debug-keywords) line))
-
-                                             (concat line "\n"))
-                                            ((and (equal filter-type "FILTER")
-                                                  (search filter-value line))
-                                             (concat line "\n"))
-                                            ((and (equal filter-type "EXECUTABLE")
-                                                  (string-match (regexp-opt executable-keywords) line))
-                                             (concat line "\n"))
-                                            ((and (equal filter-type "SYSTEM")
-                                                  (string-match (regexp-opt system-keywords) line))
-
-                                             (concat line "\n"))
-                                            ((and (eq filter-type "GOVERNMENT")
-                                                  (match-string (regexp-opt groverment-keywords) line))
-                                             (concat line "\n"))))
-                                   (split-string log-content "\n")
-                                   ""))))))
-
-        (with-current-buffer ,buffer
-          (beginning-of-buffer)
-          (re-search-forward ,uuid)
-          (forward-line -1)
-          (newline)
-          (insert (concat "|-------------------LOG--------------------------|"
-                   "\n" log-content))
-          (next-line)
-          (delete-line)
-
-          (alert "get log success"
-                 :title "Salesforce Alert")))))))
+(provide 'salesforce-minor-mode) ;;; salesforce-minor-mode end here.
