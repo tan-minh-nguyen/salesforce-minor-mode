@@ -7,22 +7,24 @@
 - [[#minor-mode][Minor Mode]]
   - [[#requirements][Requirements]]
   - [[#config-variable][Config variable]]
-  - [[#salesforce-functions][SALESFORCE FUNCTIONS]]
+  - [[#salesforce-functions][Salesforce functions]]
     - [[#project-prefix-functions][Project prefix functions]]
       - [[#create-project][Create project]]
     - [[#functions-use-force-prefix][Functions use force prefix]]
       - [[#push-source-salesforce-to-org][Push source salesforce to org]]
       - [[#retrieve-source-salesforce-from-org][Retrieve source salesforce from org]]
+      - [[#metadata-backup][Metadata backup]]
     - [[#functions-use-org-prefix][Functions use org prefix]]
       - [[#open-org-within-ctable][Open org within ctable]]
       - [[#open-org-project][Open org project]]
       - [[#display-all-org][Display all org]]
-      - [[#show-org-connect-status][SHOW ORG CONNECT STATUS]]
-      - [[#get-default-org][GET DEFAULT ORG]]
-      - [[#refresh-org][REFRESH ORG]]
+      - [[#show-org-connect-status][Show org connect status]]
+      - [[#get-default-org][Get default org]]
+      - [[#refresh-org][Refresh org]]
     - [[#functions-use-apex-prefix][Functions use apex prefix]]
       - [[#apex-logs][Apex logs]]
       - [[#apex-log][Apex Log]]
+      - [[#apex-log-tail][Apex log tail]]
       - [[#execute-apex-code][Execute apex code]]
     - [[#functions-use-login-prefix][Functions use login prefix]]
       - [[#scratchsanbox-org][Scratch/Sanbox org]]
@@ -38,39 +40,32 @@
       - [[#apex-trigger][Apex trigger]]
       - [[#apex-class][Apex class]]
       - [[#lightning-metadata][Lightning Metadata]]
-    - [[#function-apex-test-01][FUNCTION APEX TEST]]
+    - [[#function-apex-test-01][Function apex test]]
       - [[#run-all-tests-class][RUN ALL TESTS CLASS]]
       - [[#run-local-test-classes][RUN LOCAL TEST CLASSES]]
       - [[#--run-specific-unit-test][[ ] RUN SPECIFIC UNIT TEST]]
     - [[#run-lwc-local-server][RUN LWC LOCAL SERVER]]
   - [[#internal-functions][Internal functions]]
     - [[#generate-command][Generate command]]
-    - [[#execute-apex-code-1][EXECUTE APEX CODE]]
+    - [[#execute-apex-code-1][Execute apex code]]
     - [[#excute-soql-block][Excute soql block]]
     - [[#make-synchronous-process][Make synchronous process]]
     - [[#make-asynchronous-process][Make asynchronous process]]
-    - [[#execute-synchronous-salesforce-command][EXECUTE SYNCHRONOUS SALESFORCE COMMAND]]
-    - [[#execute-asynchronous-salesforce-command][EXECUTE ASYNCHRONOUS SALESFORCE COMMAND]]
-    - [[#convert-hashtable-to-list-data][CONVERT HASHTABLE TO LIST DATA]]
-    - [[#custom-map-list-function][CUSTOM MAP LIST FUNCTION]]
-    - [[#extract-data-in-hashtable][EXTRACT DATA IN HASHTABLE]]
+    - [[#execute-synchronous-salesforce-command][Execute synchronous salesforce command]]
+    - [[#execute-asynchronous-salesforce-command][Execute asynchronous salesforce command]]
+    - [[#convert-hashtable-to-list-data][Convert hashtable to list data]]
+    - [[#custom-map-list-function][Custom map list function]]
+    - [[#extract-data-in-hashtable][Extract data in hashtable]]
   - [[#build-table-functions][Build table functions]]
     - [[#build-ctable-component][Build ctable component]]
     - [[#build-ctable-header][Build ctable header]]
     - [[#build-ctable-data][Build ctable data]]
     - [[#site-list][Site list]]
-  - [[#helpers-functions][HELPERS FUNCTIONS]]
-    - [[#key-binding-functions][KEY BINDING FUNCTIONS]]
-    - [[#hook-functions][HOOK FUNCTIONS]]
-  - [[#define-minor-mode][DEFINE MINOR MODE]]
-- [[#log-mode][LOG MODE]]
-- [[#org-babel-apex-log][ORG BABEL APEX LOG]]
-  - [[#dependencies][Dependencies]]
-  - [[#define-headers][Define Headers]]
-  - [[#expand-body-apex-log][Expand Body Apex Log]]
-  - [[#execute-apex-log][Execute Apex Log]]
-  - [[#run-test-class][Run test class]]
-  - [[#filter-log-content][Filter Log Content]]
+  - [[#helpers-functions][Helpers functions]]
+    - [[#key-binding-functions][Key binding functions]]
+    - [[#hook-functions][Hook functions]]
+    - [[#clear-log][Clear log]]
+  - [[#define-minor-mode][Define minor mode]]
 
 * Minor Mode
 ** Requirements
@@ -126,13 +121,13 @@
    :type 'string
    :group 'salesforce-cli)
 
-(defcustom sfmm:non-scratch-org-header-display
+(defcustom sfmm:org:non-scratch-org-header-display
   '("username" "instanceUrl" "orgId" "isDevHub" "instanceApiVersion" "alias" "lastUsed" "connectedStatus")
   "Custom define header display on table non scratch orgs"
   :type 'list
   :group 'salesforce-cli)
 
-(defcustom sfmm:scratch-org-header-display
+(defcustom sfmm:org:scratch-org-header-display
   '("username" "password" "instanceUrl" "orgId" "expirationDate" "instanceApiVersion" "alias" "connectedStatus")
   "Custom define header display on table scratch orgs"
   :type 'list
@@ -229,9 +224,14 @@
  "Path save test components"
  :type 'string
  :group 'sfdx-config)
+
+(defcustom sfmm:org:cache-dir ".cache/"
+  "Directory to store cache files."
+  :type 'string
+  :group 'salesforce)
 #+end_src
 
-** SALESFORCE FUNCTIONS
+** Salesforce functions
 #+begin_src emacs-lisp :tangle yes
 (add-to-list
  'display-buffer-alist
@@ -243,6 +243,7 @@
 #+begin_src emacs-lisp :tangle yes
 (defun sfmm:project:create ()
   "Create dx project"
+  (interactive)
   (let ((project-path (read-string "project-path: "))
         (project-name (read-string "project-name: "))
         (command (sfmm--helper:generate-command
@@ -270,28 +271,96 @@
 *** Functions use force prefix
 **** Push source salesforce to org
 #+begin_src emacs-lisp :tangle yes
-(defun sfmm:push-file
+(defun sfmm:source:push
     ()
-  "Push metadata salesforce to org"
+  "Push file to salesforce org."
   (interactive)
   (let* ((file-name (buffer-file-name))
          (push-command (list sfmm:sfdx-lib-alias "force" "source" "deploy" "-p" file-name "--json")))
 
+    (sfmm:org:source-backup
+     :handle-after-backup-lambda
+     (lambda ()
+        (sfmm--helper:make-async-process
+         :command `,push-command
+         :handle-success-lambda
+         `(lambda (process json-instance buffer)
+           (alert (format "Deploy %s success" ,file-name)
+                  :title "Salesforce Alert"))
+         :handle-error-lambda
+         (lambda (process json-instance buffer)
+           (let ((show-message "")
+                 (error-name (gethash "name" json-instance))
+                 (error-message (gethash "message" json-instance)))
+
+             (cond ((and error-name
+                         error-message)
+                    (setq show-message (format "Name: %s\nMessage: \n%s\n" error-name error-message)))
+                   (t
+                    (setq show-message (mapconcat (lambda (component)
+                                                   (let ((problem (gethash "error" component))
+                                                         (problem-type (gethash "problemType" component))
+                                                         (line-number (gethash "lineNumber" component))
+                                                         (file-name (gethash "filePath" component)))
+
+                                                     (format "Problem-type: %s\nProblem: %s\n%s:%s"
+                                                             problem-type
+                                                             problem
+                                                             file-name
+                                                             line-number)))
+
+                                                 (sfmm--helper:get-data-hashtable "result.deployedSource" json-instance)
+                                                 "\n"))))
+
+             (alert show-message
+                    :title "Salesforce Alert"
+                    :category 'error
+                    :severity 'urgent))))))))
+#+end_src
+
+**** Retrieve source salesforce from org
+#+begin_src emacs-lisp :tangle yes
+(defun sfmm:source:retrieve
+    ()
+  "Retrieve source salesforce form org"
+  (interactive)
+  (let ((retrieve-command (list sfmm:sfdx-lib-alias "force" "source" "retrieve" "-p" buffer-file-name "--json")))
+
     (sfmm--helper:make-async-process
-     :command push-command
+     :command retrieve-command
      :handle-success-lambda
      `(lambda (process json-instance buffer)
-        (alert (format "Deploy %s success" ,file-name)
-               :title "Salesforce Alert"))
+        (alert (format "Retrieve %s success" ,buffer-file-name)
+               :title "Salesforce Alert")))))
+#+end_src
+**** Metadata backup
+#+begin_src emacs-lisp :tangle yes
+(cl-defun sfmm:org:source-backup (&key handle-after-backup-lambda)
+  "Backup the current buffer to the source directory."
+  (let* ((buffer (buffer-file-name))
+         (time (format-time-string "%N" (current-time)))
+         (file-name (file-name-base buffer))
+         (cache-dir (concat (cdr (project-current)) sfmm:org:cache-dir))
+         (backup-file-name (concat file-name "_" time))
+         (command (sfmm--helper:generate-command (list sfmm:project-command-alias "retrieve" "start" "-d" buffer "-o" (sfmm:org:show-current-org) "-z" "-t" cache-dir "--zip-file-name" backup-file-name "--json"))))
+
+    (unless (file-exists-p cache-dir)
+      (make-directory cache-dir))
+
+    (sfmm--helper:make-sync-process
+     :command command
+     :handle-success-lambda
+     `(lambda (process json-instance buffer)
+        (funcall ,handle-after-backup-lambda))
      :handle-error-lambda
-     (lambda (process json-instance buffer)
-       (let ((show-message "")
-             (error-name (gethash "name" json-instance))
-             (error-message (gethash "message" json-instance)))
+     `(lambda (process json-instance buffer)
+        (let ((show-message "")
+              (error-name (gethash "name" json-instance))
+              (error-message (gethash "message" json-instance)))
 
          (cond ((and error-name
                      error-message)
-                (setq show-message (format "Name: %s\nMessage: \n%s\n")))
+                (setq show-message (format "Name: %s\nMessage: \n%s\n" error-name error-message)))
                (t
                 (setq show-message (mapconcat (lambda (component)
                                                (let ((problem (gethash "error" component))
@@ -309,24 +378,10 @@
                                              "\n"))))
 
          (alert show-message
-                :title "Salesforce Alert"
+                :title "Backup Salesforce Failure"
                 :category 'error))))))
 #+end_src
-**** Retrieve source salesforce from org
-#+begin_src emacs-lisp :tangle yes
-(defun sfmm:retrieve-file
-    ()
-  "Retrieve source salesforce form org"
-  (interactive)
-  (let ((retrieve-command (list sfmm:sfdx-lib-alias "force" "source" "retrieve" "-p" buffer-file-name "--json")))
 
-    (sfmm--helper:make-async-process
-     :command retrieve-command
-     :handle-success-lambda
-     `(lambda (process json-instance buffer)
-        (alert (format "Retrieve %s success" ,buffer-file-name)
-               :title "Salesforce Alert")))))
-#+end_src
 *** Functions use org prefix
 **** Open org within ctable
 #+begin_src emacs-lisp :tangle yes
@@ -364,12 +419,12 @@
       (lambda (process json-instance buffer)
         (let ((url (sfmm--helper:get-data-hashtable "result.url" json-instance)))
 
-          (shell-command (concat sfmm:default-browser " " (format "%S" url) " " "&")))))))
+          (shell-command (concat sfmm:default-browser (format " %S " url) " -r " " tab ")))))))
 #+end_src
 
 **** Display all org
 #+begin_src emacs-lisp :tangle yes
-(defun sfmm:display-all-org (org-type)
+(defun sfmm:org:display-all (org-type)
   "Display all current connect org"
   (let ((command (sfmm--helper:generate-command (list sfmm:org-command-alias "list" "--json"))))
 
@@ -385,8 +440,8 @@
              (format "%s" item)
              `((:align . ,'left) (:title . ,item))
              column-header-map))
-          (cond ((string= org-type "nonScratchOrgs") sfmm:non-scratch-org-header-display)
-                ((string= org-type "scratchOrgs")) sfmm:scratch-org-header-display))
+          (cond ((string= org-type "nonScratchOrgs") sfmm:org:non-scratch-org-header-display)
+                ((string= org-type "scratchOrgs")) sfmm:org:scratch-org-header-display))
 
          (if (= (gethash "status" json-instance) 0)
              (let* ((non-scratch-orgs
@@ -399,8 +454,8 @@
                                (sfmm--helper:convert-hashtable-data-to-list
                                 :hashtable-data element
                                 :columns
-                                (cond ((string= org-type "nonScratchOrgs") sfmm:non-scratch-org-header-display)
-                                      ((string= org-type "scratchOrgs")) sfmm:scratch-org-header-display)
+                                (cond ((string= org-type "nonScratchOrgs") sfmm:org:non-scratch-org-header-display)
+                                      ((string= org-type "scratchOrgs")) sfmm:org:scratch-org-header-display)
                                 :post-process
                                 (lambda (key value)
                                   (let ((column-config
@@ -419,24 +474,24 @@
                             row)))
                       non-scratch-orgs)))
 
-               (sfdx--build:make-table-component
+               (sf--build:make-table-component
                 :column-header (hash-table-values column-header-map)
                 :data data
                 :buffer buffer))))))))
 #+end_src
-***** NON SCRATCH ORG
+***** Non scratch org
 #+begin_src emacs-lisp :tangle yes
-(defun sfmm:display-all-non-scratch-orgs ()
+(defun sfmm:org:display-all-non-scratch ()
   (interactive)
-  (sfmm:display-all-org "nonScratchOrgs"))
+  (sfmm:org:display-all "nonScratchOrgs"))
 #+end_src
-***** SCRATCH ORG
+***** Scratch org
 #+begin_src emacs-lisp :tangle yes
-(defun sfmm:display-all-scratch-orgs ()
+(defun sfmm:org:display-all-scratch ()
   (interactive)
-  (sfmm:display-all-org "scratchOrgs"))
+  (sfmm:org:display-all "scratchOrgs"))
 #+end_src
-**** SHOW ORG CONNECT STATUS
+**** Show org connect status
 #+begin_src emacs-lisp :tangle yes
 (defun sf:org:connect-status ()
   "Check connect status to org"
@@ -451,19 +506,19 @@
                          "RefreshTokenAuthError")
             (alert "Token expired !!" :title "Salesforce Alert")))))))
 #+end_src
-**** TODO GET DEFAULT ORG
+**** TODO Get default org
 #+begin_src emacs-lisp :tangle yes
 (defun sfmm:org:show-current-org ()
   (let ((org-alias ""))
 
-    (sfmm--helper:make-async-process
+    (sfmm--helper:make-sync-process
      :command (sfmm--helper:generate-command (list sfmm:org-command-alias "display" "--json"))
      :handle-success-lambda
      `(lambda (process json-instance buffer)
         (setq ,'org-alias (sfmm--helper:get-data-hashtable "result.alias" json-instance))))
     org-alias))
 #+end_src
-**** REFRESH ORG
+**** Refresh org
 #+begin_src emacs-lisp :tangle yes
 (defun sfmm:refresh-default-org
     ()
@@ -534,6 +589,22 @@
         (org (read-string "read-string")))))
 
 #+end_src
+**** Apex log tail
+#+begin_src emacs-lisp :tangle yes
+(cl-defun sfmm:apex:log-tail
+    (&key (buffer-name "*apex-trace-log*") (org-id nil))
+  :interactive
+  (let (command (sfmm--helper:generate-command (list sfmm:apex-command-alias "get" "tail" "log" "--json")))
+
+    (sfmm--helper:make-async-process
+     :command command
+     :handle-success-lambda
+     `(lambda (process output)
+         (let ((buffer (get-buffer-create ,buffer-name)))
+           (with-current-buffer buffer
+             (goto-char (point-max))
+             (insert output)))))))
+#+end_src
 **** TODO Execute apex code
 #+begin_src emacs-lisp :tangle yes
 (defun sfmm:execute-apex-code ()
@@ -557,12 +628,12 @@
          (alert "Authorize success" :title "Salesforce Alert")
          (sfmm--helper:make-sync-process
           :command
-          (sfmm--helper:generate-command (list "org" "open" "--json" "-o" user-name))
+          (sfmm--helper:generate-command (list "org" "open" "--json" "-o" user-name "-r"))
           :handle-success-lambda
           (lambda (process json-instance buffer)
             (let ((url (sfmm--helper:get-data-hashtable "result.url" json-instance)))
 
-              (shell-command (concat sfmm:default-browser " " (format "%S" url) " " "&"))))))))))
+              (shell-command (concat sfmm:default-browser " " (format "%S" url) " -r " " tab "))))))))))
 #+end_src
 **** Scratch/Sanbox org
 #+begin_src emacs-lisp :tangle yes
@@ -599,13 +670,30 @@
 (defun sfmm:fetch-record-through-soql ()
   "Fetch salesforce record by calling API through Salesforce CLI library"
   (interactive)
-  (let ((soql-string (read-string "SOQL: ")))
+  (let* ((history '())
+         (file-name "soql-history")
+         (cache-dir (concat (cdr (project-current)) sfmm:org:cache-dir))
+         (file-contents `',(with-current-buffer (get-buffer-create (concat cache-dir file-name))
+                             (buffer-string)))
+         (soql-string (read-from-minibuffer "SOQL: " nil nil nil `("read-from-minibuffer"))))
+
+    (unless (file-exists-p cache-dir)
+      (make-directory cache-dir))
+
+    (with-current-buffer (get-file-buffer (concat cache-dir "/" file-name))
+      (erase-buffer)
+      (insert `,file-contents))
 
     (sfmm--helper:execute-soql :query soql-string)))
 #+end_src
-**** SOQL file
+**** TODO SOQL file
 #+begin_src emacs-lisp :tangle yes
+(defun sfmm:fetch-record-through-file ()
+  "Fetch record through file."
+  (interactive)
+  (let ((soql-file (read-string "SOQL-File: ")))
 
+    (sfmm--helper:execute-soql :file soql-file)))
 #+end_src
 *** Compare local file with org file
 #+begin_src emacs-lisp :tangle yes
@@ -703,7 +791,7 @@
           (goto-char (- (point-at-eol) 1))
           (insert ,class-expand))))))
 #+end_src
-***** TEST CLASS
+***** Test class
 #+begin_src emacs-lisp :tangle yes
 (defun sfmm:apex:generate-test-class ()
   "Generate apex test class"
@@ -721,7 +809,7 @@
 
           (insert "@isTest"))))))
 #+end_src
-***** METHOD TEST
+***** Method test
 #+begin_src emacs-lisp :tangle yes
 (defun sfmm:apex:generate-test-method ()
   "Generate apex test method"
@@ -754,7 +842,7 @@
         (alert (format message-success ,component-name)
                :title "Salesforce Alert")))))
 #+end_src
-***** lwc
+***** LWC
 #+begin_src emacs-lisp :tangle yes
 (defun sfmm:lightning-component:generate-lwc ()
   ""
@@ -765,7 +853,7 @@
    :message-success "Create %s success"
    :component-type "lwc"))
 #+end_src
-***** aura
+***** AURA
 #+begin_src emacs-lisp :tangle yes
 (defun sfmm:lightning-component:generate-aura ()
   "Generate Aura Component"
@@ -815,7 +903,7 @@
    :output-dir (projectile-expand-root sfmm:default-test-path)
    :message-success "Create test %s sucess"))
 #+end_src
-*** TODO FUNCTION APEX TEST [0/1]
+*** TODO Function apex test [0/1]
 #+begin_src emacs-lisp :tangle yes
 (cl-defun sfmm:apex:get-result-test-job
     (&key job-id)
@@ -904,10 +992,10 @@
 (defun sfmm--helper:generate-command (commands)
   (add-to-list 'commands sfmm:sfdx-lib-alias))
 #+end_src
-*** EXECUTE APEX CODE
+*** Execute apex code
 #+begin_src emacs-lisp :tangle yes
 (defun sfmm--helper:execute-apex (content)
-emacs make-process pipe  "Execute code"
+emacs make-process pipe "Execute code"
   (let ((code (unless content
                (point-min)
                content))
@@ -932,7 +1020,7 @@ This function execute [[https://developer.salesforce.com/docs/atlas.en-us.sfdx_c
 
 #+begin_src emacs-lisp :tangle yes
 (cl-defun sfmm--helper:execute-soql (&key query (type 'string) options)
-  "Excute command fetch records from Salesforce through API"
+  "Excute command fetch records from Salesforce through api"
   (let* ((options
           (cond ((equal type 'string)
                  (list "--query" query))
@@ -942,63 +1030,29 @@ This function execute [[https://developer.salesforce.com/docs/atlas.en-us.sfdx_c
           (append (sfmm--helper:generate-command (list sfmm:data-command-alias "query" "--json"))
                   options)))
 
-    ;; (sfdx--helper:make-async-process
-    ;;      :command execute-soql-code
-    ;;      :handle-success-lambda
-    ;;      (lambda (process json-instance buffer)
-    ;;        (let* ((records-list (sfdx--helper:get-data-hashtable "result.records" json-instance))
-    ;;               (start-index 1)
-    ;;               (column-header-map #s(hash-table test equal data ("No" ((:align . 'left) (:title . "No")))))
-    ;;               (data
-    ;;                (mapcar
-    ;;                 (lambda (element)
-
-    ;;                   (let ((row `(,start-index)))
-    ;;                     (maphash
-    ;;                      (lambda (key value)
-    ;;                        (let ((column-config `((:align . ,'left) (:title . ,key))))
-    ;;                          (unless (hash-table-p value)
-    ;;                            (when (eq value ':null)
-    ;;                              (setq value " "))
-    ;;                            (when (eq value ':false)
-    ;;                              (setq value "False"))
-    ;;                            (when (eq value 't)
-    ;;                              (setq value "True"))
-
-    ;;                            (add-to-list 'row
-    ;;                                         (replace-regexp-in-string "\\([\n]\\)" "" value) 1
-    ;;                                         '(lambda (element1 element2) nil))
-
-    ;;                            (when (length> value 50)
-    ;;                              (add-to-list 'column-config `(:max-width . ,'50)))
-
-    ;;                            (puthash (format "%s" key) column-config column-header-map))))
-    ;;                      element)
-    ;;                     (setq start-index (1+ start-index))
-    ;;                     row))
-    ;;                 records-list)))
-    ;;          (sfdx--build:make-table-component
-    ;;           :column-header (hash-table-values column-header-map)
-    ;;           :data data
-    ;;           :buffer buffer))))))
-
     (sfmm--helper:make-async-process
      :command execute-soql-code
      :handle-success-lambda
      (lambda (process json-instance buffer)
-       (let* ((records-list (sfmm--helper:get-data-hashtable "result.records" json-instance))
-              (header-columns (hash-table-keys (aref records-list 0)))
-              (data (sfdx--build:make-data-table-from-vector
-                     :header-columns header-columns
-                     :data records-list)))
+       
+       (if (length= (sfmm--helper:get-data-hashtable "result.records" json-instance) 0)
+           (alert "No records found"
+                  :title "Salesforce Query")
+         (let* ((records-list (sfmm--helper:get-data-hashtable "result.records" json-instance))
+                (header-columns (hash-table-keys (aref records-list 0)))
+                (data (sf--build:make-data-table-from-vector
+                       :header-columns header-columns
+                       :data records-list)))
 
-         (sfdx--build:make-table-component
-          :column-header
-          (cl-loop for key in header-columns
-                   when (not (string= key "attributes"))
-                   collect `((:align . ,'left) (:title . ,key) `(:max-width . ,'50)))
-          :data data
-          :buffer buffer))))))
+           (add-to-list 'header-columns "No")
+
+           (sf--build:make-table-component
+            :column-header
+            (cl-loop for key in header-columns
+                     when (not (string= key ""))
+                     collect `((:align . ,'left) (:title . ,key) `(:max-width . ,'50)))
+            :data data
+            :buffer buffer)))))))
 #+end_src
 
 *** Make synchronous process
@@ -1018,8 +1072,8 @@ This function execute [[https://developer.salesforce.com/docs/atlas.en-us.sfdx_c
              :command command
              :connection-type 'pipe
              :filter
-             (lambda (process output)
-               (setq process-output (concat process-output output)))
+             `(lambda (process output)
+               (setq process-output (concat ,process-output output)))
              :sentinel
              (lambda (process event)
               (cond ((string= event "deleted\n")
@@ -1045,63 +1099,84 @@ This function execute [[https://developer.salesforce.com/docs/atlas.en-us.sfdx_c
 (cl-defun sfmm--helper:make-async-process
     (&key command buffer-name handle-success-lambda handle-error-lambda)
   "Make async process"
-  (let ((buffer-command-history "salesforce-command-history")
-        (buffer-stdout (generate-new-buffer "salesforce-process"))
-        (process-identity "salesforce-process")
-        (buffer-view-post-process (cond ((or (null buffer-name)
-                                             (string= buffer-name ""))
-                                         (generate-new-buffer "salesforce outcome"))
-                                        (buffer-name
-                                         (generate-new-buffer buffer-name))))
-        (process-output ""))
+  (let* ((process-identity "salesforce")
+         (buffer-stdout (with-current-buffer (get-buffer-create "salesforce-process")
+                         (let ((inhibit-read-only t))
+                           (erase-buffer)
+                           (current-buffer))))
+         (buffer-stderr (with-current-buffer (get-buffer-create "salesforce-error")
+                         (let ((inhibit-read-only t))
+                           (erase-buffer)
+                           (current-buffer))))
+         (buffer-view-post-process (cond ((or (null buffer-name)
+                                              (string= buffer-name ""))
+                                          (with-current-buffer (get-buffer-create "salesforce outcome")
+                                            (let ((inhibit-read-only t))
+                                              (erase-buffer)
+                                              (current-buffer))))
+                                         (buffer-name
+                                          (generate-new-buffer buffer-name))))
+         (process-error (make-pipe-process
+                         :name
+                         (concat process-identity "-error")
+                         :buffer buffer-stderr
+                         :sentinel
+                         `(lambda (process event)
+                            (with-current-buffer ,buffer-stderr
+                              (beginning-of-buffer)
+
+                              (condition-case nil
+                                  (json-parse-buffer)
+                                (error (cond ((= (buffer-size) 0)
+                                              nil)
+                                             (t
+                                              (alert (replace-regexp-in-string "" "" (buffer-string))
+                                                     :title "Salesforce Alert"
+                                                     :severity 'urgent))))))))))
+
+
+
+
 
     (with-environment-variables (("NODE_NO_WARNINGS" "1"))
 
       (make-process
-       :name process-identity
+       :name (concat process-identity "-process")
        :buffer buffer-stdout
+       :stderr process-error
        :command command
-       :filter
-       `(lambda (process output)
-          (with-current-buffer ,buffer-stdout
-             (end-of-buffer)
-             (insert output)))
        :sentinel
        `(lambda (process event)
           (with-current-buffer ,buffer-stdout
             (beginning-of-buffer)
 
-            (if (json-available-p)
-                (let* ((json-instance (json-parse-buffer))
-                       (json-status (gethash "status" json-instance)))
-
-                  (cond ((and (string= event "finished\n")
-                              (= json-status 0))
-
-                         (funcall ,handle-success-lambda process json-instance ,buffer-view-post-process))
-
-                        ((or (string= event "exited abnormally with code 1\n")
-                             (= json-status 1))
-
-                         (if ,handle-error-lambda
-                             (funcall ,handle-error-lambda process json-instance ,buffer-view-post-process)
-
-                           (let ((error-name (gethash "name" json-instance))
-                                 (error-message (gethash "message" json-instance)))
-
-                             (message error-name)
-                             (message error-message)
-
-                             (alert error-message
-                                    :title "Salesforce Alert")
-                             (kill-buffer (process-buffer process)))))
-
-                        ((string= event "deleted\n")
-                         (kill-buffer (process-buffer process))))))))))))
-
+            (condition-case json-instance
+                (json-parse-buffer)
+              (error (cond ((= (buffer-size) 0)
+                            nil)
+                           ((not (member "--json" ',command))
+                            (funcall ,handle-success-lambda process (buffer-string) ,buffer-view-post-process))
+                           (t
+                            (alert (buffer-string)
+                                   :title "Salesforce Alert"
+                                   :severity 'urgent))))
+              (:success
+                  (pcase (cond ((gethash "status" json-instance)
+                                (gethash "status" json-instance))
+                               ((gethash "code" json-instance)
+                                (gethash "status" json-instance)))
+                      (1
+                       (cond (,handle-error-lambda
+                              (funcall ,handle-error-lambda process json-instance ,buffer-view-post-process))
+                             (t
+                              (alert (gethash "message" json-instance)
+                                    :title "Salesforce Alert"
+                                    :severity 'urgent))))
+                      (0
+                       (funcall ,handle-success-lambda process json-instance ,buffer-view-post-process)))))))))))
 #+end_src
 
-*** TODO EXECUTE SYNCHRONOUS SALESFORCE COMMAND
+*** TODO Execute synchronous salesforce command
 + override api version with custom once
 #+begin_src emacs-lisp :tangle yes
 (defun sfmm--helper:execute-command (command message-success)
@@ -1112,7 +1187,7 @@ This function execute [[https://developer.salesforce.com/docs/atlas.en-us.sfdx_c
       (unless (string= message-success "")
         (alert ,message-success :title "Salesforce Alert")))))
 #+end_src
-*** EXECUTE ASYNCHRONOUS SALESFORCE COMMAND
+*** Execute asynchronous salesforce command
 #+begin_src emacs-lisp :tangle yes
 (cl-defun sfmm--helper:execute-async-command
     (&key command (message-success "") (message-failures ""))
@@ -1128,7 +1203,7 @@ This function execute [[https://developer.salesforce.com/docs/atlas.en-us.sfdx_c
              (alert ,message-success :title "Salesforce Alert"))
           (alert ,message-failures :title "Salesforce Alert"))))))
 #+end_src
-*** CONVERT HASHTABLE TO LIST DATA
+*** Convert hashtable to list data
 #+begin_src emacs-lisp :tangle yes
 (cl-defun sfmm--helper:convert-hashtable-data-to-list
     (&key hashtable-data columns (post-process nil))
@@ -1157,7 +1232,7 @@ This function execute [[https://developer.salesforce.com/docs/atlas.en-us.sfdx_c
       columns)
    data))
 #+end_src
-*** CUSTOM MAP LIST FUNCTION
+*** Custom map list function
 #+begin_src emacs-lisp :tangle yes
 (defun sfmm--helper:recursive-list (list-data lambda-function)
   ""
@@ -1172,7 +1247,7 @@ This function execute [[https://developer.salesforce.com/docs/atlas.en-us.sfdx_c
 
     (add-to-list 'remap-list (funcall lambda-function first-item))))
 #+end_src
-*** EXTRACT DATA IN HASHTABLE
+*** Extract data in hashtable
 #+begin_src emacs-lisp :tangle yes
 (defun sfmm--helper:get-data-hashtable (path table)
   "Get all data follow the path in hash table"
@@ -1190,16 +1265,16 @@ This function execute [[https://developer.salesforce.com/docs/atlas.en-us.sfdx_c
 ** Build table functions
 *** Build ctable component
 #+begin_src emacs-lisp :tangle yes
-(cl-defun sfdx--build:make-table-component (&key column-header data buffer)
+(cl-defun sf--build:make-table-component (&key column-header data buffer)
   "Use ctable to build table data"
-  (let* ((column-model (mapcar 'sfdx--build:make-header-table column-header))
+  (let* ((column-model (mapcar 'sf--build:make-header-table column-header))
          (async-model
           (ctbl:async-model-wrapper data))
          (model
           (make-ctbl:model
            :column-model column-model :data async-model)))
 
-    (with-current-buffer (pop-to-buffer buffer)
+    (with-current-buffer (switch-to-buffer buffer)
       (ctbl:create-table-component-region
            :model model)
       (ctbl:table-mode)
@@ -1208,7 +1283,7 @@ This function execute [[https://developer.salesforce.com/docs/atlas.en-us.sfdx_c
 #+end_src
 *** Build ctable header
 #+begin_src emacs-lisp :tangle yes
-(defun sfdx--build:make-header-table (column)
+(defun sf--build:make-header-table (column)
   "Build header ctable"
   (let* ((header-config column)
          (title (if (assq ':title column)
@@ -1233,7 +1308,7 @@ This function execute [[https://developer.salesforce.com/docs/atlas.en-us.sfdx_c
 #+end_src
 *** Build ctable data
 #+begin_src emacs-lisp :tangle yes
-(cl-defun sfdx--build:make-data-table-from-vector
+(cl-defun sf--build:make-data-table-from-vector
     (&key header-columns data (enable-count-rows t))
   "Build data from input hash table and header-columns"
   (let ((data-table ()))
@@ -1241,16 +1316,17 @@ This function execute [[https://developer.salesforce.com/docs/atlas.en-us.sfdx_c
       (let ((row (append (list (+ i 1))
                          (mapcar `(lambda (key)
                                     (let ((value (gethash key ,(aref data i))))
-                                      (message key)
-                                      (message value)
-                                      (cond ((eq value ':null)
-                                             "")
-                                            ((eq value ':false)
-                                             "False")
-                                            ((eq value 't)
-                                             "True")
-                                            (t
-                                             value))))
+
+                                      (if (hash-table-p value)
+                                          (gethash "url" value)
+                                        (cond ((eq value ':null)
+                                               "")
+                                              ((eq value ':false)
+                                               "False")
+                                              ((eq value 't)
+                                               "True")
+                                              (t
+                                               value)))))
 
                                  header-columns))))
         (add-to-list 'data-table row 1 '(lambda (v1 v2)
@@ -1301,13 +1377,13 @@ This function execute [[https://developer.salesforce.com/docs/atlas.en-us.sfdx_c
                (setq start-index (1+ start-index))
                row))
            records-list)
-         (sfdx--build:make-table-component
+         (sf--build:make-table-component
           :column-header (hash-table-values column-header-map)
           :data records-list
           :buffer buffer))))))
 #+end_src
-** HELPERS FUNCTIONS
-*** KEY BINDING FUNCTIONS
+** Helpers functions
+*** Key binding functions
 #+begin_src emacs-lisp :tangle no
 (defun sfmm:binding--key (key)
   ""
@@ -1334,7 +1410,7 @@ This function execute [[https://developer.salesforce.com/docs/atlas.en-us.sfdx_c
    (concat sfmm:query-keymap-prefix " " key)))
 
 #+end_src
-*** HOOK FUNCTIONS
+*** Hook functions
 #+begin_src emacs-lisp :tangle yes
 (defun sfmm:hook-on-handler ()
   ""
@@ -1352,8 +1428,35 @@ This function execute [[https://developer.salesforce.com/docs/atlas.en-us.sfdx_c
         (delete '(" " org-default-alias " ") mode-line-misc-info))))
 
 #+end_src
+*** Clear log
+#+begin_src emacs-lisp :tangle yes
+(defun sfmm:org:clear-log ()
+  "clear all apex log on org."
+  (interactive)
+  (let ((temp-file (make-temp-file "log" nil ".csv")))
 
-** DEFINE MINOR MODE
+    (sfmm--helper:make-async-process
+      :command
+      (sfmm--helper:generate-command
+       (list sfmm:data-command-alias "query" "--query" "SELECT Id FROM ApexLog" "-t" "-r" "csv"))
+      :handle-error-lambda
+      (lambda (process data buffer) _)
+      :handle-success-lambda
+      `(lambda (process data buffer)
+         (with-current-buffer ,temp-file
+           (insert data))
+
+         (sfmm--helper:make-async-process
+           :command
+           (sfmm--helper:generate-command
+            (list sfmm:data-command-alias "delete" "bulk" "--sobject" "ApexLog" "--file" ,temp-file "--json"))
+           :handle-success-lambda
+           (lambda (process json-instance buffer)
+             (alert "clear log success"
+                    :title "Success")))))))
+
+#+end_src
+** Define minor mode
 #+begin_src emacs-lisp :tangle yes
 (define-minor-mode salesforce-minor-mode
   "Toggles global salesforce minor mode."
@@ -1367,499 +1470,4 @@ This function execute [[https://developer.salesforce.com/docs/atlas.en-us.sfdx_c
   (add-hook 'salesforce-minor-mode-off-hook #'sfmm:hook-off-handler))
 
 (provide 'salesforce-minor-mode) ;;; salesforce-minor-mode end here.
-#+end_src
-* LOG MODE
-#+begin_src emacs-lisp :tangle apex-log-mode.el
-(defface salesforce-details-log-face '((t :foreground "#2D4356"))
-  "Face for detail in log file"
-  :group 'salesforce-log)
-
-(defface salesforce-groverment-log-face '((t :foreground "#6DA9E4"))
-  "Face for groverment in log file"
-  :group 'salesforce-log)
-
-(defface salesforce-execute-log-face '((t :foreground "#6C9BCF"))
-  "Face for execute in log file"
-  :group 'salesforce-log)
-
-(defface salesforce-run-mode-face '((t :foreground "#576CBC"))
-  "Face for running mode in log file"
-  :group 'salesforce-log)
-
-(defface salesforce-log-text-face '((t :foreground "#EEEEEE"))
-  "Face for running mode in log file"
-  :group 'salesforce-log)
-
-(defface salesforce-log-line-face '((t :foreground "#2DCDDF"))
-  "Face for line code in log file"
-  :group 'salesforce-log)
-
-(defface salesforce-log-timestamp-face '((t :foreground "#4D4D4D"))
-  "Face for timestamp in log file"
-  :group 'salesforce-log)
-
-(defface salesforce-groverment-value-face '((t :foreground "#6C9BCF"))
-  "Face for groverment value in log file"
-  :group 'salesforce-log)
-
-(defface salesforce-groverment-limit-face '((t :foreground "#D21312"))
-  "Face for groverment limit in log file"
-  :group 'salesforce-log)
-
-(defcustom salesforce-function-event-keywords '("SYSTEM_METHOD_EXIT"
-                                                "SYSTEM_METHOD_ENTRY"
-                                                "METHOD_ENTRY"
-                                                "METHOD_EXIT")
-  ""
-  :type 'list
-  :group 'salesforce-log)
-
-(defcustom salesforce-groverment-event-keywords '("HEAP_ALLOCATE"
-                                                  "LIMIT_USAGE_FOR_NS"
-                                                  "Number of SOQL queries"
-                                                  "Number of query rows"
-                                                  "Number of SOSL queries"
-                                                  "Number of DML statements"
-                                                  "Number of Publish Immediate DML"
-                                                  "Number of DML rows"
-                                                  "Maximum CPU time"
-                                                  "Maximum heap size"
-                                                  "Number of callouts"
-                                                  "Number of Email Invocations"
-                                                  "Number of future calls"
-                                                  "Number of queueable jobs added to the queue"
-                                                  "Number of Mobile Apex push calls"
-                                                  "CUMULATIVE_LIMIT_USAGE"
-                                                  "CUMULATIVE_LIMIT_USAGE_END")
-  ""
-  :type 'list
-  :group 'salesforce-log)
-
-(defcustom salesforce-execute-event-keywords '("STATEMENT_EXECUTE"
-                                               "CODE_UNIT_STARTED"
-                                               "CODE_UNIT_FINISHED"
-                                               "EXECUTION_STARTED"
-                                               "EXECUTION_FINISHED")
-  ""
-  :type 'list
-  :group 'salesforce-log)
-
-(defcustom salesforce-mode-event-keywords '("SYSTEM_MODE_ENTER"
-                                            "SYSTEM_MODE_EXIT")
-  ""
-  :type 'list
-  :group 'salesforce-log)
-
-(defcustom log-details-keywords-regex "\\(\\s\\S\\)"
-  ""
-  :group 'salesforce-log)
-
-(setq salesforce-font-lock
-      (let ((salesforce-function-event-keywords-regex (regexp-opt salesforce-function-event-keywords 'word))
-            (salesforce-groverment-event-keywords-regex (regexp-opt salesforce-groverment-event-keywords 'word))
-            (salesforce-execute-event-keywords-regex (regexp-opt salesforce-execute-event-keywords 'word))
-            (salesforce-mode-event-keywords-regex (regexp-opt salesforce-mode-event-keywords 'word)))
-
-        `((,salesforce-groverment-event-keywords-regex . 'salesforce-groverment-log-face)
-          (,salesforce-execute-event-keywords-regex . 'salesforce-execute-log-face)
-          (,salesforce-function-event-keywords-regex . 'font-lock-function-name-face)
-          (,salesforce-mode-event-keywords-regex . 'salesforce-run-mode-face)
-          ("\\([0-9]+\\) out of \\([0-9]+\\)" . ((1 'salesforce-groverment-value-face) (2 'salesforce-groverment-limit-face)))
-          ("[0-9]\\{0,2\\}:[0-9]\\{0,2\\}:[0-9]\\{0,2\\}.[0-9]\\{0,3\\}" . 'salesforce-log-timestamp-face)
-          ("\\[\\([0-9]+\\)\\]" . (1 'salesforce-log-line-face)))))
-
-
-
-(define-derived-mode apex-log-mode fundamental-mode "apex-log"
-  "Major mode for log salesforce."
-
-  (setq font-lock-defaults '((salesforce-font-lock))))
-
-(provide 'apex-log-mode)
-#+end_src
-* ORG BABEL APEX LOG
-#+begin_src emacs-lisp :tangle ./ob-apex-log.el
-;;; ob-template.el --- org-babel functions for template evaluation
-
-;; Copyright (C) your name here
-
-;; Author: tan.nguyen@furucrm.com
-;; Keywords: literate programming, reproducible research
-;; Homepage: https://orgmode.org
-;; Version: 0.01
-
-;;; License:
-
-;; This program is free software; you can redistribute it and/or modify
-;; it under the terms of the GNU General Public License as published by
-;; the Free Software Foundation; either version 3, or (at your option)
-;; any later version.
-;;
-;; This program is distributed in the hope that it will be useful,
-;; but WITHOUT ANY WARRANTY; without even the implied warranty of
-;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-;; GNU General Public License for more details.
-;;
-;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs; see the file COPYING.  If not, write to the
-;; Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
-;; Boston, MA 02110-1301, USA.
-
-;;; Commentary:
-
-;; This file is not intended to ever be loaded by org-babel, rather it is a
-;; template for use in adding new language support to Org-babel. Good first
-;; steps are to copy this file to a file named by the language you are adding,
-;; and then use `query-replace' to replace all strings of "template" in this
-;; file with the name of your new language.
-
-;; After the `query-replace' step, it is recommended to load the file and
-;; register it to org-babel either via the customize menu, or by evaluating the
-;; line: (add-to-list 'org-babel-load-languages '(template . t)) where
-;; `template' should have been replaced by the name of the language you are
-;; implementing (note that this applies to all occurrences of 'template' in this
-;; file).
-
-;; After that continue by creating a simple code block that looks like e.g.
-;;
-;; #+begin_src template
-
-;; test
-
-;; #+end_src
-
-;; Finally you can use `edebug' to instrumentalize
-;; `org-babel-expand-body:template' and continue to evaluate the code block. You
-;; try to add header keywords and change the body of the code block and
-;; reevaluate the code block to observe how things get handled.
-
-;;
-;; If you have questions as to any of the portions of the file defined
-;; below please look to existing language support for guidance.
-;;
-;; If you are planning on adding a language to org-babel we would ask
-;; that if possible you fill out the FSF copyright assignment form
-;; available at https://orgmode.org/request-assign-future.txt as this
-;; will make it possible to include your language support in the core
-;; of Org-mode, otherwise unassigned language support files can still
-;; be included in the contrib/ directory of the Org-mode repository.
-
-
-;;; Requirements:
-
-;; Use this section to list the requirements of this language.  Most
-;; languages will require that at least the language be installed on
-;; the user's system, and the Emacs major mode relevant to the
-;; language be installed as well.
-
-;;; Code:
-(require 'ob)
-(require 'ob-ref)
-(require 'ob-comint)
-(require 'ob-eval)
-(require 'salesforce-minor-mode)
-;; possibly require modes required for your language
-#+end_src
-
-** Dependencies
-#+begin_src emacs-lisp :tangle ./ob-apex-log.el
-;; optionally define a file extension for this language
-(add-to-list 'org-babel-tangle-lang-exts '("log" . "apex-log"))
-#+end_src
-
-** Define Headers
-#+begin_src emacs-lisp :tangle ./ob-apex-log.el
-;; optionally declare default header arguments for this language
-(defvar org-babel-default-header-args:apex-log (list '(:tangle "yes")
-                                                     '(:class-test . "")
-                                                     '(:org . "")
-                                                     '(:log-id . "")
-                                                     '(:number . "1")
-                                                     '(:filter-type . "")
-                                                     '(:filter-value . "")
-                                                      (assq-delete-all :session org-babel-default-header-args:apex-log)))
-
-(defvar org-babel-default-inline-header-args:apex-log (list '(:org . "")
-                                                            '(:log-id . "")
-                                                            '(:class-test . "")
-                                                            '(:number . "1")
-                                                            '(:filter-type . "")
-                                                            '(:filter-value . "")
-                                                             (assq-delete-all :session org-babel-default-header-args:apex-log)))
-#+end_src
-
-** Expand Body Apex Log
-#+begin_src emacs-lisp :tangle ./ob-apex-log.el
-;; This function expands the body of a source code block by doing things like
-;; prepending argument definitions to the body, it should be called by the
-;; `org-babel-execute:template' function below. Variables get concatenated in
-;; the `mapconcat' form, therefore to change the formatting you can edit the
-;; `format' form.
-(defun org-babel-expand-body:apex-log (body params &optional processed-params)
-  "Expand BODY according to PARAMS, return the expanded body."
-  (require 'inf-template nil t)
-  (let ((vars (org-babel--get-vars (or processed-params (org-babel-process-params params)))))
-    (concat
-     (mapconcat ;; define any variables
-      (lambda (pair)
-        (format "%s=%S"
-                (car pair) (org-babel-template-var-to-template (cdr pair))))
-      vars "\n")
-     "\n" body "\n")))
-#+end_src
-
-** Execute Apex Log
-#+begin_src emacs-lisp :tangle ./ob-apex-log.el
-;; This is the main function which is called to evaluate a code
-;; block.
-;;
-;; This function will evaluate the body of the source code and
-;; return the results as emacs-lisp depending on the value of the
-;; :results header argument
-;; - output means that the output to STDOUT will be captured and
-;;   returned
-;; - value means that the value of the last statement in the
-;;   source code block will be returned
-;;
-;; The most common first step in this function is the expansion of the
-;; PARAMS argument using `org-babel-process-params'.
-;;
-;; Please feel free to not implement options which aren't appropriate
-;; for your language (e.g. not all languages support interactive
-;; "session" evaluation).  Also you are free to define any new header
-;; arguments which you feel may be useful -- all header arguments
-;; specified by the user will be available in the PARAMS variable.
-(defun org-babel-execute:apex-log (body params)
-  "Execute a block of Template code with org-babel.
-This function is called by `org-babel-execute-src-block'"
-  (message "executing Template source code block")
-  (let* ((processed-params (org-babel-process-params params))
-         ;; set the session if the value of the session keyword is not the
-         ;; string `none'
-         ;; (session (unless (string= value "none")
-         ;;           (org-babel-template-initiate-session
-         ;;            (cdr (assq :session processed-params)))))
-         ;; variables assigned for use in the block
-         (vars (org-babel--get-vars processed-params))
-         (result-params (assq :result-params processed-params))
-         ;; either OUTPUT or VALUE which should behave as described above
-         (result-type (assq :result-type processed-params))
-         ;; expand the body with `org-babel-expand-body:template'
-         (full-body (org-babel-expand-body:apex-log
-                     body params processed-params)))
-
-     (if (null (assq :test-class processed-params))
-         (ob-apex-log:filter-log processed-params))
-     (ob-apex-log:get-log-test-class processed-params)))
-    ;; actually execute the source-code block either in a session or
-    ;; possibly by dropping it to a temporary file and evaluating the
-    ;; file.
-    ;;
-    ;; for session based evaluation the functions defined in
-    ;; `org-babel-comint' will probably be helpful.
-    ;;
-    ;; for external evaluation the functions defined in
-    ;; `org-babel-eval' will probably be helpful.
-    ;;
-    ;; when forming a shell command, or a fragment of code in some
-    ;; other language, please preprocess any file names involved with
-    ;; the function `org-babel-process-file-name'. (See the way that
-    ;; function is used in the language files)
-
-#+end_src
-** Run test class
-#+begin_src emacs-lisp :tangle ./ob-apex-log.el
-(defun ob-apex-log:get-log-test-class (processed-params)
-  "Get log from test class executed"
-  (let* ((test-class-name (cdr (assq :test-class processed-params)))
-         (uuid (org-id-uuid))
-         (command (sfmm--helper:generate-command (list sfmm:apex-command-alias "run" "test" "--tests" test-class-name "--test-level" "RunSpecifiedTests" "--json"))))
-
-    (org-babel-remove-result)
-
-    (re-search-forward "#\\+end_src")
-    (previous-line)
-    (newline)
-    (insert uuid)
-
-    (sfmm--helper:make-async-process
-     :command command
-     :handle-success-lambda
-     `(lambda (process json-instance buffer)
-
-        (sfmm:apex:get-log
-         :number "1"
-         :post-log-handle
-         ,`(lambda (log-content)
-
-              (let ((filter-type ,(cdr (assq :filter-type processed-params))))
-                (unless (or (equal filter-type "none")
-                            (null filter-type))
-                  (let ((debug-keywords '("DEBUG"))
-                        (executable-keywords '("VARIABLE_ASSIGNMENT"
-                                               "STATEMENT_EXECUTE"
-                                               "METHOD_ENTRY"
-                                               "CONSTRUCTOR_EXIT"
-                                               "CODE_UNIT_STARTED"))
-                        (system-keywords '("VARIABLE_SCOPE_BEGIN"
-                                           "USER_INFO"
-                                           "EXECUTION_STARTED"
-                                           "CODE_UNIT_STARTED"
-                                           "HEAP_ALLOCATE"
-                                           "STATEMENT_EXECUTE"
-                                           "METHOD_ENTRY"))
-                        (groverment-keywords '("LIMIT_USAGE_FOR_NS"
-                                               "Number of"
-                                               "Maximum CPU"
-                                               "Maximum heap")))
-
-                   (setq log-content
-                         (mapconcat (lambda (line)
-                                      (cond ((and (equal filter-type "DEBUG")
-                                                  (string-match (regexp-opt debug-keywords) line))
-
-                                             (concat line "\n"))
-                                            ((and (equal filter-type "FILTER")
-                                                  (search ,(cdr (assq :filter-value processed-params)) line))
-                                             (concat line "\n"))
-                                            ((and (equal filter-type "EXECUTABLE")
-                                                  (string-match (regexp-opt executable-keywords) line))
-                                             (concat line "\n"))
-                                            ((and (equal filter-type "SYSTEM")
-                                                  (string-match (regexp-opt system-keywords) line))
-
-                                             (concat line "\n"))
-                                            ((and (eq filter-type "GOVERNMENT")
-                                                  (match-string (regexp-opt groverment-keywords) line))
-                                             (concat line "\n"))))
-                                  (split-string log-content "\n"
-                                    "")))))
-
-               (with-current-buffer (find-file ,(buffer-file-name))
-                 (beginning-of-buffer)
-                 (re-search-forward ,uuid)
-                 (forward-line -1)
-                 (newline)
-                 (insert (concat "|-------------------LOG--------------------------|"
-                                  "\n" log-content))
-                 (next-line)
-                 (delete-line)
-
-                 (alert "get log success"
-                        :title "Salesforce Alert")))))))))
-#+end_src
-
-** Filter Log Content
-#+begin_src emacs-lisp :tangle ./ob-apex-log.el
-(defun ob-apex-log:filter-log (processed-params)
-  "Filter match string in log"
-  (let* ((uuid (org-id-uuid))
-         (log-id (format "%s" (cdr (assq :log-id processed-params))))
-         (org (format "%s" (cdr (assq :org processed-params))))
-         (number (format "%s" (cdr (assq :number processed-params))))
-         (buffer (current-buffer)))
-
-         ;; (filterd-content (mapconcat
-         ;;                   (lambda (line)
-         ;;                     (when (string-match-p keyword line)
-         ;;                       line))
-         ;;                   (split-string log-content "\n")
-         ;;                   "\n")))
-   (org-babel-remove-result)
-
-   (re-search-forward "#\\+end_src")
-   (previous-line)
-   (newline)
-   (insert uuid)
-
-   (sfmm:apex:get-log
-     :log-id log-id
-     :number number
-     :org org
-     :post-log-handle
-     `(lambda (log-content)
-        (let ((filter-type ,(upcase (format "%s" (cdr (assq :filter-type processed-params)))))
-              (filter-value ,(cdr (format "%s" (assq :filter-value processed-params)))))
-
-          (unless (or (equal filter-type "none"
-                       (null filter-type)))
-             (let ((debug-keywords '("DEBUG"))
-                   (executable-keywords '("VARIABLE_ASSIGNMENT"
-                                          "STATEMENT_EXECUTE"
-                                          "METHOD_ENTRY"
-                                          "CONSTRUCTOR_EXIT"
-                                          "CODE_UNIT_STARTED"))
-                   (system-keywords '("VARIABLE_SCOPE_BEGIN"
-                                      "USER_INFO"
-                                      "EXECUTION_STARTED"
-                                      "CODE_UNIT_STARTED"
-                                      "HEAP_ALLOCATE"
-                                      "STATEMENT_EXECUTE"
-                                      "METHOD_ENTRY"))
-                   (groverment-keywords '("LIMIT_USAGE_FOR_NS"
-                                          "Number of"
-                                          "Maximum CPU"
-                                          "Maximum heap")))
-
-                (setq log-content
-                      (mapconcat (lambda (line)
-                                   (cond ((and (equal filter-type "DEBUG")
-                                               (string-match (regexp-opt debug-keywords) line))
-
-                                          (concat line "\n"))
-                                         ((and (equal filter-type "FILTER")
-                                               (search filter-value line))
-                                          (concat line "\n"))
-                                         ((and (equal filter-type "EXECUTABLE")
-                                               (string-match (regexp-opt executable-keywords) line))
-                                          (concat line "\n"))
-                                         ((and (equal filter-type "SYSTEM")
-                                               (string-match (regexp-opt system-keywords) line))
-
-                                          (concat line "\n"))
-                                         ((and (eq filter-type "GOVERNMENT")
-                                               (match-string (regexp-opt groverment-keywords) line))
-                                          (concat line "\n"))))
-                                (split-string log-content "\n")
-                                "")))))
-
-        (with-current-buffer ,buffer
-          (beginning-of-buffer)
-          (re-search-forward ,uuid)
-          (forward-line -1)
-          (newline)
-          (insert (concat "|-------------------LOG--------------------------|"
-                   "\n" log-content))
-          (next-line)
-          (delete-line)
-
-          (alert "get log success"
-                 :title "Salesforce Alert"))))))
-
-
-
-;; This function should be used to assign any variables in params in
-;; the context of the session environment.
-(defun org-babel-prep-session:apex-log (session params)
-  "Prepare SESSION according to the header arguments specified in PARAMS.")
-
-
-(defun org-babel-template-var-to-template (var)
-  "Convert an elisp var into a string of template source code
-specifying a var of the same value."
-  (format "%S" var))
-
-(defun org-babel-template-table-or-string (results)
-  "If the results look like a table, then convert them into an
-Emacs-lisp table, otherwise return the results as a string.")
-
-
-(defun org-babel-template-initiate-session (&optional session)
-  "If there is not a current inferior-process-buffer in SESSION then create.
-Return the initialized session."
-  (unless (string= session "none")))
-
-
-(provide 'ob-apex-log)
-;;; ob-template.el ends here
 #+end_src
