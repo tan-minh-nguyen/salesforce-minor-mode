@@ -83,22 +83,19 @@
 (add-to-list 'org-babel-tangle-lang-exts '("log" . "apex-log"))
 
 ;; optionally declare default header arguments for this language
-(defvar org-babel-default-header-args:apex-log (list '(:tangle "yes")
-                                                     '(:class-test . "")
-                                                     '(:org . "")
-                                                     '(:log-id . "")
-                                                     '(:number . "1")
-                                                     '(:filter-type . "")
-                                                     '(:filter-value . "")
-                                                      (assq-delete-all :session org-babel-default-header-args:apex-log)))
+(defvar org-babel-default-header-args:apex-log '((:class-test . "")
+                                                 (:org . "")
+                                                 (:log-id . "")
+                                                 (:number . "1")
+                                                 (:filter-type . "")
+                                                 (:filter-value . "")))
 
-(defvar org-babel-default-inline-header-args:apex-log (list '(:org . "")
-                                                            '(:log-id . "")
-                                                            '(:class-test . "")
-                                                            '(:number . "1")
-                                                            '(:filter-type . "")
-                                                            '(:filter-value . "")
-                                                             (assq-delete-all :session org-babel-default-header-args:apex-log)))
+(defvar org-babel-default-inline-header-args:apex-log '((:org . "")
+                                                        (:log-id . "")
+                                                        (:class-test . "")
+                                                        (:number . "1")
+                                                        (:filter-type . "")
+                                                        (:filter-value . "")))
 
 ;; This function expands the body of a source code block by doing things like
 ;; prepending argument definitions to the body, it should be called by the
@@ -155,9 +152,9 @@ This function is called by `org-babel-execute-src-block'"
          (full-body (org-babel-expand-body:apex-log
                      body params processed-params)))
 
-     (if (null (assq :test-class processed-params))
-         (ob-apex-log:filter-log processed-params))
-     (ob-apex-log:get-log-test-class processed-params)))
+     ;; (if (null (assq :test-class processed-params))
+     (ob-apex-log:filter-log processed-params)))
+     ;; (ob-apex-log:get-log-test-class processed-params)))
     ;; actually execute the source-code block either in a session or
     ;; possibly by dropping it to a temporary file and evaluating the
     ;; file.
@@ -268,9 +265,7 @@ This function is called by `org-babel-execute-src-block'"
          ;;                   "\n")))
    (org-babel-remove-result)
 
-   (re-search-forward "#\\+end_src")
-   (previous-line)
-   (newline)
+
    (insert uuid)
 
    (sfmm:apex:get-log
@@ -279,50 +274,48 @@ This function is called by `org-babel-execute-src-block'"
      :org org
      :post-log-handle
      `(lambda (log-content)
-        (let ((filter-type ,(upcase (format "%s" (cdr (assq :filter-type processed-params)))))
-              (filter-value ,(cdr (format "%s" (assq :filter-value processed-params)))))
-
-          (unless (or (equal filter-type "none"
-                       (null filter-type)))
-             (let ((debug-keywords '("DEBUG"))
-                   (executable-keywords '("VARIABLE_ASSIGNMENT"
-                                          "STATEMENT_EXECUTE"
-                                          "METHOD_ENTRY"
-                                          "CONSTRUCTOR_EXIT"
-                                          "CODE_UNIT_STARTED"))
-                   (system-keywords '("VARIABLE_SCOPE_BEGIN"
-                                      "USER_INFO"
-                                      "EXECUTION_STARTED"
-                                      "CODE_UNIT_STARTED"
-                                      "HEAP_ALLOCATE"
+        (let* ((filter-type ,(upcase (format "%s" (cdr (assq :filter-type processed-params)))))
+               (filter-value ,(format "%s" (cdr (assq :filter-value processed-params))))
+               (debug-keywords '("DEBUG"))
+               (executable-keywords '("VARIABLE_ASSIGNMENT"
                                       "STATEMENT_EXECUTE"
-                                      "METHOD_ENTRY"))
-                   (groverment-keywords '("LIMIT_USAGE_FOR_NS"
-                                          "Number of"
-                                          "Maximum CPU"
-                                          "Maximum heap")))
+                                      "METHOD_ENTRY"
+                                      "CONSTRUCTOR_EXIT"
+                                      "CODE_UNIT_STARTED"))
+               (system-keywords '("VARIABLE_SCOPE_BEGIN"
+                                  "USER_INFO"
+                                  "EXECUTION_STARTED"
+                                  "CODE_UNIT_STARTED"
+                                  "HEAP_ALLOCATE"
+                                  "STATEMENT_EXECUTE"
+                                  "METHOD_ENTRY"))
+               (groverment-keywords '("LIMIT_USAGE_FOR_NS"
+                                      "Number of"
+                                      "Maximum CPU"
+                                      "Maximum heap"))
+               (content (cond ((= filter-type "")
+                               log-content)
+                              (t
+                                (mapconcat (lambda (line)
 
-                (setq log-content
-                      (mapconcat (lambda (line)
-                                   (cond ((and (equal filter-type "DEBUG")
-                                               (string-match (regexp-opt debug-keywords) line))
+                                             (cond ((and (string= filter-type "DEBUG")
+                                                         (string-match (regexp-opt debug-keywords) line))
 
-                                          (concat line "\n"))
-                                         ((and (equal filter-type "FILTER")
-                                               (search filter-value line))
-                                          (concat line "\n"))
-                                         ((and (equal filter-type "EXECUTABLE")
-                                               (string-match (regexp-opt executable-keywords) line))
-                                          (concat line "\n"))
-                                         ((and (equal filter-type "SYSTEM")
-                                               (string-match (regexp-opt system-keywords) line))
-
-                                          (concat line "\n"))
-                                         ((and (eq filter-type "GOVERNMENT")
-                                               (match-string (regexp-opt groverment-keywords) line))
-                                          (concat line "\n"))))
-                                (split-string log-content "\n")
-                                "")))))
+                                                    (concat line "\n"))
+                                                   ((and (equal filter-type "FILTER")
+                                                         (search filter-value line))
+                                                    (concat line "\n"))
+                                                   ((and (equal filter-type "EXECUTABLE")
+                                                        (string-match (regexp-opt executable-keywords) line))
+                                                    (concat line "\n"))
+                                                   ((and (equal filter-type "SYSTEM")
+                                                         (string-match (regexp-opt system-keywords) line))
+                                                    (concat line "\n"))
+                                                   ((and (eq filter-type "GOVERNMENT")
+                                                         (match-string (regexp-opt groverment-keywords) line))
+                                                    (concat line "\n"))))
+                                           (split-string log-content "\n")
+                                           ""))))))
 
         (with-current-buffer ,buffer
           (beginning-of-buffer)

@@ -164,7 +164,7 @@
    (unless (string= result-eval "none")
      (re-search-forward "#\\+end_src")
      ;; Insert new result with uuid
-     (insert (format "\n\n#+begin_src apex-log :uuid %s\n %s\n#+end_src\n"
+     (insert (format "\n#+RESULTS:\n#+begin_src apex-log :uuid %s\n %s\n#+end_src\n"
                      uuid
                      uuid)))
 
@@ -249,7 +249,7 @@
      var-type
      var-name
      (if (string= var-type "String")
-       (format "'%s'" value)
+       (format "\'%s\'" value)
        value))))
 
 (defun org-babel-prep-session:apex (session params)

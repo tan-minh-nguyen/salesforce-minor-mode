@@ -17,7 +17,7 @@
     - [[#functions-use-org-prefix][Functions use org prefix]]
       - [[#open-org-within-ctable][Open org within ctable]]
       - [[#open-org-project][Open org project]]
-      - [[#display-all-org][Display all org]]
+      - [[#--display-all-org][[-] Display all org]]
       - [[#show-org-connect-status][Show org connect status]]
       - [[#get-default-org][Get default org]]
       - [[#refresh-org][Refresh org]]
@@ -41,10 +41,12 @@
       - [[#apex-class][Apex class]]
       - [[#lightning-metadata][Lightning Metadata]]
     - [[#function-apex-test-01][Function apex test]]
-      - [[#run-all-tests-class][RUN ALL TESTS CLASS]]
-      - [[#run-local-test-classes][RUN LOCAL TEST CLASSES]]
-      - [[#--run-specific-unit-test][[ ] RUN SPECIFIC UNIT TEST]]
+      - [[#run-all-tests-class][run all tests class]]
+      - [[#run-local-test-classes][run local test classes]]
+      - [[#--run-specific-unit-test][[ ] run specific unit test]]
     - [[#run-lwc-local-server][RUN LWC LOCAL SERVER]]
+  - [[#diff-metadata][Diff metadata]]
+  - [[#track-source-code][Track source code]]
   - [[#internal-functions][Internal functions]]
     - [[#generate-command][Generate command]]
     - [[#execute-apex-code-1][Execute apex code]]
@@ -57,10 +59,11 @@
     - [[#custom-map-list-function][Custom map list function]]
     - [[#extract-data-in-hashtable][Extract data in hashtable]]
   - [[#build-table-functions][Build table functions]]
+    - [[#popup-ctable-component][Popup ctable component]]
     - [[#build-ctable-component][Build ctable component]]
     - [[#build-ctable-header][Build ctable header]]
     - [[#build-ctable-data][Build ctable data]]
-    - [[#site-list][Site list]]
+    - [[#--site-list][[-] Site list]]
   - [[#helpers-functions][Helpers functions]]
     - [[#key-binding-functions][Key binding functions]]
     - [[#hook-functions][Hook functions]]
@@ -68,6 +71,9 @@
   - [[#define-minor-mode][Define minor mode]]
 
 * Minor Mode
+:PROPERTIES:
+:header-args: :tangle yes
+:END:
 ** Requirements
 #+begin_src emacs-lisp :tangle yes
 ;;; Salesforce minor mode -- add sf cli to emacs
@@ -229,6 +235,11 @@
   "Directory to store cache files."
   :type 'string
   :group 'salesforce)
+
+(defcustom sfmm:tracking-buffer-name "*Org Tracker*"
+  "name of tracking metadata buffer."
+  :type 'string
+  :group 'tracker)
 #+end_src
 
 ** Salesforce functions
@@ -238,6 +249,7 @@
   '("salesforce api.*" . (display-buffer-no-window . nil)))
 
 #+end_src
+
 *** Project prefix functions
 **** Create project
 #+begin_src emacs-lisp :tangle yes
@@ -280,7 +292,7 @@
 
     (sfmm:org:source-backup
      :handle-after-backup-lambda
-     (lambda ()
+     (lambda (_)
         (sfmm--helper:make-async-process
          :command `,push-command
          :handle-success-lambda
@@ -338,7 +350,7 @@
 (cl-defun sfmm:org:source-backup (&key handle-after-backup-lambda)
   "Backup the current buffer to the source directory."
   (let* ((buffer (buffer-file-name))
-         (time (format-time-string "%N" (current-time)))
+         (time (format-time-string "%Y_%m_%d_%H_%M_%S"))
          (file-name (file-name-base buffer))
          (cache-dir (concat (cdr (project-current)) sfmm:org:cache-dir))
          (backup-file-name (concat file-name "_" time))
@@ -351,7 +363,7 @@
      :command command
      :handle-success-lambda
      `(lambda (process json-instance buffer)
-        (funcall ,handle-after-backup-lambda))
+        (funcall ,handle-after-backup-lambda ,(concat cache-dir backup-file-name)))
      :handle-error-lambda
      `(lambda (process json-instance buffer)
         (let ((show-message "")
@@ -422,7 +434,7 @@
           (shell-command (concat sfmm:default-browser (format " %S " url) " -r " " tab ")))))))
 #+end_src
 
-**** Display all org
+**** [-] Display all org
 #+begin_src emacs-lisp :tangle yes
 (defun sfmm:org:display-all (org-type)
   "Display all current connect org"
@@ -474,10 +486,9 @@
                             row)))
                       non-scratch-orgs)))
 
-               (sf--build:make-table-component
+               (sf--build:make-table-model
                 :column-header (hash-table-values column-header-map)
-                :data data
-                :buffer buffer))))))))
+                :data data))))))))
 #+end_src
 ***** Non scratch org
 #+begin_src emacs-lisp :tangle yes
@@ -493,7 +504,7 @@
 #+end_src
 **** Show org connect status
 #+begin_src emacs-lisp :tangle yes
-(defun sf:org:connect-status ()
+(defun sfmm:org:connect-status ()
   "Check connect status to org"
   (let ((display-org-information-command (sfmm--helper:generate-command (list sfmm:org-command-alias "display" "--json"))))
 
@@ -939,7 +950,7 @@
          (alert result-tests
                 :title "Salesforce Alert"))))))
 #+end_src
-**** RUN ALL TESTS CLASS
+**** run all tests class
 #+begin_src emacs-lisp :tangle yes
 (defun sfmm:apex:run-test-class ()
   "Run unit test for class"
@@ -955,7 +966,7 @@
        (sfmm:apex:get-result-test-job
         :job-id (sfmm--helper:get-data-hashtable "result.testRunId" json-instance))))))
 #+end_src
-**** RUN LOCAL TEST CLASSES
+**** run local test classes
 #+begin_src emacs-lisp
 (defun sfmm:apex:run-local-tests ()
   "Run all tests class expect tests class in org managed package"
@@ -968,7 +979,7 @@
      (lambda (process json-instance buffer)
        (sfmm:apex:get-result-test-job (job-id (sfmm--helper:get-data-hashtable "result.testRunId" json-instance)))))))
 #+end_src
-**** [ ] RUN SPECIFIC UNIT TEST
+**** [ ] run specific unit test
 #+begin_src emacs-lisp
 
 #+end_src
@@ -985,6 +996,75 @@
      `(lambda (process json-string buffer)
         (alert "Start lwc local server success"
                :title "Salesforce Alert")))))
+#+end_src
+
+** Diff metadata
+#+begin_src emacs-lisp :tangle yes
+(defun sfmm:diff-metadata ()
+  "diff metadata between local and cloud."
+  (interactive)
+  (let ((file-name (buffer-file-name)))
+
+    (sfmm:org:source-backup
+     :handle-after-backup-lambda
+     `(lambda (backup-file-name)
+        (condition-case nil
+            (diff (car (directory-files-recursively (concat backup-file-name "/") ,(file-name-nondirectory file-name))) ,file-name)
+          (error
+           (alert "Something Wrong"
+                  :title "Salesforce Alert"
+                  :severity 'urgent)))))))
+#+end_src
+
+** Track source code
+#+begin_src emacs-lisp :tangle yes
+(defun sfmm:tracking-org-source ()
+  (interactive)
+  (let* ((folder-name (file-name-base buffer-file-name))
+         (file-name (file-name-nondirectory buffer-file-name))
+         (folder-path (expand-file-name
+                       (format "%s*/**/%s"
+                              (concat (cdr (project-current))
+                                      sfmm:org:cache-dir
+                                      folder-name)
+                              file-name)))
+         (model
+          (sf--build:make-table-model
+           :column-header
+           `((:title "Metadata Name")
+             (:title "Created Date"))
+           :data
+           (mapcar (lambda (folder)
+                     ;; format files show on buffer
+                     (let* ((columns (string-split folder " "))
+                            (date (nth 0 columns))
+                            (time (nth 1 columns))
+                            (file-name (nth 2 columns))
+                            (suffix-file-folder (nth 3 columns)))
+
+                       `(,(file-name-base file-name) ,(concat (string-replace "-" "/" date) "T" time) ,(concat file-name "_" suffix-file-folder))))
+                   ;; list of file names
+                   (split-string (shell-command-to-string
+                                  ;; script list all files with name
+                                  (concat "ls " folder-path " -tla --time-style=long-iso"
+                                          " | " "cut -d \" \" -f 6,7,8,9"
+                                          " | " "sed -E 's/[a-zA-Z]*\\_([[:digit:]\\_]+).*\\/(\\w+)\\.[A-Za-z]+$/\\2 \\1/'"))
+                                 "\n"))))
+         (component
+          (sf--build:create-table-component
+           :model model
+           :buffer sfmm:tracking-buffer-name)))
+
+    (ctbl:cp-add-click-hook component
+                            `(lambda ()
+                              (when-let* ((data (ctbl:cp-get-selected-data-row ,component))
+                                          (dir (nth 2 data))
+                                          (cache-dir ,(concat (cdr (project-current)) sfmm:org:cache-dir)))
+
+                                (diff (car (directory-files-recursively dir ,file-name))
+                                      ,buffer-file-name))))
+
+    (switch-to-buffer (ctbl:cp-get-buffer component))))
 #+end_src
 ** Internal functions
 *** Generate command
@@ -1046,12 +1126,14 @@ This function execute [[https://developer.salesforce.com/docs/atlas.en-us.sfdx_c
 
            (add-to-list 'header-columns "No")
 
-           (sf--build:make-table-component
-            :column-header
-            (cl-loop for key in header-columns
-                     when (not (string= key ""))
-                     collect `((:align . ,'left) (:title . ,key) `(:max-width . ,'50)))
-            :data data
+           (sf--build:popup-table-component
+            :model
+            (sf--build:make-table-model
+             :column-header
+             (cl-loop for key in header-columns
+                      when (not (string= key ""))
+                      collect `(:align ,'left :title ,key `:max-width ,'50))
+             :data data)
             :buffer buffer)))))))
 #+end_src
 
@@ -1059,16 +1141,41 @@ This function execute [[https://developer.salesforce.com/docs/atlas.en-us.sfdx_c
 + set readonly for overview buffer, edit the buffer through key-bind
 #+begin_src emacs-lisp :tangle yes
 (cl-defun sfmm--helper:make-sync-process (&key command handle-success-lambda (handle-error-lambda))
-  (with-environment-variables (("NODE_NO_WARNINGS" "1"))
 
-    (let* ((buffer-stdout (generate-new-buffer "salesforce-process"))
-           (process-identity "salesforce-process")
-           (buffer-view-post-process (generate-new-buffer "Salesforce Overview"))
+  (with-environment-variables (("NODE_NO_WARNINGS" "1"))
+    (let* ((buffer-stdout (with-current-buffer (get-buffer-create "salesforce-process")
+                            (let ((inhibit-read-only t))
+                              (erase-buffer)
+                              (current-buffer))))
+           (process-identity "salesforce")
+           (buffer-stderr  (with-current-buffer (get-buffer-create "salesforce-error")
+                             (let ((inhibit-read-only t))
+                               (erase-buffer)
+                               (current-buffer))))
+           (process-error
+            (make-pipe-process
+             :name
+             (concat process-identity "-error")
+             :buffer buffer-stderr
+             :sentinel
+             `(lambda (process event)
+                (with-current-buffer ,buffer-stderr
+                  (beginning-of-buffer)
+
+                  (condition-case nil
+                      (json-parse-buffer)
+                    (error (cond ((= (buffer-size) 0)
+                                  nil)
+                                 (t
+                                  (alert (replace-regexp-in-string "" "" (buffer-string))
+                                         :title "Salesforce Alert"
+                                         :severity 'urgent)))))))))
            (process-output "")
            (process
             (make-process
              :name process-identity
              :buffer buffer-stdout
+             :stderr process-error
              :command command
              :connection-type 'pipe
              :filter
@@ -1081,17 +1188,30 @@ This function execute [[https://developer.salesforce.com/docs/atlas.en-us.sfdx_c
 
       (when (accept-process-output process))
 
-      (if (json-available-p)
-          (let ((json-instance (json-parse-string process-output)))
-            (if (= (gethash "status" json-instance) 0)
-                (funcall handle-success-lambda process json-instance buffer-view-post-process)
-              (if handle-error-lambda
-                  (funcall handle-error-lambda process json-instance buffer-view-post-process)
-
-                (alert (format "context: %s \nmessage: %s "
-                               (gethash "context" json-instance)
-                               (gethash "message" json-instance)
-                               :title "Salesforce Alert")))))))))
+      (condition-case json-instance
+        (json-parse-string process-output)
+       (error (cond ((= (buffer-size) 0)
+                     nil)
+                    ((not (member "--json" command))
+                     (funcall handle-success-lambda process (buffer-string) buffer-stdout))
+                    (t
+                     (alert (buffer-string)
+                            :title "Salesforce Alert"
+                            :severity 'urgent))))
+       (:success
+        (pcase (cond ((gethash "status" json-instance)
+                      (gethash "status" json-instance))
+                     ((gethash "code" json-instance)
+                      (gethash "status" json-instance)))
+          (1
+           (cond (handle-error-lambda
+                  (funcall handle-error-lambda process json-instance buffer-stderr))
+                 (t
+                  (alert (gethash "message" json-instance)
+                         :title "Salesforce Alert"
+                         :severity 'urgent))))
+         (0
+          (funcall handle-success-lambda process json-instance buffer-stdout))))))))
 #+end_src
 
 *** Make asynchronous process
@@ -1133,10 +1253,6 @@ This function execute [[https://developer.salesforce.com/docs/atlas.en-us.sfdx_c
                                               (alert (replace-regexp-in-string "" "" (buffer-string))
                                                      :title "Salesforce Alert"
                                                      :severity 'urgent))))))))))
-
-
-
-
 
     (with-environment-variables (("NODE_NO_WARNINGS" "1"))
 
@@ -1263,41 +1379,43 @@ This function execute [[https://developer.salesforce.com/docs/atlas.en-us.sfdx_c
      (gethash key table))))
 #+end_src
 ** Build table functions
+*** Popup ctable component
+#+begin_src emacs-lisp
+(cl-defun sf--build:create-table-component (&key model buffer open)
+  "Use ctable to build table data"
+  (let ((component (ctbl:create-table-component-buffer
+                    :model model
+                    :buffer (get-buffer-create buffer))))
+    (when open
+      (with-current-buffer (switch-to-buffer (ctbl:cp-get-buffer component))
+        (ctbl:table-mode)
+        (read-only-mode)))
+    component))
+#+end_src
 *** Build ctable component
 #+begin_src emacs-lisp :tangle yes
-(cl-defun sf--build:make-table-component (&key column-header data buffer)
+(cl-defun sf--build:make-table-model (&key column-header data)
   "Use ctable to build table data"
-  (let* ((column-model (mapcar 'sf--build:make-header-table column-header))
-         (async-model
-          (ctbl:async-model-wrapper data))
-         (model
-          (make-ctbl:model
-           :column-model column-model :data async-model)))
+  (let ((column-model
+         (mapcar 'sf--build:make-header-table column-header))
+        (async-model
+         (ctbl:async-model-wrapper data)))
 
-    (with-current-buffer (switch-to-buffer buffer)
-      (ctbl:create-table-component-region
-           :model model)
-      (ctbl:table-mode)
-      (beginning-of-buffer)
-      (read-only-mode))))
+   (make-ctbl:model
+    :column-model column-model :data async-model)))
 #+end_src
 *** Build ctable header
 #+begin_src emacs-lisp :tangle yes
-(defun sf--build:make-header-table (column)
+(defun sf--build:make-header-table (header-config)
   "Build header ctable"
-  (let* ((header-config column)
-         (title (if (assq ':title column)
-                    (cdr (assq ':title column))
-                  (car column)))
+  (let* ((title
+          (plist-get header-config :title))
          (min-width
-          (cdr
-           (assq ':min-width header-config)))
+          (plist-get header-config :min-width))
          (max-width
-          (cdr
-           (assq ':max-width header-config)))
+          (plist-get header-config :max-width))
          (align
-          (cdr
-           (assq ':align header-config))))
+          (plist-get header-config :align)))
 
     (make-ctbl:cmodel
      :title title
@@ -1334,7 +1452,7 @@ This function execute [[https://developer.salesforce.com/docs/atlas.en-us.sfdx_c
     data-table))
 #+end_src
 
-*** Site list
+*** [-] Site list
 #+begin_src emacs-lisp :tangle yes
 (defun sfmm:site:list ()
   ""
@@ -1377,10 +1495,9 @@ This function execute [[https://developer.salesforce.com/docs/atlas.en-us.sfdx_c
                (setq start-index (1+ start-index))
                row))
            records-list)
-         (sf--build:make-table-component
+         (sf--build:make-table-model
           :column-header (hash-table-values column-header-map)
-          :data records-list
-          :buffer buffer))))))
+          :data records-list))))))
 #+end_src
 ** Helpers functions
 *** Key binding functions
@@ -1417,7 +1534,7 @@ This function execute [[https://developer.salesforce.com/docs/atlas.en-us.sfdx_c
   (setq org-default-alias (sfmm:org:show-current-org))
   (when org-default-alias
     (add-to-list 'mode-line-misc-info '(" " org-default-alias " "))
-    (sf:org:connect-status)))
+    (sfmm:org:connect-status)))
 
 
 (defun sfmm:hook-off-handler ()
