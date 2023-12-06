@@ -53,6 +53,7 @@
     - [[#excute-soql-block][Excute soql block]]
     - [[#make-synchronous-process][Make synchronous process]]
     - [[#make-asynchronous-process][Make asynchronous process]]
+    - [[#make-process][Make process]]
     - [[#execute-synchronous-salesforce-command][Execute synchronous salesforce command]]
     - [[#execute-asynchronous-salesforce-command][Execute asynchronous salesforce command]]
     - [[#convert-hashtable-to-list-data][Convert hashtable to list data]]
@@ -247,6 +248,16 @@
 (add-to-list
  'display-buffer-alist
   '("salesforce api.*" . (display-buffer-no-window . nil)))
+
+(defcustom sfmm:process-success-buffer "*Salesforce Success*"
+  "name of process success buffer."
+  :type 'string
+  :group 'salesforce-minor-mode)
+
+(defcustom sfmm:process-error-buffer "*Salesforce Error*"
+  "name of process error buffer."
+  :type 'string
+  :group 'salesforce-minor-mode)
 
 #+end_src
 
@@ -1140,78 +1151,12 @@ This function execute [[https://developer.salesforce.com/docs/atlas.en-us.sfdx_c
 *** Make synchronous process
 + set readonly for overview buffer, edit the buffer through key-bind
 #+begin_src emacs-lisp :tangle yes
-(cl-defun sfmm--helper:make-sync-process (&key command handle-success-lambda (handle-error-lambda))
-
-  (with-environment-variables (("NODE_NO_WARNINGS" "1"))
-    (let* ((buffer-stdout (with-current-buffer (get-buffer-create "salesforce-process")
-                            (let ((inhibit-read-only t))
-                              (erase-buffer)
-                              (current-buffer))))
-           (process-identity "salesforce")
-           (buffer-stderr  (with-current-buffer (get-buffer-create "salesforce-error")
-                             (let ((inhibit-read-only t))
-                               (erase-buffer)
-                               (current-buffer))))
-           (process-error
-            (make-pipe-process
-             :name
-             (concat process-identity "-error")
-             :buffer buffer-stderr
-             :sentinel
-             `(lambda (process event)
-                (with-current-buffer ,buffer-stderr
-                  (beginning-of-buffer)
-
-                  (condition-case nil
-                      (json-parse-buffer)
-                    (error (cond ((= (buffer-size) 0)
-                                  nil)
-                                 (t
-                                  (alert (replace-regexp-in-string "" "" (buffer-string))
-                                         :title "Salesforce Alert"
-                                         :severity 'urgent)))))))))
-           (process-output "")
-           (process
-            (make-process
-             :name process-identity
-             :buffer buffer-stdout
-             :stderr process-error
-             :command command
-             :connection-type 'pipe
-             :filter
-             `(lambda (process output)
-               (setq process-output (concat ,process-output output)))
-             :sentinel
-             (lambda (process event)
-              (cond ((string= event "deleted\n")
-                     (kill-buffer (process-buffer process))))))))
-
-      (when (accept-process-output process))
-
-      (condition-case json-instance
-        (json-parse-string process-output)
-       (error (cond ((= (buffer-size) 0)
-                     nil)
-                    ((not (member "--json" command))
-                     (funcall handle-success-lambda process (buffer-string) buffer-stdout))
-                    (t
-                     (alert (buffer-string)
-                            :title "Salesforce Alert"
-                            :severity 'urgent))))
-       (:success
-        (pcase (cond ((gethash "status" json-instance)
-                      (gethash "status" json-instance))
-                     ((gethash "code" json-instance)
-                      (gethash "status" json-instance)))
-          (1
-           (cond (handle-error-lambda
-                  (funcall handle-error-lambda process json-instance buffer-stderr))
-                 (t
-                  (alert (gethash "message" json-instance)
-                         :title "Salesforce Alert"
-                         :severity 'urgent))))
-         (0
-          (funcall handle-success-lambda process json-instance buffer-stdout))))))))
+(cl-defun sfmm--helper:make-sync-process (&key command handle-success-lambda handle-error-lambda)
+  (sfmm--helper:make-process
+   :type 'sync
+   :command command
+   :handle-success-lambda handle-success-lambda
+   :handle-error-lambda handle-error-lambda))
 #+end_src
 
 *** Make asynchronous process
@@ -1219,77 +1164,122 @@ This function execute [[https://developer.salesforce.com/docs/atlas.en-us.sfdx_c
 (cl-defun sfmm--helper:make-async-process
     (&key command buffer-name handle-success-lambda handle-error-lambda)
   "Make async process"
-  (let* ((process-identity "salesforce")
-         (buffer-stdout (with-current-buffer (get-buffer-create "salesforce-process")
-                         (let ((inhibit-read-only t))
-                           (erase-buffer)
-                           (current-buffer))))
-         (buffer-stderr (with-current-buffer (get-buffer-create "salesforce-error")
-                         (let ((inhibit-read-only t))
-                           (erase-buffer)
-                           (current-buffer))))
-         (buffer-view-post-process (cond ((or (null buffer-name)
-                                              (string= buffer-name ""))
-                                          (with-current-buffer (get-buffer-create "salesforce outcome")
-                                            (let ((inhibit-read-only t))
-                                              (erase-buffer)
-                                              (current-buffer))))
-                                         (buffer-name
-                                          (generate-new-buffer buffer-name))))
-         (process-error (make-pipe-process
-                         :name
-                         (concat process-identity "-error")
-                         :buffer buffer-stderr
-                         :sentinel
-                         `(lambda (process event)
-                            (with-current-buffer ,buffer-stderr
-                              (beginning-of-buffer)
+  (sfmm--helper:make-process
+   :type 'async
+   :command command
+   :handle-success-lambda handle-success-lambda
+   :handle-error-lambda handle-error-lambda))
+#+end_src
 
-                              (condition-case nil
-                                  (json-parse-buffer)
-                                (error (cond ((= (buffer-size) 0)
-                                              nil)
-                                             (t
-                                              (alert (replace-regexp-in-string "" "" (buffer-string))
-                                                     :title "Salesforce Alert"
-                                                     :severity 'urgent))))))))))
+*** Make process
+#+begin_src emacs-lisp :tangle yes
+(cl-defun sfmm--helper:make-process
+    (&key type command handle-success-lambda handle-error-lambda)
+  ""
+  (when (not (member type '(async sync)))
+    (error "Invalid type of process"))
+  (with-environment-variables (("NODE_NO_WARNINGS" "1"))
 
-    (with-environment-variables (("NODE_NO_WARNINGS" "1"))
+    (let* ((process-identity "salesforce")
+           (buffer-stdout (with-current-buffer (get-buffer-create sfmm:process-success-buffer)
+                           (let ((inhibit-read-only t))
+                             (erase-buffer)
+                             (current-buffer))))
+           (buffer-stderr (with-current-buffer (get-buffer-create sfmm:process-error-buffer)
+                           (let ((inhibit-read-only t))
+                             (erase-buffer)
+                             (current-buffer))))
+           (process-error (make-pipe-process
+                           :name sfmm:process-error-buffer
+                           :buffer buffer-stderr
+                           :sentinel
+                           `(lambda (process event)
+                              (with-current-buffer ,buffer-stderr
+                                (beginning-of-buffer)
 
-      (make-process
-       :name (concat process-identity "-process")
-       :buffer buffer-stdout
-       :stderr process-error
-       :command command
-       :sentinel
-       `(lambda (process event)
-          (with-current-buffer ,buffer-stdout
+                                (condition-case nil
+                                    (json-parse-buffer)
+                                  (error (cond ((= (buffer-size) 0)
+                                                nil)
+                                               (t
+                                                (alert (replace-regexp-in-string "" "" (buffer-string))
+                                                       :title "Salesforce Alert"
+                                                       :severity 'urgent)))))))))
+           (process
+            (make-process
+             :name sfmm:process-success-buffer
+             :buffer (get-buffer-create sfmm:process-buffer)
+             :filter
+             (lambda (process output)
+               (with-current-buffer (get-buffer-create sfmm:process-success-buffer)
+                 (insert output)))
+             :stderr process-error
+             :command command)))
+
+       (pcase type
+         ('async
+          (set-process-sentinel process
+                                `(lambda (process event)
+                                  (with-current-buffer (get-buffer-create ,sfmm:process-success-buffer)
+                                    (beginning-of-buffer)
+
+                                    (condition-case json-instance
+                                        (json-parse-buffer)
+                                      (error (cond ((= (buffer-size) 0)
+                                                    nil)
+                                                   ((not (member "--json" ',command))
+                                                    (funcall ,handle-success-lambda process (buffer-string) ,sfmm:process-success-buffer))
+                                                   (t
+                                                    (alert (buffer-string)
+                                                           :title "Salesforce Alert"
+                                                           :severity 'urgent))))
+                                      (:success
+                                          (pcase (cond ((gethash "status" json-instance)
+                                                        (gethash "status" json-instance))
+                                                       ((gethash "code" json-instance)
+                                                        (gethash "status" json-instance)))
+                                              (1
+                                               (cond (,handle-error-lambda
+                                                      (funcall ,handle-error-lambda process json-instance ,sfmm:process-error-buffer))
+                                                     (t
+                                                      (alert (gethash "message" json-instance)
+                                                            :title "Salesforce Alert"
+                                                            :severity 'urgent))))
+                                              (0
+                                               (funcall ,handle-success-lambda process json-instance ,sfmm:process-success-buffer)))))))))
+         ('sync
+          (when (accept-process-output process))
+
+          (with-current-buffer (get-buffer-create sfmm:process-success-buffer)
             (beginning-of-buffer)
 
             (condition-case json-instance
                 (json-parse-buffer)
-              (error (cond ((= (buffer-size) 0)
-                            nil)
-                           ((not (member "--json" ',command))
-                            (funcall ,handle-success-lambda process (buffer-string) ,buffer-view-post-process))
-                           (t
-                            (alert (buffer-string)
-                                   :title "Salesforce Alert"
-                                   :severity 'urgent))))
-              (:success
-                  (pcase (cond ((gethash "status" json-instance)
-                                (gethash "status" json-instance))
-                               ((gethash "code" json-instance)
-                                (gethash "status" json-instance)))
-                      (1
-                       (cond (,handle-error-lambda
-                              (funcall ,handle-error-lambda process json-instance ,buffer-view-post-process))
-                             (t
-                              (alert (gethash "message" json-instance)
-                                    :title "Salesforce Alert"
-                                    :severity 'urgent))))
-                      (0
-                       (funcall ,handle-success-lambda process json-instance ,buffer-view-post-process)))))))))))
+             (error (cond ((= (buffer-size) 0)
+                           nil)
+                          ((not (member "--json" command))
+                           (buffer-string))
+                          (t
+                           (alert (buffer-string)
+                                  :title "Salesforce Alert"
+                                  :severity 'urgent)
+                           nil)))
+             (:success
+              (pcase (cond ((gethash "status" json-instance)
+                            (gethash "status" json-instance))
+                           ((gethash "code" json-instance)
+                            (gethash "code" json-instance)))
+                (1
+                 (cond (handle-error-lambda
+                        (funcall handle-error-lambda process json-instance sfmm:process-error-buffer))
+                       (t
+                        (alert (gethash "message" json-instance)
+                               :title "Salesforce Alert"
+                               :severity 'urgent)
+                        nil)))
+
+                (0
+                 json-instance))))))))))
 #+end_src
 
 *** TODO Execute synchronous salesforce command

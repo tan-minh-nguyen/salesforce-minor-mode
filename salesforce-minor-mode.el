@@ -164,6 +164,24 @@
  'display-buffer-alist
   '("salesforce api.*" . (display-buffer-no-window . nil)))
 
+(defcustom sfmm:process-buffer "*Salesforce Process*"
+  "name of process buffer."
+  :type 'string
+  :group 'salesforce-minor-mode)
+
+(defcustom sfmm:process-success-buffer "*Salesforce Success*"
+  "name of process success buffer."
+  :type 'string
+  :group 'salesforce-minor-mode)
+
+(defcustom sfmm:process-error-buffer "*Salesforce Error*"
+  "name of process error buffer."
+  :type 'string
+  :group 'salesforce-minor-mode)
+
+(defvar sfmm:org-name ""
+  "org name showing on mode line.")
+
 (defun sfmm:project:create ()
   "Create dx project"
   (interactive)
