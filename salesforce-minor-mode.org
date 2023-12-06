@@ -46,6 +46,7 @@
       - [[#--run-specific-unit-test][[ ] run specific unit test]]
     - [[#run-lwc-local-server][RUN LWC LOCAL SERVER]]
   - [[#diff-metadata][Diff metadata]]
+  - [[#diff-3-metadata][Diff 3 metadata]]
   - [[#track-source-code][Track source code]]
   - [[#internal-functions][Internal functions]]
     - [[#generate-command][Generate command]]
@@ -240,14 +241,17 @@
 (defcustom sfmm:tracking-buffer-name "*Org Tracker*"
   "name of tracking metadata buffer."
   :type 'string
-  :group 'tracker)
-#+end_src
+  :group 'salesforce-minor-mode)
 
-** Salesforce functions
-#+begin_src emacs-lisp :tangle yes
-(add-to-list
- 'display-buffer-alist
-  '("salesforce api.*" . (display-buffer-no-window . nil)))
+(defcustom sfmm:tracking-time-format "%Y-%m-%d %H:%M:%S"
+  "format of time show on tracking metadata buffer."
+  :type 'string
+  :group 'salesforce-minor-mode)
+
+(defcustom sfmm:process-buffer "*Salesforce Process*"
+  "name of process buffer."
+  :type 'string
+  :group 'salesforce-minor-mode)
 
 (defcustom sfmm:process-success-buffer "*Salesforce Success*"
   "name of process success buffer."
@@ -359,51 +363,46 @@
 #+end_src
 **** Metadata backup
 #+begin_src emacs-lisp :tangle yes
-(cl-defun sfmm:org:source-backup (&key handle-after-backup-lambda)
+(cl-defun sfmm:org:source-backup (&key target-org)
   "Backup the current buffer to the source directory."
-  (let* ((buffer (buffer-file-name))
-         (time (format-time-string "%Y_%m_%d_%H_%M_%S"))
+  (let* ((json-instance nil)
+         (buffer (buffer-file-name))
          (file-name (file-name-base buffer))
-         (cache-dir (concat (cdr (project-current)) sfmm:org:cache-dir))
-         (backup-file-name (concat file-name "_" time))
-         (command (sfmm--helper:generate-command (list sfmm:project-command-alias "retrieve" "start" "-d" buffer "-o" (sfmm:org:show-current-org) "-z" "-t" cache-dir "--zip-file-name" backup-file-name "--json"))))
+         (cache-dir (concat (cdr (project-current)) sfmm:org:cache-dir (cond (target-org
+                                                                              target-org)
+                                                                             (t
+                                                                              (sfmm:org:show-current-org))) "/"))
+         (backup-file-name (concat file-name "_" (format "%s" (time-convert (current-time) 'integer))))
+         (command (sfmm--helper:build-sf-command sfmm:project-command-alias "retrieve" "start" "-d" buffer "-z" "-t" cache-dir "--zip-file-name" backup-file-name "--json")))
+
+    (when target-org
+      (add-to-list 'command "-o" t)
+      (add-to-list 'command target-org t))
 
     (unless (file-exists-p cache-dir)
       (make-directory cache-dir))
 
-    (sfmm--helper:make-sync-process
-     :command command
-     :handle-success-lambda
-     `(lambda (process json-instance buffer)
-        (funcall ,handle-after-backup-lambda ,(concat cache-dir backup-file-name)))
-     :handle-error-lambda
-     `(lambda (process json-instance buffer)
-        (let ((show-message "")
-              (error-name (gethash "name" json-instance))
-              (error-message (gethash "message" json-instance)))
+    (setq json-instance (sfmm--helper:make-process
+                         :type 'sync
+                         :command command))
+    (unless json-instance
+      (error (concat "Backup " file-name " Failure")))
+    ;; rename backup directory to new directory containing the last modified id
+    ;; and the last modified date
+    (let ((new-dir-name (concat cache-dir backup-file-name "_"
+                                (sfmm--helper:get-data-hashtable "result.fileProperties.0.lastModifiedById"
+                                                                 json-instance)
+                                "_"
+                                (format "%s"
+                                        (time-convert
+                                         (parse-time-string
+                                          (sfmm--helper:get-data-hashtable "result.fileProperties.0.lastModifiedDate"
+                                                                           json-instance))
+                                         'integer)))))
 
-         (cond ((and error-name
-                     error-message)
-                (setq show-message (format "Name: %s\nMessage: \n%s\n" error-name error-message)))
-               (t
-                (setq show-message (mapconcat (lambda (component)
-                                               (let ((problem (gethash "error" component))
-                                                     (problem-type (gethash "problemType" component))
-                                                     (line-number (gethash "lineNumber" component))
-                                                     (file-name (gethash "filePath" component)))
-
-                                                 (format "Problem-type: %s\nProblem: %s\n%s:%s"
-                                                         problem-type
-                                                         problem
-                                                         file-name
-                                                         line-number)))
-
-                                             (sfmm--helper:get-data-hashtable "result.deployedSource" json-instance)
-                                             "\n"))))
-
-         (alert show-message
-                :title "Backup Salesforce Failure"
-                :category 'error))))))
+         (rename-file (concat cache-dir backup-file-name)
+                      new-dir-name)
+         new-dir-name)))
 #+end_src
 
 *** Functions use org prefix
@@ -531,15 +530,12 @@
 #+end_src
 **** TODO Get default org
 #+begin_src emacs-lisp :tangle yes
+;;;###autoload
 (defun sfmm:org:show-current-org ()
-  (let ((org-alias ""))
-
-    (sfmm--helper:make-sync-process
-     :command (sfmm--helper:generate-command (list sfmm:org-command-alias "display" "--json"))
-     :handle-success-lambda
-     `(lambda (process json-instance buffer)
-        (setq ,'org-alias (sfmm--helper:get-data-hashtable "result.alias" json-instance))))
-    org-alias))
+  (sfmm--helper:get-data-hashtable "result.0.value"
+                                  (sfmm--helper:make-process
+                                   :type 'sync
+                                   :command '("sf" "config" "get" "target-org" "--json"))))
 #+end_src
 **** Refresh org
 #+begin_src emacs-lisp :tangle yes
@@ -1015,22 +1011,37 @@
 (defun sfmm:diff-metadata ()
   "diff metadata between local and cloud."
   (interactive)
-  (let ((file-name (buffer-file-name)))
-
-    (sfmm:org:source-backup
-     :handle-after-backup-lambda
-     `(lambda (backup-file-name)
-        (condition-case nil
-            (diff (car (directory-files-recursively (concat backup-file-name "/") ,(file-name-nondirectory file-name))) ,file-name)
-          (error
-           (alert "Something Wrong"
-                  :title "Salesforce Alert"
-                  :severity 'urgent)))))))
+  (let ((file-name (buffer-file-name))
+        (backup-file-name (sfmm:org:source-backup)))
+    (message "%S" backup-file-name)
+    (condition-case error
+        (ediff (car (directory-files-recursively (concat backup-file-name "/") (file-name-nondirectory file-name))) file-name)
+      (error
+       (alert error
+              :title "Salesforce Alert"
+              :severity 'urgent)))))
 #+end_src
+** Diff 3 metadata
+#+begin_src emacs-lisp :tangle yes
+(defun sfmm:diff3-metadata ()
+  "diff metadata between multiple enviroment."
+  (interactive)
+  (let* ((file-name (buffer-file-name))
+         (target-org (read-from-minibuffer "Target Org: "))
+         (bk-file-org (sfmm:org:source-backup))
+         (bk-file-target-org (sfmm:org:source-backup
+                              :target-org target-org)))
 
+    (condition-case error
+        (ediff3 (car (directory-files-recursively (concat bk-file-org "/") (file-name-nondirectory file-name))) file-name (car (directory-files-recursively (concat bk-file-target-org "/") (file-name-nondirectory file-name))))
+      (error
+       (alert error
+              :title "Salesforce Alert"
+              :severity 'urgent)))))
+#+end_src
 ** Track source code
 #+begin_src emacs-lisp :tangle yes
-(defun sfmm:tracking-org-source ()
+(defun sfmm:source-tracker ()
   (interactive)
   (let* ((folder-name (file-name-base buffer-file-name))
          (file-name (file-name-nondirectory buffer-file-name))
@@ -1038,30 +1049,32 @@
                        (format "%s*/**/%s"
                               (concat (cdr (project-current))
                                       sfmm:org:cache-dir
+                                      (sfmm:org:show-current-org)
+                                      "/"
                                       folder-name)
                               file-name)))
          (model
           (sf--build:make-table-model
            :column-header
-           `((:title "Metadata Name")
-             (:title "Created Date"))
+           `((:title "Backup DateTime")
+             (:title "User Modified Id")
+             (:title "Last Modified DateTime"))
            :data
-           (mapcar (lambda (folder)
-                     ;; format files show on buffer
-                     (let* ((columns (string-split folder " "))
-                            (date (nth 0 columns))
-                            (time (nth 1 columns))
-                            (file-name (nth 2 columns))
-                            (suffix-file-folder (nth 3 columns)))
+           (remove 'nil
+                   (mapcar (lambda (folder)
+                            ;; format files show on buffer
+                            (when-let* ((columns (string-split folder " "))
+                                        (date-time (format-time-string "%Y/%m/%d %H:%M:%S" (string-to-number (nth 0 columns))))
+                                        (user-id (nth 1 columns))
+                                        (last-modified-date (format-time-string "%Y/%m/%d %H:%M:%S" (string-to-number (nth 2 columns)))))
 
-                       `(,(file-name-base file-name) ,(concat (string-replace "-" "/" date) "T" time) ,(concat file-name "_" suffix-file-folder))))
-                   ;; list of file names
-                   (split-string (shell-command-to-string
-                                  ;; script list all files with name
-                                  (concat "ls " folder-path " -tla --time-style=long-iso"
-                                          " | " "cut -d \" \" -f 6,7,8,9"
-                                          " | " "sed -E 's/[a-zA-Z]*\\_([[:digit:]\\_]+).*\\/(\\w+)\\.[A-Za-z]+$/\\2 \\1/'"))
-                                 "\n"))))
+                              `(,date-time ,user-id ,last-modified-date)))
+                          ;; list of file names
+                          (split-string (shell-command-to-string
+                                         ;; script list all files with name
+                                         (concat "ls " folder-path " -ta"
+                                                 " | " "sed -E 's/.+\\/([a-zA-Z]+)\\_([[:digit:]]+)\\_([A-Za-z0-9]+)\\_([[:digit:]]+)\\/.+$/\\2 \\3 \\4/'"))
+                                        "\n")))))
          (component
           (sf--build:create-table-component
            :model model
@@ -1070,19 +1083,22 @@
     (ctbl:cp-add-click-hook component
                             `(lambda ()
                               (when-let* ((data (ctbl:cp-get-selected-data-row ,component))
-                                          (dir (nth 2 data))
+                                          (dir (nth 1 data))
                                           (cache-dir ,(concat (cdr (project-current)) sfmm:org:cache-dir)))
 
-                                (diff (car (directory-files-recursively dir ,file-name))
-                                      ,buffer-file-name))))
+                                (ediff (car (directory-files-recursively dir ,file-name))
+                                       ,buffer-file-name))))
 
-    (switch-to-buffer (ctbl:cp-get-buffer component))))
+    (pop-to-buffer (ctbl:cp-get-buffer component))))
 #+end_src
 ** Internal functions
 *** Generate command
 #+begin_src emacs-lisp :tangle yes
 (defun sfmm--helper:generate-command (commands)
   (add-to-list 'commands sfmm:sfdx-lib-alias))
+
+(defun sfmm--helper:build-sf-command (&rest args)
+  `(,sfmm:sfdx-lib-alias ,@args))
 #+end_src
 *** Execute apex code
 #+begin_src emacs-lisp :tangle yes
@@ -1360,12 +1376,19 @@ This function execute [[https://developer.salesforce.com/docs/atlas.en-us.sfdx_c
   "Get all data follow the path in hash table"
   (let* ((path-splited (split-string path "\\."))
          (key (car path-splited))
+         (value (cond ((arrayp table)
+                       (aref table (string-to-number key)))
+                      (t
+                       (gethash key table))))
          (key-remain (cdr path-splited)))
 
-    (if key-remain
-      (sfmm--helper:get-data-hashtable
-       (string-join key-remain ".")
-       (gethash key table))
+    (cond (key-remain
+           (sfmm--helper:get-data-hashtable
+            (string-join key-remain ".")
+            value))
+          (t
+           value))))
+#+end_src
 
      (gethash key table))))
 #+end_src
