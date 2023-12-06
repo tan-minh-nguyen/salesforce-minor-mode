@@ -60,6 +60,7 @@
     - [[#convert-hashtable-to-list-data][Convert hashtable to list data]]
     - [[#custom-map-list-function][Custom map list function]]
     - [[#extract-data-in-hashtable][Extract data in hashtable]]
+    - [[#find-root-dir][Find root dir]]
   - [[#build-table-functions][Build table functions]]
     - [[#popup-ctable-component][Popup ctable component]]
     - [[#build-ctable-component][Build ctable component]]
@@ -263,6 +264,8 @@
   :type 'string
   :group 'salesforce-minor-mode)
 
+(defvar sfmm:org-name ""
+  "org name showing on mode line.")
 #+end_src
 
 ** Salesforce functions
@@ -304,46 +307,45 @@
   "Push file to salesforce org."
   (interactive)
   (let* ((file-name (buffer-file-name))
-         (push-command (list sfmm:sfdx-lib-alias "force" "source" "deploy" "-p" file-name "--json")))
+         (push-command (sfmm--helper:build-sf-command "force" "source" "deploy" "-p" file-name "--json")))
 
-    (sfmm:org:source-backup
-     :handle-after-backup-lambda
-     (lambda (_)
-        (sfmm--helper:make-async-process
-         :command `,push-command
-         :handle-success-lambda
-         `(lambda (process json-instance buffer)
-           (alert (format "Deploy %s success" ,file-name)
-                  :title "Salesforce Alert"))
-         :handle-error-lambda
-         (lambda (process json-instance buffer)
-           (let ((show-message "")
-                 (error-name (gethash "name" json-instance))
-                 (error-message (gethash "message" json-instance)))
+    (sfmm:org:source-backup)
 
-             (cond ((and error-name
-                         error-message)
-                    (setq show-message (format "Name: %s\nMessage: \n%s\n" error-name error-message)))
-                   (t
-                    (setq show-message (mapconcat (lambda (component)
-                                                   (let ((problem (gethash "error" component))
-                                                         (problem-type (gethash "problemType" component))
-                                                         (line-number (gethash "lineNumber" component))
-                                                         (file-name (gethash "filePath" component)))
+    (sfmm--helper:make-async-process
+     :command `,push-command
+     :handle-success-lambda
+     `(lambda (process json-instance buffer)
+       (alert (format "Deploy %s success" ,file-name)
+              :title "Salesforce Alert"))
+     :handle-error-lambda
+     (lambda (process json-instance buffer)
+       (let ((show-message "")
+             (error-name (gethash "name" json-instance))
+             (error-message (gethash "message" json-instance)))
 
-                                                     (format "Problem-type: %s\nProblem: %s\n%s:%s"
-                                                             problem-type
-                                                             problem
-                                                             file-name
-                                                             line-number)))
+         (cond ((and error-name
+                     error-message)
+                (setq show-message (format "Name: %s\nMessage: \n%s\n" error-name error-message)))
+               (t
+                (setq show-message (mapconcat (lambda (component)
+                                               (let ((problem (gethash "error" component))
+                                                     (problem-type (gethash "problemType" component))
+                                                     (line-number (gethash "lineNumber" component))
+                                                     (file-name (gethash "filePath" component)))
 
-                                                 (sfmm--helper:get-data-hashtable "result.deployedSource" json-instance)
-                                                 "\n"))))
+                                                 (format "Problem-type: %s\nProblem: %s\n%s:%s"
+                                                         (gethash "problemType" component)
+                                                         (gethash "error" component)
+                                                         (gethash "lineNumber" component)
+                                                         (gethash "filePath" component))))
 
-             (alert show-message
-                    :title "Salesforce Alert"
-                    :category 'error
-                    :severity 'urgent))))))))
+                                             (sfmm--helper:get-data-hashtable "result.deployedSource" json-instance)
+                                             "\n"))))
+
+         (alert show-message
+                :title "Salesforce Alert"
+                :category 'error
+                :severity 'urgent))))))
 #+end_src
 
 **** Retrieve source salesforce from org
@@ -352,7 +354,7 @@
     ()
   "Retrieve source salesforce form org"
   (interactive)
-  (let ((retrieve-command (list sfmm:sfdx-lib-alias "force" "source" "retrieve" "-p" buffer-file-name "--json")))
+  (let ((retrieve-command (sfmm--helper:build-sf-command "force" "source" "retrieve" "-p" buffer-file-name "--json")))
 
     (sfmm--helper:make-async-process
      :command retrieve-command
@@ -1389,8 +1391,16 @@ This function execute [[https://developer.salesforce.com/docs/atlas.en-us.sfdx_c
           (t
            value))))
 #+end_src
+*** Find root dir
+#+begin_src emacs-lisp :tangle yes
+(defun sfmm--internal:find-root-dir ()
+  (let* ((parent-folder (file-name-parent-directory buffer-file-name))
+         (depth (s-count-matches "/" parent-folder)))
 
-     (gethash key table))))
+    (cl-dotimes (_ depth)
+      (when (directory-files-recursively parent-folder "^config\\.json$")
+        (cl-return parent-folder))
+      (setq parent-folder (file-name-parent-directory parent-folder)))))
 #+end_src
 ** Build table functions
 *** Popup ctable component
@@ -1543,21 +1553,16 @@ This function execute [[https://developer.salesforce.com/docs/atlas.en-us.sfdx_c
 #+end_src
 *** Hook functions
 #+begin_src emacs-lisp :tangle yes
-(defun sfmm:hook-on-handler ()
-  ""
-  (setq org-default-alias (sfmm:org:show-current-org))
-  (when org-default-alias
-    (add-to-list 'mode-line-misc-info '(" " org-default-alias " "))
-    (sfmm:org:connect-status)))
+;;;###autoload
 
+(defun turn-on-salesforce-mode ()
+  "Turn on salesforce-minor-mode"
+  (salesforce-minor-mode 1))
 
-(defun sfmm:hook-off-handler ()
-  ""
-  (setq org-default-alias (sfmm:org:show-current-org))
-  (when org-default-alias
-    (setq mode-line-misc-info
-        (delete '(" " org-default-alias " ") mode-line-misc-info))))
-
+;;;###autoload
+(defun turn-off-salesforce-mode ()
+  "Turn on salesforce-minor-mode"
+  (salesforce-minor-mode -1))
 #+end_src
 *** Clear log
 #+begin_src emacs-lisp :tangle yes
@@ -1594,11 +1599,20 @@ This function execute [[https://developer.salesforce.com/docs/atlas.en-us.sfdx_c
   nil ; Inital value, nil for disabled
   :global t
   :group 'salesforce
-  :lighter " salesforce-minor-mode"
+  :lighter " salesforce-minor-mode")
 
-  (add-hook 'salesforce-minor-mode-on-hook #'sfmm:hook-on-handler)
+  ;; (when-let ((org-default-alias (sfmm:org:show-current-org)))
 
-  (add-hook 'salesforce-minor-mode-off-hook #'sfmm:hook-off-handler))
+  ;;   (if salesforce-minor-mode
+  ;;       (condition-case index
+  ;;           (-find-index (lambda (misc-info)
+  ;;                         (eq `(" " ,org-default-alias " ") misc-info))
+  ;;                        mode-line-misc-info)
+  ;;         (error
+  ;;          (add-to-list 'mode-line-misc-info `(" " ,org-default-alias " ")))
+  ;;         (:success
+  ;;          (setq mode-line-misc-info (-replace-at index `(" " ,org-default-alias " ") mode-line-misc-info))))
+  ;;     (setq mode-line-misc-info (delete mode-line-misc-info `(" " ,sfmm:org-name " "))))))
 
 (provide 'salesforce-minor-mode) ;;; salesforce-minor-mode end here.
 #+end_src
