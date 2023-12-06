@@ -195,42 +195,42 @@
 (defcustom sfmm:default-browser "qutebrowser"
   "Browser use for open url"
   :type 'string
-  :group 'sfdx-cli)
+  :group 'sf-cli)
 
 (defcustom sfmm:default-apex-trigger-path "force-app/main/default/triggers"
  "Path save apex classes"
  :type 'string
- :group 'sfdx-config)
+ :group 'sf-config)
 
 (defcustom sfmm:default-apex-class-path "force-app/main/default/classes"
  "Path save apex classes"
  :type 'string
- :group 'sfdx-config)
+ :group 'sf-config)
 
 (defcustom sfmm:default-lwc-path "force-app/main/default/lwc"
  "Path save lwc components"
  :type 'string
- :group 'sfdx-config)
+ :group 'sf-config)
 
 (defcustom sfmm:default-aura-path "force-app/main/default/aura"
  "Path save aura components"
  :type 'string
- :group 'sfdx-config)
+ :group 'sf-config)
 
 (defcustom sfmm:default-vf-path "force-app/main/default/pages"
  "Path save visualforce page"
  :type 'string
- :group 'sfdx-config)
+ :group 'sf-config)
 
 (defcustom sfmm:default-vf-components-path "force-app/main/default/components"
  "Path save visualforce page"
  :type 'string
- :group 'sfdx-config)
+ :group 'sf-config)
 
 (defcustom sfmm:default-test-path "force-app/main/default/lightningTests"
  "Path save test components"
  :type 'string
- :group 'sfdx-config)
+ :group 'sf-config)
 
 (defcustom sfmm:org:cache-dir ".cache/"
   "Directory to store cache files."
@@ -261,6 +261,7 @@
 
 #+end_src
 
+** Salesforce functions
 *** Project prefix functions
 **** Create project
 #+begin_src emacs-lisp :tangle yes
