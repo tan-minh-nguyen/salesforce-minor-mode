@@ -5,8 +5,9 @@
 
 * TABLE OF CONTENTS :toc_4:
 - [[#minor-mode][Minor Mode]]
-  - [[#requirements][Requirements]]
-  - [[#config-variable][Config variable]]
+  - [[#requirements][requirements]]
+  - [[#config-variable][config variable]]
+  - [[#config-mode-map][config mode map]]
   - [[#salesforce-functions][Salesforce functions]]
     - [[#project-prefix-functions][Project prefix functions]]
       - [[#create-project][Create project]]
@@ -45,10 +46,12 @@
       - [[#run-local-test-classes][run local test classes]]
       - [[#--run-specific-unit-test][[ ] run specific unit test]]
     - [[#run-lwc-local-server][RUN LWC LOCAL SERVER]]
-  - [[#diff-metadata][Diff metadata]]
-  - [[#diff-3-metadata][Diff 3 metadata]]
-  - [[#track-source-code][Track source code]]
-  - [[#internal-functions][Internal functions]]
+  - [[#ediff-metadata-contents][ediff metadata contents]]
+    - [[#hooks][hooks]]
+    - [[#ediff-metadata][ediff metadata]]
+    - [[#ediff-3-metadata][ediff 3 metadata]]
+    - [[#track-source-code][track source code]]
+  - [[#internal-functions][internal functions]]
     - [[#generate-command][Generate command]]
     - [[#execute-apex-code-1][Execute apex code]]
     - [[#excute-soql-block][Excute soql block]]
@@ -71,13 +74,14 @@
     - [[#key-binding-functions][Key binding functions]]
     - [[#hook-functions][Hook functions]]
     - [[#clear-log][Clear log]]
-  - [[#define-minor-mode][Define minor mode]]
+  - [[#config-doom-mode][config doom mode]]
+  - [[#define-minor-mode][define minor mode]]
 
 * Minor Mode
 :PROPERTIES:
 :header-args: :tangle yes
 :END:
-** Requirements
+** requirements
 #+begin_src emacs-lisp :tangle yes
 ;;; Salesforce minor mode -- add sf cli to emacs
 
@@ -88,33 +92,8 @@
 (require 'cl-lib)
 #+end_src
 
-** Config variable
+** config variable
 #+begin_src emacs-lisp :tangle yes
-(defcustom sfmm:keymap-prefix "M-o"
-  "The prefix for salesforce-mode key bindings."
-  :type 'string
-  :group 'salesforce)
-
-(defcustom sfmm:org-keymap-prefix "O"
-  "The keymap prefix for Org function."
-  :type 'string
-  :group 'salesforce)
-
-(defcustom sfmm:auth-keymap-prefix "A"
-  "The keymap prefix for Auth function."
-  :type 'string
-  :group 'salesforce)
-
-(defcustom sfmm:apex-keymap-prefix "C"
-  "The keymap prefix for Apex function."
-  :type 'string
-  :group 'salesforce)
-
-(defcustom sfmm:query-keymap-prefix "Q"
-  "The keymap prefix for Database function."
-  :type 'string
-  :group 'salesforce)
-
 (defcustom sfmm:tangle-on-save t
   "When t, automatically tangle Org files on save."
   :type 'boolean
@@ -130,15 +109,9 @@
    :type 'string
    :group 'salesforce-cli)
 
-(defcustom sfmm:org:non-scratch-org-header-display
+(defcustom sfmm:org:list-header-display
   '("username" "instanceUrl" "orgId" "isDevHub" "instanceApiVersion" "alias" "lastUsed" "connectedStatus")
   "Custom define header display on table non scratch orgs"
-  :type 'list
-  :group 'salesforce-cli)
-
-(defcustom sfmm:org:scratch-org-header-display
-  '("username" "password" "instanceUrl" "orgId" "expirationDate" "instanceApiVersion" "alias" "connectedStatus")
-  "Custom define header display on table scratch orgs"
   :type 'list
   :group 'salesforce-cli)
 
@@ -264,8 +237,51 @@
   :type 'string
   :group 'salesforce-minor-mode)
 
-(defvar sfmm:org-name ""
-  "org name showing on mode line.")
+(defcustom sfmm--org-name ""
+  "org name showing on mode line."
+  :type 'string
+  :set (lambda (var val)
+         (unless (eq val "")
+           (sfmm--internal-set-mode-line val))
+         (set-default var val)))
+#+end_src
+
+** config mode map
+#+begin_src emacs-lisp
+(defvar salesforce-mode-map
+  (let ((map (make-sparse-keymap)))
+    ;; org features
+    (define-key map (kbd "M-o s") #'sfmm:org:authorize-sandbox)
+    (define-key map (kbd "M-o p") #'sfmm:org:authorize-production)
+    (define-key map (kbd "M-o c") #'sfmm:org:authorize-custom-url)
+
+    (define-key map (kbd "M-o r") #'sfmm:source:retrieve)
+    (define-key map (kbd "M-o d") #'sfmm:source:push)
+
+    (define-key map (kbd "M-o o") #'sfmm:org:default-open)
+    (define-key map (kbd "M-o n") #'sfmm:org:display-all-orgs)
+    (define-key map (kbd "M-o m") #'sfmm:org:display-all-devhubs)
+
+    ;; apex features
+    (define-key map "C-M o-t" #'sfmm:apex:generate-trigger)
+    (define-key map "C-M o-c" #'sfmm:apex:generate-class)
+    (define-key map "C-M o-C" #'sfmm:apex:generate-test-class)
+    (define-key map "C-M o-F" #'sfmm:apex:generate-test-method)
+
+    ;; project features
+    (define-key map "C-M q-t" #'sfmm:fetch-record-through-soql)
+    (define-key map "C-M q-f" #'sfmm:fetch-salesforce-file)
+
+    ;; visualforce features
+    (define-key map "C-M v-p" #'sfmm:visualforce:generate-page)
+    (define-key map "C-M v-c" #'sfmm:visualforce:generate-component)
+
+    ;; metadata features
+    (define-key map (kbd "M-m t") #'sfmm:source-tracker)
+    (define-key map (kbd "M-m d") #'sfmm:diff-metadata)
+    (define-key map (kbd "M-m D") #'sfmm:diff3-metadata)
+    map)
+  "Keymap for `salesforce-mode'.")
 #+end_src
 
 ** Salesforce functions
@@ -277,7 +293,7 @@
   (interactive)
   (let ((project-path (read-string "project-path: "))
         (project-name (read-string "project-name: "))
-        (command (sfmm--helper:generate-command
+        (command (sfmm--internal:generate-command
                   (list sfmm:project-command-alias "generate"
                                                    "--name"
                                                    project-name
@@ -290,11 +306,11 @@
                                                          (t
                                                           "."))))))
 
-    (sfmm--helper:make-async-process
+    (sfmm--internal:make-async-process
      :command command
      :handle-success-lambda
      `(lambda (process json-instance buffer)
-        (let ((project-output (sfmm--helper:get-data-hashtable "result.outputDir" json-instance)))
+        (let ((project-output (sfmm--internal:get-data-hashtable "result.outputDir" json-instance)))
 
           (alert "Create Project Success"
                  :title "Salesforce Alert"))))))
@@ -307,11 +323,11 @@
   "Push file to salesforce org."
   (interactive)
   (let* ((file-name (buffer-file-name))
-         (push-command (sfmm--helper:build-sf-command "force" "source" "deploy" "-p" file-name "--json")))
+         (push-command (sfmm--internal:build-sf-command "force" "source" "deploy" "-p" file-name "--json")))
 
     (sfmm:org:source-backup)
 
-    (sfmm--helper:make-async-process
+    (sfmm--internal:make-async-process
      :command `,push-command
      :handle-success-lambda
      `(lambda (process json-instance buffer)
@@ -339,7 +355,7 @@
                                                          (gethash "lineNumber" component)
                                                          (gethash "filePath" component))))
 
-                                             (sfmm--helper:get-data-hashtable "result.deployedSource" json-instance)
+                                             (sfmm--internal:get-data-hashtable "result.deployedSource" json-instance)
                                              "\n"))))
 
          (alert show-message
@@ -354,9 +370,9 @@
     ()
   "Retrieve source salesforce form org"
   (interactive)
-  (let ((retrieve-command (sfmm--helper:build-sf-command "force" "source" "retrieve" "-p" buffer-file-name "--json")))
+  (let ((retrieve-command (sfmm--internal:build-sf-command "force" "source" "retrieve" "-p" buffer-file-name "--json")))
 
-    (sfmm--helper:make-async-process
+    (sfmm--internal:make-async-process
      :command retrieve-command
      :handle-success-lambda
      `(lambda (process json-instance buffer)
@@ -375,7 +391,7 @@
                                                                              (t
                                                                               (sfmm:org:show-current-org))) "/"))
          (backup-file-name (concat file-name "_" (format "%s" (time-convert (current-time) 'integer))))
-         (command (sfmm--helper:build-sf-command sfmm:project-command-alias "retrieve" "start" "-d" buffer "-z" "-t" cache-dir "--zip-file-name" backup-file-name "--json")))
+         (command (sfmm--internal:build-sf-command sfmm:project-command-alias "retrieve" "start" "-d" buffer "-z" "-t" cache-dir "--zip-file-name" backup-file-name "--json")))
 
     (when target-org
       (add-to-list 'command "-o" t)
@@ -384,7 +400,7 @@
     (unless (file-exists-p cache-dir)
       (make-directory cache-dir))
 
-    (setq json-instance (sfmm--helper:make-process
+    (setq json-instance (sfmm--internal:make-process
                          :type 'sync
                          :command command))
     (unless json-instance
@@ -392,13 +408,13 @@
     ;; rename backup directory to new directory containing the last modified id
     ;; and the last modified date
     (let ((new-dir-name (concat cache-dir backup-file-name "_"
-                                (sfmm--helper:get-data-hashtable "result.fileProperties.0.lastModifiedById"
+                                (sfmm--internal:get-data-hashtable "result.fileProperties.0.lastModifiedById"
                                                                  json-instance)
                                 "_"
                                 (format "%s"
                                         (time-convert
                                          (parse-time-string
-                                          (sfmm--helper:get-data-hashtable "result.fileProperties.0.lastModifiedDate"
+                                          (sfmm--internal:get-data-hashtable "result.fileProperties.0.lastModifiedDate"
                                                                            json-instance))
                                          'integer)))))
 
@@ -418,12 +434,12 @@
      (unless user-name
        (setq user-name (read-string "user-name: ")))
 
-     (sfmm--helper:make-sync-process
+     (sfmm--internal:make-sync-process
       :command
-      (sfmm--helper:generate-command (list "org" "open" "--json" "-o" user-name "-r"))
+      (sfmm--internal:generate-command (list "org" "open" "--json" "-o" user-name "-r"))
       :handle-success-lambda
       (lambda (process json-instance buffer)
-        (let ((url (sfmm--helper:get-data-hashtable "result.url" json-instance)))
+        (let ((url (sfmm--internal:get-data-hashtable "result.url" json-instance)))
 
           (shell-command (format "%s --target %s %S"
                                  sfmm:default-browser
@@ -436,13 +452,13 @@
 (defun sfmm:org:default-open ()
    "Open default org"
    (interactive)
-   (let ((command (sfmm--helper:generate-command (list "org" "open" "--json" "-r"))))
+   (let ((command (sfmm--internal:generate-command (list "org" "open" "--json" "-r"))))
 
-     (sfmm--helper:make-async-process
+     (sfmm--internal:make-async-process
       :command command
       :handle-success-lambda
       (lambda (process json-instance buffer)
-        (let ((url (sfmm--helper:get-data-hashtable "result.url" json-instance)))
+        (let ((url (sfmm--internal:get-data-hashtable "result.url" json-instance)))
 
           (shell-command (concat sfmm:default-browser (format " %S " url) " -r " " tab ")))))))
 #+end_src
@@ -451,81 +467,57 @@
 #+begin_src emacs-lisp :tangle yes
 (defun sfmm:org:display-all (org-type)
   "Display all current connect org"
-  (let ((command (sfmm--helper:generate-command (list sfmm:org-command-alias "list" "--json"))))
+  (sfmm--internal:make-async-process
+   :command
+   (sfmm--internal:build-sf-command sfmm:org-command-alias "list" "--json")
+   :handle-success-lambda
+   (lambda (process json-instance buffer)
+     (pop-to-buffer
+      (sf--build-table:create-table
+       :model
+       (sf--build-table:make-table-mode
+        :column-header
+        (mapcar (lambda (column-name)
+                  (list :title column-name :align 'left :max-width '50))
+                sfmm:org:list-header-display)
+        :data
+        (mapcar (lambda (data)
+                  (mapcar (lambda (column-name)
+                            (let ((value (gethash column-name data)))
 
-    (sfmm--helper:make-sync-process
-     :command command
-     :handle-success-lambda
-     (lambda (process json-instance buffer)
-       (let ((start-index 1)
-             (column-header-map #s(hash-table test equal data ("No" ((:align . 'left) (:title . "No"))))))
-         (mapcar
-          (lambda (item)
-            (puthash
-             (format "%s" item)
-             `((:align . ,'left) (:title . ,item))
-             column-header-map))
-          (cond ((string= org-type "nonScratchOrgs") sfmm:org:non-scratch-org-header-display)
-                ((string= org-type "scratchOrgs")) sfmm:org:scratch-org-header-display))
-
-         (if (= (gethash "status" json-instance) 0)
-             (let* ((non-scratch-orgs
-                     (sfmm--helper:get-data-hashtable
-                      (concat "result." org-type) json-instance))
-                    (data
-                     (mapcar
-                      (lambda (element)
-                        (let ((row
-                               (sfmm--helper:convert-hashtable-data-to-list
-                                :hashtable-data element
-                                :columns
-                                (cond ((string= org-type "nonScratchOrgs") sfmm:org:non-scratch-org-header-display)
-                                      ((string= org-type "scratchOrgs")) sfmm:org:scratch-org-header-display)
-                                :post-process
-                                (lambda (key value)
-                                  (let ((column-config
-                                         `((:align . ,'left) (:title . ,key))))
-
-                                    (when (length> value 50)
-                                        (add-to-list 'column-config `(:max-width . ,'50))
-
-                                        (puthash (format "%s" key) column-config column-header-map)))))))
-
-                          (progn
-                            (add-to-list 'row start-index
-                                         nil (lambda (el1 el2) nil))
-                            (setq start-index
-                                  (1+ start-index))
-                            row)))
-                      non-scratch-orgs)))
-
-               (sf--build:make-table-model
-                :column-header (hash-table-values column-header-map)
-                :data data))))))))
+                              (pcase value
+                                (:false "false")
+                                (:true  "true")
+                                (_ value))))
+                          sfmm:org:list-header-display))
+                (sfmm--internal:get-data-hashtable
+                 (concat "result." org-type) json-instance))))
+      :buffer sfmm:tracking-buffer-name))))
 #+end_src
 ***** Non scratch org
 #+begin_src emacs-lisp :tangle yes
-(defun sfmm:org:display-all-non-scratch ()
+(defun sfmm:org:display-all-orgs ()
   (interactive)
-  (sfmm:org:display-all "nonScratchOrgs"))
+  (sfmm:org:display-all "other"))
 #+end_src
 ***** Scratch org
 #+begin_src emacs-lisp :tangle yes
-(defun sfmm:org:display-all-scratch ()
+(defun sfmm:org:display-all-devhubs ()
   (interactive)
-  (sfmm:org:display-all "scratchOrgs"))
+  (sfmm:org:display-all "devhubs"))
 #+end_src
+
 **** Show org connect status
 #+begin_src emacs-lisp :tangle yes
 (defun sfmm:org:connect-status ()
   "Check connect status to org"
-  (let ((display-org-information-command (sfmm--helper:generate-command (list sfmm:org-command-alias "display" "--json"))))
+  (let ((display-org-information-command (sfmm--internal:generate-command (list sfmm:org-command-alias "display" "--json"))))
 
-    (sfmm--helper:make-async-process
+    (sfmm--internal:make-async-process
      :command display-org-information-command
      :handle-success-lambda
      (lambda (process json-instance buffer)
-        (let* ((status (sfmm--helper:get-data-hashtable "result.connectedStatus" json-instance)))
+        (let* ((status (sfmm--internal:get-data-hashtable "result.connectedStatus" json-instance)))
           (when (string= status
                          "RefreshTokenAuthError")
             (alert "Token expired !!" :title "Salesforce Alert")))))))
@@ -534,8 +526,8 @@
 #+begin_src emacs-lisp :tangle yes
 ;;;###autoload
 (defun sfmm:org:show-current-org ()
-  (sfmm--helper:get-data-hashtable "result.0.value"
-                                  (sfmm--helper:make-process
+  (sfmm--internal:get-data-hashtable "result.0.value"
+                                  (sfmm--internal:make-process
                                    :type 'sync
                                    :command '("sf" "config" "get" "target-org" "--json"))))
 #+end_src
@@ -549,42 +541,39 @@
 #+end_src
 *** Functions use apex prefix
 **** Apex logs
-#+begin_src emacs-lisp :tangle no
+#+begin_src emacs-lisp :tangle yes
 (defun sfmm:apex:get-all-log ()
   "Get log apex"
   (interactive)
-  (let ((command (sfmm--helper:generate-command (list sfmm:apex-command-alias "list" "log" "--json"))))
+  (let ((command (sfmm--internal:build-sf-command sfmm:apex-command-alias "list" "log" "--json")))
 
-    (sfmm--helper:make-async-process
+    (sfmm--internal:make-async-process
      :command command
      :handle-success-lambda
      (lambda (process json-instance buffer)
-       (let* ((records-list (sfmm--helper:get-data-hashtable "result" json-instance))
-              (start-index 1)
-              (column-header-map #s(hash-table test equal data ("No" ((:align . 'left) (:title . "No")))))
-              (data
-               (mapcar
-                (lambda (element)
+       (let* ((records-list (sfmm--internal:get-data-hashtable "result" json-instance))
+              (header-columns '("No" "Id" "Browser" "Operation"))
+              (data (sf--build:make-data-table-from-vector
+                     :header-columns header-columns
+                     :data records-list)))
 
-                  (let ((row `(,start-index)))
-                    (maphash
-                     (lambda (key value)
-                       (let ((column-config `((:align . ,'left) (:title . ,key))))
-
-                           (add-to-list 'row value)
-
-                           (puthash (format "%s" key) column-config column-header-map)))
-                     element)
-                    (setq start-index (1+ start-index))
-                    row))
-                records-list))))))))
+         (pop-to-buffer
+          (sf--build-table:create-table
+           :model
+           (sf--build-table:make-table-mode
+            :column-header
+            (cl-loop for key in header-columns
+                     collect `(:align ,'left :title ,key `:max-width ,'50))
+            :data data)
+           :buffer sfmm:tracking-buffer-name
+           :open t)))))))
 #+end_src
 **** Apex Log
 ***** Get Log
 #+begin_src emacs-lisp :tangle yes
 (cl-defun sfmm:apex:get-log (&key log-id number org post-log-handle)
   "Get log apex"
-  (let ((command (sfmm--helper:generate-command (list sfmm:apex-command-alias "get" "log" "--json"))))
+  (let ((command (sfmm--internal:generate-command (list sfmm:apex-command-alias "get" "log" "--json"))))
 
     (setq command (progn
                     (when org
@@ -592,7 +581,7 @@
                     (cond ((not (string= log-id "")) (append command `("--log-id" ,log-id)))
                           (number (append command `("--number" ,number))))))
 
-    (sfmm--helper:make-async-process
+    (sfmm--internal:make-async-process
      :command command
      :handle-success-lambda
      `(lambda (process json-instance buffer)
@@ -615,9 +604,9 @@
 (cl-defun sfmm:apex:log-tail
     (&key (buffer-name "*apex-trace-log*") (org-id nil))
   :interactive
-  (let (command (sfmm--helper:generate-command (list sfmm:apex-command-alias "get" "tail" "log" "--json")))
+  (let (command (sfmm--internal:generate-command (list sfmm:apex-command-alias "get" "tail" "log" "--json")))
 
-    (sfmm--helper:make-async-process
+    (sfmm--internal:make-async-process
      :command command
      :handle-success-lambda
      `(lambda (process output)
@@ -630,29 +619,29 @@
 #+begin_src emacs-lisp :tangle yes
 (defun sfmm:execute-apex-code ()
  (interactive)
- (sfmm--helper:execute-apex (point-min)))
+ (sfmm--internal:execute-apex (point-min)))
 #+end_src
 *** Functions use login prefix
 #+begin_src emacs-lisp :tangle yes
-(defun sfmm--helper:org:login (url)
+(defun sfmm--internal:org:login (url)
    "Authorize to salesforce org"
    (let* ((alias (read-string "alias: "))
           (authorize-command
-            (sfmm--helper:generate-command (list sfmm:org-command-alias "login" "web" "-a" alias "--instanceurl" url "--set-default" "--json"))))
-    (sfmm--helper:make-async-process
+            (sfmm--internal:generate-command (list sfmm:org-command-alias "login" "web" "-a" alias "--instanceurl" url "--set-default" "--json"))))
+    (sfmm--internal:make-async-process
      :command
      authorize-command
      :handle-success-lambda
      (lambda (process json-instance buffer)
-       (let ((user-name (sfmm--helper:get-data-hashtable "result.username" json-instance)))
+       (let ((user-name (sfmm--internal:get-data-hashtable "result.username" json-instance)))
 
          (alert "Authorize success" :title "Salesforce Alert")
-         (sfmm--helper:make-sync-process
+         (sfmm--internal:make-sync-process
           :command
-          (sfmm--helper:generate-command (list "org" "open" "--json" "-o" user-name "-r"))
+          (sfmm--internal:generate-command (list "org" "open" "--json" "-o" user-name "-r"))
           :handle-success-lambda
           (lambda (process json-instance buffer)
-            (let ((url (sfmm--helper:get-data-hashtable "result.url" json-instance)))
+            (let ((url (sfmm--internal:get-data-hashtable "result.url" json-instance)))
 
               (shell-command (concat sfmm:default-browser " " (format "%S" url) " -r " " tab "))))))))))
 #+end_src
@@ -663,7 +652,7 @@
   (interactive)
   (let* ((url "https://test.salesforce.com"))
 
-    (sfmm--helper:org:login url)))
+    (sfmm--internal:org:login url)))
 #+end_src
 **** Production/Dev org
 #+begin_src emacs-lisp :tangle yes
@@ -672,7 +661,7 @@
   (interactive)
   (let* ((url "https://login.salesforce.com"))
 
-    (sfmm--helper:org:login url)))
+    (sfmm--internal:org:login url)))
 #+end_src
 
 **** Custom instance url org
@@ -682,7 +671,7 @@
   (interactive)
   (let* ((url (read-string "url: ")))
 
-    (sfmm--helper:org:login url)))
+    (sfmm--internal:org:login url)))
 #+end_src
 
 *** Functions salesforce query records
@@ -693,7 +682,7 @@
   (interactive)
   (let* ((history '())
          (file-name "soql-history")
-         (cache-dir (concat (cdr (project-current)) sfmm:org:cache-dir))
+         (cache-dir (concat (sfmm--internal:find-root-dir) sfmm:org:cache-dir))
          (file-contents `',(with-current-buffer (get-buffer-create (concat cache-dir file-name))
                              (buffer-string)))
          (soql-string (read-from-minibuffer "SOQL: " nil nil nil `("read-from-minibuffer"))))
@@ -701,11 +690,11 @@
     (unless (file-exists-p cache-dir)
       (make-directory cache-dir))
 
-    (with-current-buffer (get-file-buffer (concat cache-dir "/" file-name))
+    (with-current-buffer (get-buffer-create (concat cache-dir "/" file-name))
       (erase-buffer)
       (insert `,file-contents))
 
-    (sfmm--helper:execute-soql :query soql-string)))
+    (sfmm--internal:execute-soql :query soql-string)))
 #+end_src
 **** TODO SOQL file
 #+begin_src emacs-lisp :tangle yes
@@ -714,7 +703,7 @@
   (interactive)
   (let ((soql-file (read-string "SOQL-File: ")))
 
-    (sfmm--helper:execute-soql :file soql-file)))
+    (sfmm--internal:execute-soql :file soql-file)))
 #+end_src
 *** Compare local file with org file
 #+begin_src emacs-lisp :tangle yes
@@ -733,10 +722,10 @@
   (interactive)
   (let* ((page-name (read-string "page name: "))
          (page-label (read-string "page label: "))
-         (command (sfmm--helper:generate-command
+         (command (sfmm--internal:generate-command
                    (list sfmm:visualforce-command-alias "generate" "page" "--json" "--name" page-name "--label" page-label "--output-dir" (projectile-expand-root sfmm:default-vf-path)))))
 
-    (sfmm--helper:make-sync-process
+    (sfmm--internal:make-sync-process
      :command command
      :handle-success-lambda
      `(lambda (process json-instance buffer)
@@ -750,10 +739,10 @@
   (interactive)
   (let* ((page-name (read-string "page name: "))
          (page-label (read-string "page label: "))
-         (command (sfmm--helper:generate-command
+         (command (sfmm--internal:generate-command
                    (list sfmm:visualforce-command-alias "generate" "component" "--json" "--name" page-name "--label" page-label "--output-dir" (projectile-expand-root sfmm:default-vf-components-path)))))
 
-    (sfmm--helper:make-sync-process
+    (sfmm--internal:make-sync-process
      :command command
      :handle-success-lambda
      `(lambda (process json-instance buffer)
@@ -769,11 +758,11 @@
   (let* ((class-name (read-string "class name: "))
          (sobject-name (read-string "sobject name: "))
          (events-name (read-string "event name: "))
-         (command (sfmm--helper:generate-command
+         (command (sfmm--internal:generate-command
                    (list sfmm:apex-command-alias "generate" "trigger" "--name" class-name "--output-dir" (projectile-expand-root sfmm:default-apex-trigger-path) "--json")))
          (class-expand ""))
 
-    (sfmm--helper:make-async-process
+    (sfmm--internal:make-async-process
      :command command
      :handle-success-lambda
      `(lambda (process json-instance buffer)
@@ -792,7 +781,7 @@
   (let* ((class-name (read-string "class name: "))
          (class-extend (read-string "class parent: "))
          (class-implements (read-string "class implements: "))
-         (command (sfmm--helper:generate-command
+         (command (sfmm--internal:generate-command
                    (list sfmm:apex-command-alias "generate" "class" "--name" class-name "--output-dir" (projectile-expand-root sfmm:default-apex-class-path) "--json")))
          (class-expand ""))
 
@@ -802,7 +791,7 @@
       (unless (string= class-implements "")
         (setq class-expand (concat class-expand "implements" " " class-implements " "))))
 
-    (sfmm--helper:make-async-process
+    (sfmm--internal:make-async-process
      :command command
      :handle-success-lambda
      `(lambda (process json-instance buffer)
@@ -818,10 +807,10 @@
   "Generate apex test class"
   (interactive)
   (let* ((class-name (read-string "class name: "))
-         (command (sfmm--helper:generate-command
+         (command (sfmm--internal:generate-command
                    (list sfmm:apex-command-alias "generate" "class" "--name" class-name "--output-dir" (projectile-expand-root sfmm:default-apex-class-path) "--json"))))
 
-    (sfmm--helper:make-async-process
+    (sfmm--internal:make-async-process
      :command command
      :handle-success-lambda
      `(lambda (process json-instance buffer)
@@ -849,14 +838,14 @@
     (&key type output-dir message-success component-type)
   ""
   (let* ((component-name (read-string "lwc name: "))
-         (command (sfmm--helper:generate-command
+         (command (sfmm--internal:generate-command
                     (list sfmm:lightning-command-alias "generate" "component" "--output-dir" output-dir "--name" component-name "--json"))))
 
     (when (string= type "component")
       (setq command
             (append command (list "--type" component-type))))
 
-    (sfmm--helper:make-sync-process
+    (sfmm--internal:make-sync-process
      :command command
      :handle-success-lambda
      `(lambda (process json-instance buffer)
@@ -929,9 +918,9 @@
 (cl-defun sfmm:apex:get-result-test-job
     (&key job-id)
   "Get result tests"
-  (let ((command (sfmm--helper:generate-command (list sfmm:apex-command-alias "get" "test" "-i" job-id "--json"))))
+  (let ((command (sfmm--internal:generate-command (list sfmm:apex-command-alias "get" "test" "-i" job-id "--json"))))
 
-    (sfmm--helper:make-async-process
+    (sfmm--internal:make-async-process
      :command command
      :handle-success-lambda
      (lambda (process json-instance buffer)
@@ -941,7 +930,7 @@
                                  (outcome (gethash "Outcome" result-test))
                                  (error-message (gethash "Message" result-test))
                                  (method-name (gethash "MethodName" result-test))
-                                 (class-name-test (sfmm--helper:get-data-hashtable "ApexClass.Name" result-test)))
+                                 (class-name-test (sfmm--internal:get-data-hashtable "ApexClass.Name" result-test)))
 
                              (format "Class: %s\nMethod: %s\nResult: %s\n%s"
                                      class-name-test
@@ -955,7 +944,7 @@
                                            (stack-trace
                                             stack-trace)))))
 
-                         (sfmm--helper:get-data-hashtable "result.tests" json-instance)
+                         (sfmm--internal:get-data-hashtable "result.tests" json-instance)
                          "\n")))
          (alert result-tests
                 :title "Salesforce Alert"))))))
@@ -965,29 +954,29 @@
 (defun sfmm:apex:run-test-class ()
   "Run unit test for class"
   (interactive)
-  (let ((command (sfmm--helper:generate-command (list sfmm:apex-command-alias "run" "test" "--tests" (file-name-base) "--test-level" "RunSpecifiedTests" "--json"))))
+  (let ((command (sfmm--internal:generate-command (list sfmm:apex-command-alias "run" "test" "--tests" (file-name-base) "--test-level" "RunSpecifiedTests" "--json"))))
 
-    (sfmm--helper:make-async-process
+    (sfmm--internal:make-async-process
      :command command
      :handle-success-lambda
      (lambda (process json-instance buffer)
        (alert "Class tests run success"
               :title "Salesforce Alert")
        (sfmm:apex:get-result-test-job
-        :job-id (sfmm--helper:get-data-hashtable "result.testRunId" json-instance))))))
+        :job-id (sfmm--internal:get-data-hashtable "result.testRunId" json-instance))))))
 #+end_src
 **** run local test classes
 #+begin_src emacs-lisp
 (defun sfmm:apex:run-local-tests ()
   "Run all tests class expect tests class in org managed package"
   (interactive)
-  (let ((command (sfmm--helper:generate-command (list sfmm:apex-command-alias "run" "test" "--test-level" "RunLocalTests" "--json"))))
+  (let ((command (sfmm--internal:generate-command (list sfmm:apex-command-alias "run" "test" "--test-level" "RunLocalTests" "--json"))))
 
-    (sfmm--helper:make-async-process
+    (sfmm--internal:make-async-process
      :command command
      :handle-success-lambda
      (lambda (process json-instance buffer)
-       (sfmm:apex:get-result-test-job (job-id (sfmm--helper:get-data-hashtable "result.testRunId" json-instance)))))))
+       (sfmm:apex:get-result-test-job (job-id (sfmm--internal:get-data-hashtable "result.testRunId" json-instance)))))))
 #+end_src
 **** [ ] run specific unit test
 #+begin_src emacs-lisp
@@ -998,9 +987,9 @@
 (defun sfmm:server:local-lwc ()
   ""
   (interactive)
-  (let ((command (sfmm--helper:generate-command (list sfmm:sfdx-legacy-alias "lightning" "lwc" "start" "--json"))))
+  (let ((command (sfmm--internal:generate-command (list sfmm:sfdx-legacy-alias "lightning" "lwc" "start" "--json"))))
 
-    (sfmm--helper:make-async-process
+    (sfmm--internal:make-async-process
      :command command
      :handle-success-lambda
      `(lambda (process json-string buffer)
@@ -1008,22 +997,44 @@
                :title "Salesforce Alert")))))
 #+end_src
 
-** Diff metadata
+** ediff metadata contents
+*** hooks
+#+begin_src emacs-lisp :tangle yes
+(defun sfmm--ediff-startup-hook ()
+  "Hook on startup."
+  (ediff-toggle-read-only ediff-buffer-A)
+  (ediff-toggle-read-only ediff-buffer-C))
+
+(defun sfmm--ediff-quit-hook ()
+  "Hook on quit."
+ (kill-buffer ediff-buffer-A)
+ (kill-buffer ediff-buffer-C)
+
+ ; Clear hooks
+ (remove-hook 'ediff-startup-hook #'sfmm--ediff-startup-hook)
+ (remove-hook 'ediff-quit-hook #'sfmm--ediff-quit-hook))
+#+end_src
+*** ediff metadata
 #+begin_src emacs-lisp :tangle yes
 (defun sfmm:diff-metadata ()
   "diff metadata between local and cloud."
   (interactive)
   (let ((file-name (buffer-file-name))
         (backup-file-name (sfmm:org:source-backup)))
-    (message "%S" backup-file-name)
+
     (condition-case error
-        (ediff (car (directory-files-recursively (concat backup-file-name "/") (file-name-nondirectory file-name))) file-name)
-      (error
-       (alert error
-              :title "Salesforce Alert"
-              :severity 'urgent)))))
+        (ediff (car (directory-files-recursively (concat backup-file-name "/") (file-name-nondirectory file-name))) file-name
+               '((lambda ()
+                  (add-hook 'ediff-startup-hook #'sfmm--ediff-startup-hook)
+                  (add-hook 'ediff-quit-hook #'sfmm--ediff-quit-hook))))
+
+                 
+     (error
+      (alert error
+             :title "Salesforce Alert"
+             :severity 'urgent)))))
 #+end_src
-** Diff 3 metadata
+*** ediff 3 metadata
 #+begin_src emacs-lisp :tangle yes
 (defun sfmm:diff3-metadata ()
   "diff metadata between multiple enviroment."
@@ -1035,13 +1046,17 @@
                               :target-org target-org)))
 
     (condition-case error
-        (ediff3 (car (directory-files-recursively (concat bk-file-org "/") (file-name-nondirectory file-name))) file-name (car (directory-files-recursively (concat bk-file-target-org "/") (file-name-nondirectory file-name))))
+        (set 'sfmm--diff-metadata-on t)
+        (ediff3 (car (directory-files-recursively (concat bk-file-org "/") (file-name-nondirectory file-name))) file-name (car (directory-files-recursively (concat bk-file-target-org "/") (file-name-nondirectory file-name)))
+                '((lambda ())
+                  (add-hook 'ediff-startup-hook #'sfmm--ediff-startup-hook)
+                  (add-hook 'ediff-quit-hook #'sfmm--ediff-quit-hook)))
       (error
        (alert error
               :title "Salesforce Alert"
               :severity 'urgent)))))
 #+end_src
-** Track source code
+*** track source code
 #+begin_src emacs-lisp :tangle yes
 (defun sfmm:source-tracker ()
   (interactive)
@@ -1056,7 +1071,7 @@
                                       folder-name)
                               file-name)))
          (model
-          (sf--build:make-table-model
+          (sf--build-table:make-table-mode
            :column-header
            `((:title "Backup DateTime")
              (:title "User Modified Id")
@@ -1070,41 +1085,48 @@
                                         (user-id (nth 1 columns))
                                         (last-modified-date (format-time-string "%Y/%m/%d %H:%M:%S" (string-to-number (nth 2 columns)))))
 
-                              `(,date-time ,user-id ,last-modified-date)))
+                              `(,date-time ,user-id ,last-modified-date ,(concat (nth 3 columns) "_" (nth 0 columns) "_" user-id "_" (nth 2 columns)))))
                           ;; list of file names
                           (split-string (shell-command-to-string
                                          ;; script list all files with name
                                          (concat "ls " folder-path " -ta"
-                                                 " | " "sed -E 's/.+\\/([a-zA-Z]+)\\_([[:digit:]]+)\\_([A-Za-z0-9]+)\\_([[:digit:]]+)\\/.+$/\\2 \\3 \\4/'"))
+                                                 " | " "sed -E 's/.+\\/([a-zA-Z]+)\\_([[:digit:]]+)\\_([A-Za-z0-9]+)\\_([[:digit:]]+)\\/.+$/\\2 \\3 \\4 \\1/'"))
                                         "\n")))))
          (component
-          (sf--build:create-table-component
+          (sf--build-table:create-table
            :model model
            :buffer sfmm:tracking-buffer-name)))
 
     (ctbl:cp-add-click-hook component
                             `(lambda ()
                               (when-let* ((data (ctbl:cp-get-selected-data-row ,component))
-                                          (dir (nth 1 data))
-                                          (cache-dir ,(concat (cdr (project-current)) sfmm:org:cache-dir)))
+                                          (cache-dir (concat (cdr (project-current))
+                                                             sfmm:org:cache-dir
+                                                             (sfmm:org:show-current-org)
+                                                             "/"
+                                                             (nth 3 data))))
 
-                                (ediff (car (directory-files-recursively dir ,file-name))
-                                       ,buffer-file-name))))
+                                (set 'sfmm--diff-metadata-on t)
+                                (ediff (car (directory-files-recursively cache-dir ,file-name))
+                                       ,buffer-file-name
+                                       '((lambda ()
+                                           (add-hook 'ediff-startup-hook #'sfmm--ediff-startup-hook)
+                                           (add-hook 'ediff-quit-hook #'sfmm--ediff-quit-hook)))))))
 
     (pop-to-buffer (ctbl:cp-get-buffer component))))
 #+end_src
-** Internal functions
+** internal functions
 *** Generate command
 #+begin_src emacs-lisp :tangle yes
-(defun sfmm--helper:generate-command (commands)
+(defun sfmm--internal:generate-command (commands)
   (add-to-list 'commands sfmm:sfdx-lib-alias))
 
-(defun sfmm--helper:build-sf-command (&rest args)
+(defun sfmm--internal:build-sf-command (&rest args)
   `(,sfmm:sfdx-lib-alias ,@args))
 #+end_src
 *** Execute apex code
 #+begin_src emacs-lisp :tangle yes
-(defun sfmm--helper:execute-apex (content)
+(defun sfmm--internal:execute-apex (content)
 emacs make-process pipe "Execute code"
   (let ((code (unless content
                (point-min)
@@ -1113,7 +1135,7 @@ emacs make-process pipe "Execute code"
 
    (write-region (point-min) (point-max) temp-file)
    (setq execute-apex-code-command
-     (sfmm--helper:generate-command "apex" "run" "-f" temp-file))
+     (sfmm--internal:generate-command "apex" "run" "-f" temp-file))
 
    (async-shell-command execute-apex-code-command buffer)))
 #+end_src
@@ -1129,7 +1151,7 @@ This function execute [[https://developer.salesforce.com/docs/atlas.en-us.sfdx_c
     + format: format for result return from API
 
 #+begin_src emacs-lisp :tangle yes
-(cl-defun sfmm--helper:execute-soql (&key query (type 'string) options)
+(cl-defun sfmm--internal:execute-soql (&key query (type 'string) options)
   "Excute command fetch records from Salesforce through api"
   (let* ((options
           (cond ((equal type 'string)
@@ -1137,18 +1159,18 @@ This function execute [[https://developer.salesforce.com/docs/atlas.en-us.sfdx_c
                 ((equal type 'file)
                  (list "--file" query))))
          (execute-soql-code
-          (append (sfmm--helper:generate-command (list sfmm:data-command-alias "query" "--json"))
+          (append (sfmm--internal:generate-command (list sfmm:data-command-alias "query" "--json"))
                   options)))
 
-    (sfmm--helper:make-async-process
+    (sfmm--internal:make-async-process
      :command execute-soql-code
      :handle-success-lambda
      (lambda (process json-instance buffer)
        
-       (if (length= (sfmm--helper:get-data-hashtable "result.records" json-instance) 0)
+       (if (length= (sfmm--internal:get-data-hashtable "result.records" json-instance) 0)
            (alert "No records found"
                   :title "Salesforce Query")
-         (let* ((records-list (sfmm--helper:get-data-hashtable "result.records" json-instance))
+         (let* ((records-list (sfmm--internal:get-data-hashtable "result.records" json-instance))
                 (header-columns (hash-table-keys (aref records-list 0)))
                 (data (sf--build:make-data-table-from-vector
                        :header-columns header-columns
@@ -1156,22 +1178,23 @@ This function execute [[https://developer.salesforce.com/docs/atlas.en-us.sfdx_c
 
            (add-to-list 'header-columns "No")
 
-           (sf--build:popup-table-component
-            :model
-            (sf--build:make-table-model
-             :column-header
-             (cl-loop for key in header-columns
-                      when (not (string= key ""))
-                      collect `(:align ,'left :title ,key `:max-width ,'50))
-             :data data)
-            :buffer buffer)))))))
+           (pop-to-buffer
+            (sf--build-table:create-table
+             :model
+             (sf--build-table:make-table-mode
+              :column-header
+              (cl-loop for key in header-columns
+                       when (not (string= key ""))
+                       collect `(:align ,'left :title ,key `:max-width ,'50))
+              :data data)
+             :buffer sfmm:tracking-buffer-name))))))))
 #+end_src
 
 *** Make synchronous process
 + set readonly for overview buffer, edit the buffer through key-bind
 #+begin_src emacs-lisp :tangle yes
-(cl-defun sfmm--helper:make-sync-process (&key command handle-success-lambda handle-error-lambda)
-  (sfmm--helper:make-process
+(cl-defun sfmm--internal:make-sync-process (&key command handle-success-lambda handle-error-lambda)
+  (sfmm--internal:make-process
    :type 'sync
    :command command
    :handle-success-lambda handle-success-lambda
@@ -1180,10 +1203,10 @@ This function execute [[https://developer.salesforce.com/docs/atlas.en-us.sfdx_c
 
 *** Make asynchronous process
 #+begin_src emacs-lisp :tangle yes
-(cl-defun sfmm--helper:make-async-process
+(cl-defun sfmm--internal:make-async-process
     (&key command buffer-name handle-success-lambda handle-error-lambda)
   "Make async process"
-  (sfmm--helper:make-process
+  (sfmm--internal:make-process
    :type 'async
    :command command
    :handle-success-lambda handle-success-lambda
@@ -1192,7 +1215,7 @@ This function execute [[https://developer.salesforce.com/docs/atlas.en-us.sfdx_c
 
 *** Make process
 #+begin_src emacs-lisp :tangle yes
-(cl-defun sfmm--helper:make-process
+(cl-defun sfmm--internal:make-process
     (&key type command handle-success-lambda handle-error-lambda)
   ""
   (when (not (member type '(async sync)))
@@ -1304,9 +1327,9 @@ This function execute [[https://developer.salesforce.com/docs/atlas.en-us.sfdx_c
 *** TODO Execute synchronous salesforce command
 + override api version with custom once
 #+begin_src emacs-lisp :tangle yes
-(defun sfmm--helper:execute-command (command message-success)
+(defun sfmm--internal:execute-command (command message-success)
 
-  (sfmm--helper:make-sync-process
+  (sfmm--internal:make-sync-process
    command
    `(lambda (process output buffer)
       (unless (string= message-success "")
@@ -1314,14 +1337,14 @@ This function execute [[https://developer.salesforce.com/docs/atlas.en-us.sfdx_c
 #+end_src
 *** Execute asynchronous salesforce command
 #+begin_src emacs-lisp :tangle yes
-(cl-defun sfmm--helper:execute-async-command
+(cl-defun sfmm--internal:execute-async-command
     (&key command (message-success "") (message-failures ""))
 
-  (sfmm--helper:make-async-process
+  (sfmm--internal:make-async-process
    command
    `(lambda (process output buffer)
       (let* ((json (json-parse-string output))
-             (is-success (sfmm--helper:get-data-hashtable "status" json)))
+             (is-success (sfmm--internal:get-data-hashtable "status" json)))
 
         (if (= is-success 1)
             (unless (string= ,message-success "")
@@ -1330,7 +1353,7 @@ This function execute [[https://developer.salesforce.com/docs/atlas.en-us.sfdx_c
 #+end_src
 *** Convert hashtable to list data
 #+begin_src emacs-lisp :tangle yes
-(cl-defun sfmm--helper:convert-hashtable-data-to-list
+(cl-defun sfmm--internal:convert-hashtable-data-to-list
     (&key hashtable-data columns (post-process nil))
   "Convert hashtable data to list"
  (let ((data '()))
@@ -1359,7 +1382,7 @@ This function execute [[https://developer.salesforce.com/docs/atlas.en-us.sfdx_c
 #+end_src
 *** Custom map list function
 #+begin_src emacs-lisp :tangle yes
-(defun sfmm--helper:recursive-list (list-data lambda-function)
+(defun sfmm--internal:recursive-list (list-data lambda-function)
   ""
   (let* ((new-list (cdr list-data))
          (first-item (car list-data))
@@ -1368,13 +1391,13 @@ This function execute [[https://developer.salesforce.com/docs/atlas.en-us.sfdx_c
     (when (length> new-list 0)
         (setq remap-list
               (append remap-list
-                      (sfmm--helper:recursive-list new-list lambda-function))))
+                      (sfmm--internal:recursive-list new-list lambda-function))))
 
     (add-to-list 'remap-list (funcall lambda-function first-item))))
 #+end_src
 *** Extract data in hashtable
 #+begin_src emacs-lisp :tangle yes
-(defun sfmm--helper:get-data-hashtable (path table)
+(defun sfmm--internal:get-data-hashtable (path table)
   "Get all data follow the path in hash table"
   (let* ((path-splited (split-string path "\\."))
          (key (car path-splited))
@@ -1385,7 +1408,7 @@ This function execute [[https://developer.salesforce.com/docs/atlas.en-us.sfdx_c
          (key-remain (cdr path-splited)))
 
     (cond (key-remain
-           (sfmm--helper:get-data-hashtable
+           (sfmm--internal:get-data-hashtable
             (string-join key-remain ".")
             value))
           (t
@@ -1405,7 +1428,7 @@ This function execute [[https://developer.salesforce.com/docs/atlas.en-us.sfdx_c
 ** Build table functions
 *** Popup ctable component
 #+begin_src emacs-lisp
-(cl-defun sf--build:create-table-component (&key model buffer open)
+(cl-defun sf--build-table:create-table (&key model buffer open)
   "Use ctable to build table data"
   (let ((component (ctbl:create-table-component-buffer
                     :model model
@@ -1418,10 +1441,10 @@ This function execute [[https://developer.salesforce.com/docs/atlas.en-us.sfdx_c
 #+end_src
 *** Build ctable component
 #+begin_src emacs-lisp :tangle yes
-(cl-defun sf--build:make-table-model (&key column-header data)
+(cl-defun sf--build-table:make-table-mode (&key column-header data)
   "Use ctable to build table data"
   (let ((column-model
-         (mapcar 'sf--build:make-header-table column-header))
+         (mapcar 'sf--build-table:make-header-model column-header))
         (async-model
          (ctbl:async-model-wrapper data)))
 
@@ -1430,7 +1453,7 @@ This function execute [[https://developer.salesforce.com/docs/atlas.en-us.sfdx_c
 #+end_src
 *** Build ctable header
 #+begin_src emacs-lisp :tangle yes
-(defun sf--build:make-header-table (header-config)
+(defun sf--build-table:make-header-model (header-config)
   "Build header ctable"
   (let* ((title
           (plist-get header-config :title))
@@ -1448,12 +1471,16 @@ This function execute [[https://developer.salesforce.com/docs/atlas.en-us.sfdx_c
      :max-width max-width
      :align align)))
 #+end_src
+
 *** Build ctable data
 #+begin_src emacs-lisp :tangle yes
 (cl-defun sf--build:make-data-table-from-vector
     (&key header-columns data (enable-count-rows t))
   "Build data from input hash table and header-columns"
   (let ((data-table ()))
+    (cl-loop for item in data
+             for col in header-columns
+             collect `())
     (dotimes (i (length data))
       (let ((row (append (list (+ i 1))
                          (mapcar `(lambda (key)
@@ -1482,13 +1509,13 @@ This function execute [[https://developer.salesforce.com/docs/atlas.en-us.sfdx_c
   ""
   (interactive)
   (let* ((execute-soql-code
-          (sfmm--helper:generate-command (list sfmm:data-command-alias "query" "--query" "SELECT PathPrefix, Domain.Domain, Domain.HttpsOption, Site.Status, Site.SiteType FROM DomainSite"))))
+          (sfmm--internal:generate-command (list sfmm:data-command-alias "query" "--query" "SELECT PathPrefix, Domain.Domain, Domain.HttpsOption, Site.Status, Site.SiteType FROM DomainSite"))))
 
-    (sfmm--helper:make-sync-process
+    (sfmm--internal:make-sync-process
      :command execute-soql-code
      :handle-success-lambda
      (lambda (process json-instance buffer)
-       (let* ((records-list (sfmm--helper:get-data-hashtable "result.records" json-instance))
+       (let* ((records-list (sfmm--internal:get-data-hashtable "result.records" json-instance))
               (start-index 1)
               (column-header-map #s(hash-table test equal data ("No" ((:align . 'left) (:title . "No"))))))
 
@@ -1519,7 +1546,7 @@ This function execute [[https://developer.salesforce.com/docs/atlas.en-us.sfdx_c
                (setq start-index (1+ start-index))
                row))
            records-list)
-         (sf--build:make-table-model
+         (sf--build-table:make-table-mode
           :column-header (hash-table-values column-header-map)
           :data records-list))))))
 #+end_src
@@ -1571,48 +1598,56 @@ This function execute [[https://developer.salesforce.com/docs/atlas.en-us.sfdx_c
   (interactive)
   (let ((temp-file (make-temp-file "log" nil ".csv")))
 
-    (sfmm--helper:make-async-process
+    (sfmm--internal:make-async-process
       :command
-      (sfmm--helper:generate-command
-       (list sfmm:data-command-alias "query" "--query" "SELECT Id FROM ApexLog" "-t" "-r" "csv"))
-      :handle-error-lambda
-      (lambda (process data buffer) _)
+      (sfmm--internal:build-sf-command
+       sfmm:data-command-alias "query" "--query" "SELECT Id FROM ApexLog" "-t" "-r" "csv")
       :handle-success-lambda
       `(lambda (process data buffer)
          (with-current-buffer ,temp-file
            (insert data))
 
-         (sfmm--helper:make-async-process
+         (sfmm--internal:make-async-process
            :command
-           (sfmm--helper:generate-command
-            (list sfmm:data-command-alias "delete" "bulk" "--sobject" "ApexLog" "--file" ,temp-file "--json"))
+           (sfmm--internal:build-sf-command
+            sfmm:data-command-alias "delete" "bulk" "--sobject" "ApexLog" "--file" ,temp-file "--json")
            :handle-success-lambda
            (lambda (process json-instance buffer)
              (alert "clear log success"
                     :title "Success")))))))
 
 #+end_src
-** Define minor mode
+** config doom mode
+#+begin_src emacs-lisp
+(defun sfmm--internal-set-mode-line (org-name)
+  "Set mode line."
+  (cond ((listp global-mode-string)
+         (set 'global-mode-string (remove 'global-mode-string sfmm--org-name))
+         (add-to-list 'global-mode-string org-name))
+        ((stringp global-mode-string)
+         (set 'global-mode-string org-name))))
+
+
+(defun salesforce-minor-mode--init ()
+ "Initialize mode."
+  ;; (unless sfmm--org-name
+  ;;   (set 'global-mode-string (remove sfmm--org-name global-mode-string)))
+  (setopt sfmm--org-name (sfmm:org:show-current-org)))
+#+end_src
+** define minor mode
 #+begin_src emacs-lisp :tangle yes
+(add-to-list 'minor-mode-alist '(salesforce-minor-mode " org"))
+
 (define-minor-mode salesforce-minor-mode
   "Toggles global salesforce minor mode."
   nil ; Inital value, nil for disabled
-  :global t
+  :global nil
   :group 'salesforce
-  :lighter " salesforce-minor-mode")
+  :keymap salesforce-mode-map
 
-  ;; (when-let ((org-default-alias (sfmm:org:show-current-org)))
-
-  ;;   (if salesforce-minor-mode
-  ;;       (condition-case index
-  ;;           (-find-index (lambda (misc-info)
-  ;;                         (eq `(" " ,org-default-alias " ") misc-info))
-  ;;                        mode-line-misc-info)
-  ;;         (error
-  ;;          (add-to-list 'mode-line-misc-info `(" " ,org-default-alias " ")))
-  ;;         (:success
-  ;;          (setq mode-line-misc-info (-replace-at index `(" " ,org-default-alias " ") mode-line-misc-info))))
-  ;;     (setq mode-line-misc-info (delete mode-line-misc-info `(" " ,sfmm:org-name " "))))))
+  (if salesforce-minor-mode
+      (add-hook 'salesforce-minor-mode-hook #'salesforce-minor-mode--init)
+    (remove-hook 'salesforce-minor-mode-hook #'salesforce-minor-mode--init)))
 
 (provide 'salesforce-minor-mode) ;;; salesforce-minor-mode end here.
 #+end_src
