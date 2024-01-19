@@ -263,20 +263,19 @@
     (define-key map (kbd "M-o m") #'sfmm:org:display-all-devhubs)
 
     ;; apex features
-    (define-key map "C-M o-t" #'sfmm:apex:generate-trigger)
-    (define-key map "C-M o-c" #'sfmm:apex:generate-class)
-    (define-key map "C-M o-C" #'sfmm:apex:generate-test-class)
-    (define-key map "C-M o-F" #'sfmm:apex:generate-test-method)
-
+    (define-key map (kbd "M-c t") #'sfmm:apex:generate-trigger)
+    (define-key map (kbd "M-c c") #'sfmm:apex:generate-class)
+    (define-key map (kbd "M-c C") #'sfmm:apex:generate-test-class)
+    (define-key map (kbd "M-c F") #'sfmm:apex:generate-test-method)
     ;; project features
-    (define-key map "C-M q-t" #'sfmm:fetch-record-through-soql)
-    (define-key map "C-M q-f" #'sfmm:fetch-salesforce-file)
+    (define-key map (kbd "M-q t") #'sfmm:soql:string)
+    (define-key map (kbd "M-q f") #'sfmm:fetch-salesforce-file)
 
-    ;; visualforce features
-    (define-key map "C-M v-p" #'sfmm:visualforce:generate-page)
-    (define-key map "C-M v-c" #'sfmm:visualforce:generate-component)
+      ;; visualforce features
+    (define-key map (kbd "M-c v-p") #'sfmm:visualforce:generate-page)
+    (define-key map (kbd "M-c v-c") #'sfmm:visualforce:generate-component)
 
-    ;; metadata features
+     ;; metadata features
     (define-key map (kbd "M-m t") #'sfmm:source-tracker)
     (define-key map (kbd "M-m d") #'sfmm:diff-metadata)
     (define-key map (kbd "M-m D") #'sfmm:diff3-metadata)
