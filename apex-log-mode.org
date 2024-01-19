@@ -296,13 +296,13 @@ This function is called by `org-babel-execute-src-block'"
     ;; function is used in the language files)
 
 #+end_src
-** Run test class
+** run test class
 #+begin_src emacs-lisp :tangle ./ob-apex-log.el
 (defun ob-apex-log:get-log-test-class (processed-params)
   "Get log from test class executed"
   (let* ((test-class-name (cdr (assq :test-class processed-params)))
          (uuid (org-id-uuid))
-         (command (sfmm--helper:generate-command (list sfmm:apex-command-alias "run" "test" "--tests" test-class-name "--test-level" "RunSpecifiedTests" "--json"))))
+         (command (sfmm--internal:build-sf-command sfmm:apex-command-alias "run" "test" "--tests" test-class-name "--test-level" "RunSpecifiedTests" "--json")))
 
     (org-babel-remove-result)
 
@@ -311,7 +311,7 @@ This function is called by `org-babel-execute-src-block'"
     (newline)
     (insert uuid)
 
-    (sfmm--helper:make-async-process
+    (sfmm--internal:make-async-process
      :command command
      :handle-success-lambda
      `(lambda (process json-instance buffer)
@@ -378,7 +378,7 @@ This function is called by `org-babel-execute-src-block'"
                         :title "Salesforce Alert")))))))))
 #+end_src
 
-** Filter Log Content
+** filter log content
 #+begin_src emacs-lisp :tangle ./ob-apex-log.el
 (defun ob-apex-log:filter-log (processed-params)
   "Filter match string in log"
@@ -395,8 +395,6 @@ This function is called by `org-babel-execute-src-block'"
          ;;                   (split-string log-content "\n")
          ;;                   "\n")))
    (org-babel-remove-result)
-
-
    (insert uuid)
 
    (sfmm:apex:get-log
