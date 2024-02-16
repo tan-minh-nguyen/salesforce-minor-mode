@@ -7,7 +7,7 @@
 - [[#minor-mode][Minor Mode]]
   - [[#requirements][requirements]]
   - [[#config-variable][config variable]]
-  - [[#config-mode-map][config mode map]]
+  - [[#config-mode-key-map][config mode key map]]
   - [[#main-features][main features]]
     - [[#sf-news][sf news]]
     - [[#project-features][project features]]
@@ -74,7 +74,7 @@
     - [[#build-ctable-data][Build ctable data]]
   - [[#hook-functions][hook functions]]
     - [[#clear-log][Clear log]]
-  - [[#config-doom-mode][config doom mode]]
+  - [[#config-mode-line][config mode line]]
   - [[#define-minor-mode][define minor mode]]
 
 * Minor Mode
@@ -237,6 +237,11 @@
   :type 'string
   :group 'salesforce-minor-mode)
 
+(defcustom sfmm:salesforce-projects '()
+  ""
+  :type 'list
+  :group 'saleforce-minor-mode)
+
 (defcustom sfmm--org-name ""
   "org name showing on mode line."
   :type 'string
@@ -247,9 +252,12 @@
 
 (defvar sfmm--soql-hist nil
   "History of soql in project.")
+
+(dir-locals-set-class-variables 'sfmm:salesforce-project-config
+                                '((nil . ((salesforce-minor-mode . 1)))))
 #+end_src
 
-** config mode map
+** config mode key map
 #+begin_src emacs-lisp
 (defvar salesforce-mode-map
   (let ((map (make-sparse-keymap)))
@@ -257,6 +265,7 @@
     (define-key map (kbd "M-o s") #'sfmm:org:authorize-sandbox)
     (define-key map (kbd "M-o p") #'sfmm:org:authorize-production)
     (define-key map (kbd "M-o c") #'sfmm:org:authorize-custom-url)
+    (define-key map (kbd "M-o c") #'sfmm:org:change)
 
     (define-key map (kbd "M-o r") #'sfmm:source:retrieve)
     (define-key map (kbd "M-o d") #'sfmm:source:push)
@@ -330,11 +339,10 @@
 *** legacy features
 **** push source salesforce to org
 #+begin_src emacs-lisp :tangle yes
-(defun sfmm:source:push
-    ()
+(defun sfmm:source:push ()
   "Push file to salesforce org."
   (interactive)
-  (let* ((file-name (buffer-file-name))
+  (let* ((file-name buffer-file-name)
          (push-command (sfmm--internal:build-sf-command "force" "source" "deploy" "-p" file-name "--json")))
 
     (sfmm:org:source-backup)
@@ -375,7 +383,6 @@
                 :category 'error
                 :severity 'urgent))))))
 #+end_src
-
 **** retrieve source salesforce from org
 #+begin_src emacs-lisp :tangle yes
 (defun sfmm:source:retrieve
@@ -407,14 +414,13 @@
                             "/"))
          (backup-file-name (concat file-name "_" (format "%s" (time-convert (current-time) 'integer))))
          (command (append (sfmm--internal:build-sf-command sfmm:project-command-alias "retrieve" "start" "-d" buffer "-z" "-t" cache-dir "--zip-file-name" backup-file-name "--json")
-                          (when target-org `("-o" ,target-org)))))
+                          (when target-org `("-o" ,target-org))))
 
-    (unless (file-exists-p cache-dir)
-      (make-directory cache-dir))
-
-    (setq json-instance (sfmm--internal:make-process
-                         :type 'sync
-                         :command command))
+         (json-instance (progn (unless (file-exists-p cache-dir)
+                                 (make-directory cache-dir))
+                               (sfmm--internal:make-process
+                                :type 'sync
+                                :command command))))
     (unless json-instance
       (error (concat "Backup " file-name " Failure")))
     ;; rename backup directory to new directory containing the last modified id
@@ -1243,8 +1249,6 @@ This function execute [[https://developer.salesforce.com/docs/atlas.en-us.sfdx_c
   ""
   (when (not (member type '(async sync)))
     (error "Invalid type of process"))
-  ; Kill old buffers
-  (kill-buffer (get-buffer sfmm:process-success-buffer))
   (with-environment-variables (("NODE_NO_WARNINGS" "1"))
 
     (let* ((process-identity "salesforce")
@@ -1267,7 +1271,8 @@ This function execute [[https://developer.salesforce.com/docs/atlas.en-us.sfdx_c
                                                 (t
                                                  (alert (replace-regexp-in-string "" "" (buffer-string))
                                                         :title "Salesforce Alert"
-                                                        :severity 'urgent)))))))
+                                                        :severity 'urgent)))))
+                                 (erase-buffer)))
                               (delete-process process))))
            (process
             (make-process
@@ -1310,41 +1315,49 @@ This function execute [[https://developer.salesforce.com/docs/atlas.en-us.sfdx_c
                                                             :title "Salesforce Alert"
                                                             :severity 'urgent))))
                                               (0
-                                               (funcall ,handle-success-lambda process json-instance ,sfmm:process-success-buffer)))))))))
+                                               (funcall ,handle-success-lambda process json-instance ,sfmm:process-success-buffer)))))
+                                    (erase-buffer)))))
          ('sync
           (when (accept-process-output process))
 
           (with-current-buffer (get-buffer-create sfmm:process-success-buffer)
             (beginning-of-buffer)
 
-            (condition-case json-instance
-                (json-parse-buffer)
-             (error (cond ((= (buffer-size) 0)
-                           nil)
-                          ((not (member "--json" command))
-                           (buffer-string))
-                          (t
-                           (alert (buffer-string)
-                                  :title "Salesforce Alert"
-                                  :severity 'urgent)
-                           nil)))
-             (:success
-              (pcase (cond ((gethash "status" json-instance)
-                            (gethash "status" json-instance))
-                           ((gethash "code" json-instance)
-                            (gethash "code" json-instance)))
-                (1
-                 (cond (handle-error-lambda
-                        (funcall handle-error-lambda process json-instance sfmm:process-error-buffer))
-                       (t
-                        (alert (gethash "message" json-instance)
-                               :title "Salesforce Alert"
-                               :severity 'urgent)
-                        nil)))
+            (let ((data (condition-case json-instance
+                            (json-parse-buffer)
+                         (error
+                          (cond ((= (buffer-size) 0)
+                                 nil)
+                                ((not (member "--json" command))
+                                 (buffer-string))
+                                (t
+                                 (alert (buffer-string)
+                                        :title "Salesforce Alert"
+                                        :severity 'urgent)
+                                 nil)))
+                         (:success
+                          (pcase (cond ((gethash "status" json-instance)
+                                        (gethash "status" json-instance))
+                                       ((gethash "code" json-instance)
+                                        (gethash "code" json-instance)))
+                            (1
+                             (cond (handle-error-lambda
+                                    (funcall handle-error-lambda process json-instance sfmm:process-error-buffer)
+                                    nil)
+                                   (t
+                                    (alert (gethash "message" json-instance)
+                                           :title "Salesforce Alert"
+                                           :severity 'urgent)
+                                    nil)))
 
-                (0
-                 json-instance))))))))))
+                            (0
+                             json-instance))))))
+              (erase-buffer)
+              data)))))))
 #+end_src
+
+#+RESULTS:
+: sfmm--internal:make-process
 
 *** TODO Execute synchronous salesforce command
 + override api version with custom once
@@ -1532,7 +1545,6 @@ This function execute [[https://developer.salesforce.com/docs/atlas.en-us.sfdx_c
 ** hook functions
 #+begin_src emacs-lisp :tangle yes
 ;;;###autoload
-
 (defun turn-on-salesforce-mode ()
   "turn on salesforce-minor-mode"
   (salesforce-minor-mode 1))
@@ -1541,6 +1553,11 @@ This function execute [[https://developer.salesforce.com/docs/atlas.en-us.sfdx_c
 (defun turn-off-salesforce-mode ()
   "turn on salesforce-minor-mode"
   (salesforce-minor-mode -1))
+
+(defun sfmm:set-projects ()
+  "add config to projects."
+  (cl-loop for dir in sfmm:salesforce-projects
+           collect (dir-locals-set-directory-class (expand-file-name dir) 'sfmm:salesforce-project-config)))
 #+end_src
 *** Clear log
 #+begin_src emacs-lisp :tangle yes
@@ -1556,7 +1573,8 @@ This function execute [[https://developer.salesforce.com/docs/atlas.en-us.sfdx_c
                 sfmm:data-command-alias "query" "--query" "SELECT Id FROM ApexLog" "-t" "-r" "csv"))))
 
     (with-temp-file temp-file
-      (insert data))
+      (when data
+        (insert data)))
 
     (sfmm--internal:make-async-process
      :command
@@ -1567,7 +1585,7 @@ This function execute [[https://developer.salesforce.com/docs/atlas.en-us.sfdx_c
        (alert "clear log success"
               :title "Success")))))
 #+end_src
-** config doom mode
+** config mode line
 #+begin_src emacs-lisp
 (defun sfmm--internal-set-mode-line (org-name)
   "set mode line."
