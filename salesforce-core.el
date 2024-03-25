@@ -1,3 +1,4 @@
+;; -*- no-byte-compile: t; no-native-compile: t -*-
 (require 'salesforce-config)
 
 (defun sfmm:note:news ()
@@ -105,7 +106,7 @@
                           (when target-org `("-o" ,target-org))))
 
          (json-instance (progn (unless (file-exists-p cache-dir)
-                                 (make-directory cache-dir))
+                                 (make-directory cache-dir 'parents))
                                (sfmm--internal:make-process
                                 :type 'sync
                                 :command command))))
@@ -192,7 +193,8 @@
 (defun sfmm:diff3-metadata ()
   "diff metadata between multiple enviroment."
   (interactive)
-  (let* ((file-name (buffer-file-name))
+  (let* ((minibuffer-history (sfmm--internal:org-alias-list))
+         (file-name (buffer-file-name))
          (target-org (read-from-minibuffer "Target Org: "))
          (bk-file-org (sfmm:org:source-backup))
          (bk-file-target-org (sfmm:org:source-backup

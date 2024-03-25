@@ -1,3 +1,4 @@
+;; -*- no-byte-compile: t; no-native-compile: t -*-
 (require 'salesforce-config)
 
 (defun sfmm--internal:generate-command (commands)

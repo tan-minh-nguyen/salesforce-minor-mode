@@ -1,3 +1,4 @@
+;; -*- no-byte-compile: t; no-native-compile: t -*-
 (require 'alert)
 (require 'projectile)
 (require 'subr-x)
@@ -10,8 +11,8 @@
 
 (defcustom sfmm:api-version nil
   "Custom define api version for command."
-   :type 'string
-   :group 'salesforce-minor-mode)
+  :type 'string
+  :group 'salesforce-minor-mode)
 
 (defcustom sfmm:org:list-header-display
   '("username" "instanceUrl" "orgId" "isDevHub" "instanceApiVersion" "alias" "lastUsed" "connectedStatus")
@@ -25,9 +26,9 @@
   :group 'salesforce-minor-mode)
 
 (defcustom sfmm:sfdx-legacy-alias "force"
- ""
- :type 'string
- :group 'salesforce-minor-mode)
+  ""
+  :type 'string
+  :group 'salesforce-minor-mode)
 
 (defcustom sfmm:project-command-alias "project"
   ""
@@ -77,25 +78,25 @@
   :group 'salesforce-minor-mode)
 
 (defvar-local sfmm:default-apex-trigger-path "force-app/main/default/triggers"
- "Path save apex classes")
+  "Path save apex classes")
 
 (defvar-local sfmm:default-apex-class-path "force-app/main/default/classes"
- "Path save apex classes")
+  "Path save apex classes")
 
 (defvar-local sfmm:default-lwc-path "force-app/main/default/lwc"
- "Path save lwc components")
+  "Path save lwc components")
 
 (defvar-local sfmm:default-aura-path "force-app/main/default/aura"
- "Path save aura components")
+  "Path save aura components")
 
 (defvar-local sfmm:default-vf-path "force-app/main/default/pages"
- "Path save visualforce page")
+  "Path save visualforce page")
 
 (defvar-local sfmm:default-vf-components-path "force-app/main/default/components"
- "Path save visualforce page")
+  "Path save visualforce page")
 
 (defvar-local sfmm:default-test-path "force-app/main/default/lightningTests"
- "Path save test components")
+  "Path save test components")
 
 (defvar-local sfmm:package-dir "manifest"
   "Custom define api version for command")
@@ -138,19 +139,13 @@
 
 (defcustom sfmm:org-name ""
   "org name showing on mode line."
-  :local t
-  :type 'string
-  :set (lambda (var val)
-         (unless (eq val "")
-           (sfmm--internal-set-mode-line val))
-         (set-default var val)))
+  :type 'string)
 
 (defvar-local sfmm:project-root-dir ""
   "Full path project root.")
 
-
-(defvar sfmm--soql-hist nil
-  "History of soql in project.")
+(defvar sfmm:mode-line `(if (string-blank-p sfmm:org-name) "salesforce" sfmm:org-name)
+  "Salesfoce mode line.")
 
 (dir-locals-set-class-variables 'sfmm:salesforce-project-config
                                 '((nil . ((salesforce-minor-mode . 1)))))
