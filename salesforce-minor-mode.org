@@ -1,174 +1,175 @@
+:PROPERTIES:
+:header-args: :shebang ";; -*- no-byte-compile: t; no-native-compile: t -*-"
+:END:
+
 #+title:     SALESFORCE-MINOR-MODE
 #+author:    tan.nguyen
 #+email:     tan.nguyen@furucrm.com
 
 * Config Salesforce Mode
 :PROPERTIES:
-:header-args: :tangle salesforce-config.el
+:header-args+: :tangle salesforce-config.el
 :END:
 #+begin_src emacs-lisp
-(require 'alert)
-(require 'projectile)
-(require 'subr-x)
-(require 'cl-lib)
 
-(defcustom sfmm:tangle-on-save t
-  "When t, automatically tangle Org files on save."
-  :type 'boolean
-  :group 'salesforce-minor-mode)
+  (require 'alert)
+  (require 'projectile)
+  (require 'subr-x)
+  (require 'cl-lib)
 
-(defcustom sfmm:api-version nil
-  "Custom define api version for command."
-   :type 'string
-   :group 'salesforce-minor-mode)
+  (defcustom sfmm:tangle-on-save t
+    "When t, automatically tangle Org files on save."
+    :type 'boolean
+    :group 'salesforce-minor-mode)
 
-(defcustom sfmm:org:list-header-display
-  '("username" "instanceUrl" "orgId" "isDevHub" "instanceApiVersion" "alias" "lastUsed" "connectedStatus")
-  "Custom define header display on table non scratch orgs"
-  :type 'list
-  :group 'salesforce-minor-mode)
+  (defcustom sfmm:api-version nil
+    "Custom define api version for command."
+    :type 'string
+    :group 'salesforce-minor-mode)
 
-(defcustom sfmm:sfdx-lib-alias "sf"
-  ""
-  :type 'string
-  :group 'salesforce-minor-mode)
+  (defcustom sfmm:org:list-header-display
+    '("username" "instanceUrl" "orgId" "isDevHub" "instanceApiVersion" "alias" "lastUsed" "connectedStatus")
+    "Custom define header display on table non scratch orgs"
+    :type 'list
+    :group 'salesforce-minor-mode)
 
-(defcustom sfmm:sfdx-legacy-alias "force"
- ""
- :type 'string
- :group 'salesforce-minor-mode)
+  (defcustom sfmm:sfdx-lib-alias "sf"
+    ""
+    :type 'string
+    :group 'salesforce-minor-mode)
 
-(defcustom sfmm:project-command-alias "project"
-  ""
-  :type 'string
-  :group 'salesforce-minor-mode)
+  (defcustom sfmm:sfdx-legacy-alias "force"
+    ""
+    :type 'string
+    :group 'salesforce-minor-mode)
 
-(defcustom sfmm:data-command-alias "data"
-  ""
-  :type 'string
-  :group 'salesforce-minor-mode)
+  (defcustom sfmm:project-command-alias "project"
+    ""
+    :type 'string
+    :group 'salesforce-minor-mode)
 
-(defcustom sfmm:visualforce-command-alias "visualforce"
-  ""
-  :type 'string
-  :group 'salesforce-minor-mode)
+  (defcustom sfmm:data-command-alias "data"
+    ""
+    :type 'string
+    :group 'salesforce-minor-mode)
 
-(defcustom sfmm:apex-command-alias "apex"
-  ""
-  :type 'string
-  :group 'salesforce-minor-mode)
+  (defcustom sfmm:visualforce-command-alias "visualforce"
+    ""
+    :type 'string
+    :group 'salesforce-minor-mode)
 
-(defcustom sfmm:org-command-alias "org"
-  ""
-  :type 'string
-  :group 'salesforce-minor-mode)
+  (defcustom sfmm:apex-command-alias "apex"
+    ""
+    :type 'string
+    :group 'salesforce-minor-mode)
 
-(defcustom sfmm:lightning-command-alias "lightning"
-  ""
-  :type 'string
-  :group 'salesforce-minor-mode)
+  (defcustom sfmm:org-command-alias "org"
+    ""
+    :type 'string
+    :group 'salesforce-minor-mode)
 
-(defcustom sfmm:project-deploy-command
-  (concat sfmm:project-command-alias " " "deploy")
-  ""
-  :type 'string
-  :group 'salesforce-minor-mode)
+  (defcustom sfmm:lightning-command-alias "lightning"
+    ""
+    :type 'string
+    :group 'salesforce-minor-mode)
 
-(defcustom sfmm:project-retrieve-command
-  (concat sfmm:project-command-alias " " "retrieve")
-  ""
-  :type 'string
-  :group 'salesforce-minor-mode)
+  (defcustom sfmm:project-deploy-command
+    (concat sfmm:project-command-alias " " "deploy")
+    ""
+    :type 'string
+    :group 'salesforce-minor-mode)
 
-(defcustom sfmm:default-browser "qutebrowser"
-  "Browser use for open url"
-  :type 'string
-  :group 'salesforce-minor-mode)
+  (defcustom sfmm:project-retrieve-command
+    (concat sfmm:project-command-alias " " "retrieve")
+    ""
+    :type 'string
+    :group 'salesforce-minor-mode)
 
-(defvar-local sfmm:default-apex-trigger-path "force-app/main/default/triggers"
- "Path save apex classes")
+  (defcustom sfmm:default-browser "qutebrowser"
+    "Browser use for open url"
+    :type 'string
+    :group 'salesforce-minor-mode)
 
-(defvar-local sfmm:default-apex-class-path "force-app/main/default/classes"
- "Path save apex classes")
+  (defvar-local sfmm:default-apex-trigger-path "force-app/main/default/triggers"
+    "Path save apex classes")
 
-(defvar-local sfmm:default-lwc-path "force-app/main/default/lwc"
- "Path save lwc components")
+  (defvar-local sfmm:default-apex-class-path "force-app/main/default/classes"
+    "Path save apex classes")
 
-(defvar-local sfmm:default-aura-path "force-app/main/default/aura"
- "Path save aura components")
+  (defvar-local sfmm:default-lwc-path "force-app/main/default/lwc"
+    "Path save lwc components")
 
-(defvar-local sfmm:default-vf-path "force-app/main/default/pages"
- "Path save visualforce page")
+  (defvar-local sfmm:default-aura-path "force-app/main/default/aura"
+    "Path save aura components")
 
-(defvar-local sfmm:default-vf-components-path "force-app/main/default/components"
- "Path save visualforce page")
+  (defvar-local sfmm:default-vf-path "force-app/main/default/pages"
+    "Path save visualforce page")
 
-(defvar-local sfmm:default-test-path "force-app/main/default/lightningTests"
- "Path save test components")
+  (defvar-local sfmm:default-vf-components-path "force-app/main/default/components"
+    "Path save visualforce page")
 
-(defvar-local sfmm:package-dir "manifest"
-  "Custom define api version for command")
+  (defvar-local sfmm:default-test-path "force-app/main/default/lightningTests"
+    "Path save test components")
 
-(defcustom sfmm:org:cache-dir ".cache/"
-  "Directory to store cache files."
-  :type 'string
-  :group 'salesforce-minor-mode)
+  (defvar-local sfmm:package-dir "manifest"
+    "Custom define api version for command")
 
-(defcustom sfmm:dedicated-window-right "*List View*"
-  "Name of dedicated window buffer on right."
-  :type 'string
-  :group 'salesforce-minor-mode)
+  (defcustom sfmm:org:cache-dir ".cache/"
+    "Directory to store cache files."
+    :type 'string
+    :group 'salesforce-minor-mode)
 
-(defcustom sfmm:tracking-time-format "%Y-%m-%d %H:%M:%S"
-  "format of time show on tracking metadata buffer."
-  :type 'string
-  :group 'salesforce-minor-mode)
+  (defcustom sfmm:dedicated-window-right "*List View*"
+    "Name of dedicated window buffer on right."
+    :type 'string
+    :group 'salesforce-minor-mode)
 
-(defcustom sfmm:process-buffer "*Salesforce Process*"
-  "name of process buffer."
-  :type 'string
-  :group 'salesforce-minor-mode)
+  (defcustom sfmm:tracking-time-format "%Y-%m-%d %H:%M:%S"
+    "format of time show on tracking metadata buffer."
+    :type 'string
+    :group 'salesforce-minor-mode)
 
-(defcustom sfmm:process-success-buffer "*Salesforce Success*"
-  "name of process success buffer."
-  :type 'string
-  :group 'salesforce-minor-mode)
+  (defcustom sfmm:process-buffer "*DX Process*"
+    "name of process buffer."
+    :type 'string
+    :group 'salesforce-minor-mode)
 
-(defcustom sfmm:process-error-buffer "*Salesforce Error*"
-  "name of process error buffer."
-  :type 'string
-  :group 'salesforce-minor-mode)
+  (defcustom sfmm:process-success-buffer "*DX Success*"
+    "name of process success buffer."
+    :type 'string
+    :group 'salesforce-minor-mode)
 
-(defcustom sfmm:project-config '()
-  "List of config in project
-   Ex: ((:project \"test\" :note-file \"org\" ))"
-  :type 'list
-  :group 'salesforce-minor-mode)
+  (defcustom sfmm:process-error-buffer "*DX Error*"
+    "name of process error buffer."
+    :type 'string
+    :group 'salesforce-minor-mode)
 
-(defcustom sfmm:org-name ""
-  "org name showing on mode line."
-  :local t
-  :type 'string
-  :set (lambda (var val)
-         (unless (eq val "")
-           (sfmm--internal-set-mode-line val))
-         (set-default var val)))
+  (defcustom sfmm:project-config '()
+    "List of config in project
+     Ex: ((:project \"test\" :note-file \"org\" ))"
+    :type 'list
+    :group 'salesforce-minor-mode)
 
-(defvar-local sfmm:project-root-dir ""
-  "Full path project root.")
+  (defcustom sfmm:org-name ""
+    "org name showing on mode line."
+    :type 'string)
 
+  (defcustom sfmm:prefix-keymap "M"
+    "Prefix for salesforce dx commands."
+    :type 'string
+    :group 'salesforce-config)
 
-(defvar sfmm--soql-hist nil
-  "History of soql in project.")
+  (defvar-local sfmm:project-root-dir ""
+    "Full path project root.")
 
-(dir-locals-set-class-variables 'sfmm:salesforce-project-config
-                                '((nil . ((salesforce-minor-mode . 1)))))
+  (defvar sfmm:mode-line `(if (string-blank-p sfmm:org-name) "salesforce" sfmm:org-name)
+    "Salesfoce mode line.")
 
-(provide 'salesforce-config)
+  (provide 'salesforce-config)
 #+end_src
-* Helper Salesforce Mode
+* Internal Salesforce Mode
 :PROPERTIES:
-:header-args: :tangle salesforce-helper.el
+:header-args+: :tangle salesforce-helper.el
 :END:
 ** Requirements
 #+begin_src emacs-lisp
@@ -508,9 +509,93 @@ emacs make-process pipe "Execute code"
 #+begin_src emacs-lisp
 (provide 'salesforce-helper)
 #+end_src
+* Make process
+** Make Process
+#+begin_src emacs-lisp
+  (defun dx-process:process-error-handler
+      (process event)
+    "Handler process error."
+    (with-current-buffer sfmm:process-error-buffer
+      (beginning-of-buffer)
+
+      (condition-case nil
+          (json-parse-buffer)
+        (error (cond ((= (buffer-size) 0)
+                      nil)
+                     (t
+                      (alert (replace-regexp-in-string "" "" (buffer-string))
+                             :title "Salesforce Alert"
+                             :severity 'urgent)))))))
+
+  (defun dx-process:make
+      (cmd type &rest args)
+    "Use to make process for all dx command on dx cli.
+
+     `cmd': command want to run use list type.
+     `type': type of process, accept value is async or sync.
+     OPTION `finish-callback' key: function call after process complete, use for async type and use process result as parameter."
+    (when (not (member type '(async sync)))
+      (error "Invalid type of process"))
+
+    (let ((dx-process
+           :buffer buffer-process
+           :filter
+           (lambda (process output)
+             (with-current-buffer (get-buffer-create sfmm:process-success-buffer)
+               (insert output)))
+           :stderr (make-pipe-process
+                    :name sfmm:process-error-buffer
+                    :buffer (get-buffer-create sfmm:process-error-buffer)
+                    :sentinel #'dx-process:process-error-handler
+                    :command cmd)))
+
+      (pcase type
+        ('async
+         (set-process-sentinel dx-process
+                               `(lambda ()
+                                  (funcall ,(plist-get args :finish-callback)
+                                           (with-current-buffer (get-buffer-create sfmm:process-success-buffer)
+                                             (buffer-string)))))
+         ('sync
+          (when (accept-process-output dx-process))
+
+          (with-current-buffer (get-buffer-create sfmm:process-success-buffer)
+            (buffer-string)))))))
+
+#+end_src
+
+** Handler Jason output
+#+begin_src emacs-lisp :tangle yes
+  (defmacro dx-process:json-result
+      (cmd type success-callback &optional error-callback)
+    "Execute dx cli command and return json result."
+    `(condition-case nil
+         (pcase type
+           ('async
+            (plist-put args :finish-callback (lambda (content)
+                                               (let ((json-instance (json-parse-string content :object-type 'plist)))
+                                                 (cond ((or (= (plist-get json-instance :status) 1)
+                                                            (= (plist-get json-instance :code) 1))
+                                                        ,@success-callback)
+                                                       (t ,@error-callback)))))
+            (dx-process:make cmd type args))
+           ('sync
+            (let ((json-instance (json-parse-string (dx-process:make cmd type args) :object-type 'plist)))
+              (cond ((or (= (plist-get json-instance :status) 1)
+                         (= (plist-get json-instance :code) 1))
+                     ,@success-callback)
+                    (t ,@error-callback)))
+       (json-parse-error (alert "something wrong with josn result."
+                                :title "DX Alert"
+                                :severity 'urgent))))
+#+end_src
+** Provide Name
+#+begin_src emacs-lisp :tangle yes
+  (provide 'dx-process)
+#+end_src
 * Core Features
 :PROPERTIES:
-:header-args: :tangle salesforce-core.el
+:header-args+: :tangle salesforce-core.el
 :END:
 ** Requirements
 #+begin_src emacs-lisp
@@ -633,7 +718,7 @@ emacs make-process pipe "Execute code"
                           (when target-org `("-o" ,target-org))))
 
          (json-instance (progn (unless (file-exists-p cache-dir)
-                                 (make-directory cache-dir))
+                                 (make-directory cache-dir 'parents))
                                (sfmm--internal:make-process
                                 :type 'sync
                                 :command command))))
@@ -677,32 +762,33 @@ emacs make-process pipe "Execute code"
 *** diff metadata with org
 **** ediff hooks
 #+begin_src emacs-lisp
-(defun sfmm--ediff-startup-hook ()
-  "Ediff hook on startup."
-  (let ((coding-system (with-current-buffer ediff-buffer-B
-                         buffer-file-coding-system)))
+  (defun sfmm--ediff-startup-hook ()
+    "Ediff hook on startup."
+    (let ((coding-system (with-current-buffer ediff-buffer-B
+                           buffer-file-coding-system)))
 
-    ;; Set coding for buffer A
-    (with-current-buffer ediff-buffer-A
-      (set-buffer-file-coding-system coding-system t t))
-    (ediff-toggle-read-only ediff-buffer-A)
+      ;; Set coding for buffer A
+      (with-current-buffer ediff-buffer-A
+        (set-buffer-file-coding-system coding-system t t))
+      (ediff-toggle-read-only ediff-buffer-A)
 
-    (when ediff-buffer-C
-      (ediff-toggle-read-only ediff-buffer-C)
+      (when ediff-buffer-C
+        (ediff-toggle-read-only ediff-buffer-C)
 
-      ;; Set coding for buffer C
-      (with-current-buffer ediff-buffer-C
-        (set-buffer-file-coding-system coding-system t t)))))
+        ;; Set coding for buffer C
+        (with-current-buffer ediff-buffer-C
+          (set-buffer-file-coding-system coding-system t t)))
+      (ediff-update-diffs)))
 
-(defun sfmm--ediff-quit-hook ()
-  "Hook on quit."
- (kill-buffer ediff-buffer-A)
- (when ediff-buffer-C
-   (kill-buffer ediff-buffer-C))
+  (defun sfmm--ediff-quit-hook ()
+    "Hook on quit."
+   (kill-buffer ediff-buffer-A)
+   (when ediff-buffer-C
+     (kill-buffer ediff-buffer-C))
 
- ; Clear hooks
- (remove-hook 'ediff-startup-hook #'sfmm--ediff-startup-hook)
- (remove-hook 'ediff-quit-hook #'sfmm--ediff-quit-hook))
+   ; Clear hooks
+   (remove-hook 'ediff-startup-hook #'sfmm--ediff-startup-hook)
+   (remove-hook 'ediff-quit-hook #'sfmm--ediff-quit-hook))
 #+end_src
 **** ediff metadata
 #+begin_src emacs-lisp
@@ -729,7 +815,8 @@ emacs make-process pipe "Execute code"
 (defun sfmm:diff3-metadata ()
   "diff metadata between multiple enviroment."
   (interactive)
-  (let* ((file-name (buffer-file-name))
+  (let* ((minibuffer-history (sfmm--internal:org-alias-list))
+         (file-name (buffer-file-name))
          (target-org (read-from-minibuffer "Target Org: "))
          (bk-file-org (sfmm:org:source-backup))
          (bk-file-target-org (sfmm:org:source-backup
@@ -1027,32 +1114,24 @@ emacs make-process pipe "Execute code"
                           :command (sfmm--internal:build-sf-command "config" "set" "target-org" switch-org  "--json")))
           (org-name (sfmm--internal:get-data-hashtable "result.successes.0.value" json-instance)))
 
-     (setopt sfmm:org-name org-name)
-     (alert (format "Change to %s success" org-name) :title "Saleforve Alert")))
+     (setq sfmm:org-name org-name)
+     (alert (format "Change to %s success" org-name) :title "Salesforce Alert")))
 #+end_src
 ** Login features
 #+begin_src emacs-lisp
-(defun sfmm--internal:org:login (url)
-   "Authorize to salesforce org"
-   (let* ((alias (read-string "alias: "))
-          (authorize-command
-            (sfmm--internal:generate-command (list sfmm:org-command-alias "login" "web" "-a" alias "--instanceurl" url "--set-default" "--json"))))
-    (sfmm--internal:make-async-process
-     :command
-     authorize-command
-     :handle-success-lambda
-     (lambda (process json-instance buffer)
-       (let ((user-name (sfmm--internal:get-data-hashtable "result.username" json-instance)))
+  (defun sfmm--internal:org:login (url)
+    "Authorize to `url' salesforce org."
+    (let* ((alias (read-string "alias: "))
+           (authorize-command
+            (sfmm--internal:build-sf-command sfmm:org-command-alias "login" "web" "-a" alias "--instance-url" url "--set-default" "--json")))
 
-         (alert "Authorize success" :title "Salesforce Alert")
-         (sfmm--internal:make-sync-process
-          :command
-          (sfmm--internal:generate-command (list "org" "open" "--json" "-o" user-name "-r"))
-          :handle-success-lambda
-          (lambda (process json-instance buffer)
-            (let ((url (sfmm--internal:get-data-hashtable "result.url" json-instance)))
-
-              (shell-command (concat sfmm:default-browser " " (format "%S" url) " -r " " tab "))))))))))
+      (sfmm--internal:make-async-process
+       :command
+       authorize-command
+       :handle-success-lambda
+       (lambda (process json-instance buffer)
+         (let ((user-name (sfmm--internal:get-data-hashtable "result.username" json-instance)))
+           (alert "Authorize success" :title "Salesforce Alert"))))))
 #+end_src
 *** scratch/Sanbox org
 #+begin_src emacs-lisp
@@ -1462,7 +1541,7 @@ emacs make-process pipe "Execute code"
 #+end_src
 * CTable build
 :PROPERTIES:
-:header-args: :tangle salesforce-ctable.el
+:header-args+: :tangle salesforce-ctable.el
 :END:
 ** Requirements
 #+begin_src emacs-lisp
@@ -1550,7 +1629,7 @@ emacs make-process pipe "Execute code"
 #+end_src
 * Minor Mode
 :PROPERTIES:
-:header-args: :tangle salesforce-minor-mode.el
+:header-args+: :tangle salesforce-minor-mode.el
 :END:
 ** Requirements
 Libraries use in package
@@ -1569,44 +1648,44 @@ Default key map for minor mode
 | M-o s | sfmm:org:authorize-sandbox | Authorize to org sandbox have host is `test.salesforce.com` |
 |       |                            |                                                             |
 #+begin_src emacs-lisp
-(defvar salesforce-mode-map
-  (let ((map (make-sparse-keymap)))
-    ;; org features
-    (keymap-set map "M-o s" (cons "Authorize Sandbox" #'sfmm:org:authorize-sandbox))
-    (keymap-set map "M-o p" (cons "Authorize Production" #'sfmm:org:authorize-production))
-    (keymap-set map "M-o c" (cons "Authorize URL" #'sfmm:org:authorize-cusom-url))
-    (keymap-set map "M-o c" (cons "Switch Org" #'sfmm:org:change))
+  (defvar salesforce-mode-map
+    (let ((map (make-sparse-keymap)))
+      ;; org features
+      (keymap-set map "M-o s" (cons "Authorize Sandbox" #'sfmm:org:authorize-sandbox))
+      (keymap-set map "M-o p" (cons "Authorize Production" #'sfmm:org:authorize-production))
+      (keymap-set map "M-o c" (cons "Authorize URL" #'sfmm:org:authorize-cusom-url))
+      (keymap-set map "M-o c" (cons "Switch Org" #'sfmm:org:change))
 
-    (keymap-set map "M-o r" (cons "Retrieve Metadata" #'sfmm:source:retrieve))
-    (keymap-set map "M-o d" (cons "Deploy Metadata" #'sfmm:source:push))
+      (keymap-set map "M-o r" (cons "Retrieve Metadata" #'sfmm:source:retrieve))
+      (keymap-set map "M-o d" (cons "Deploy Metadata" #'sfmm:source:push))
 
-    (keymap-set map "M-o o" (cons "Open Org" #'sfmm:org:default-open))
-    (keymap-set map "M-o n" (cons "View All Orgs" #'sfmm:org:display-all-orgs))
-    (keymap-set map "M-o m" (cons "View All Devhubs" #'sfmm:org:display-all-devhubs))
-    (keymap-set map "M-o N" (cons "Notes" #'sfmm:open-project-note))
+      (keymap-set map "M-o o" (cons "Open Org" #'sfmm:org:default-open))
+      (keymap-set map "M-o n" (cons "View All Orgs" #'sfmm:org:display-all-orgs))
+      (keymap-set map "M-o m" (cons "View All Devhubs" #'sfmm:org:display-all-devhubs))
+      (keymap-set map "M-o N" (cons "Notes" #'sfmm:open-project-note))
 
-    ;; log features
-    (keymap-set map "M-o l" (cons "Clear Log" #'sfmm:org:clear-log))
+      ;; log features
+      (keymap-set map "M-o l" (cons "Clear Log" #'sfmm:org:clear-log))
 
-    ;; apex features
-    (keymap-set map "M-c t" (cons "Create Trigger" #'sfmm:apex:generate-trigger))
-    (keymap-set map "M-c c" (cons "Create Apex Class" #'sfmm:apex:generate-class))
-    (keymap-set map "M-c T" (cons "Create Apex Class Test" #'sfmm:apex:generate-test-class))
-    (keymap-set map "M-c F" (cons "Create Method Test" #'sfmm:apex:generate-test-method))
-    ;; project features
-    (keymap-set map "M-q t" (cons "Query Record" #'sfmm:soql:string))
-    ;; (keymap-set map "M-q f" (cons "Ex" #'sfmm:fetch-salesforce-file))
+      ;; apex features
+      (keymap-set map "M-c t" (cons "Create Trigger" #'sfmm:apex:generate-trigger))
+      (keymap-set map "M-c c" (cons "Create Apex Class" #'sfmm:apex:generate-class))
+      (keymap-set map "M-c T" (cons "Create Apex Class Test" #'sfmm:apex:generate-test-class))
+      (keymap-set map "M-c F" (cons "Create Method Test" #'sfmm:apex:generate-test-method))
+      ;; project features
+      (keymap-set map "M-q t" (cons "Query Record" #'sfmm:soql:string))
+      ;; (keymap-set map "M-q f" (cons "Ex" #'sfmm:fetch-salesforce-file))
 
-    ;; visualforce features
-    (keymap-set map "M-c v" (cons "Create Visualforce Page" #'sfmm:visualforce:generate-page))
-    (keymap-set map "M-c c" (cons "Create Visualforce Component" #'sfmm:visualforce:generate-component))
+      ;; visualforce features
+      (keymap-set map "M-c v" (cons "Create Visualforce Page" #'sfmm:visualforce:generate-page))
+      (keymap-set map "M-c C" (cons "Create Visualforce Component" #'sfmm:visualforce:generate-component))
 
-    ;; metadata features
-    (keymap-set map "M-m t" (cons "Source Tracker" #'sfmm:source-tracker))
-    (keymap-set map "M-m d" (cons "Diff Source" #'sfmm:diff-metadata))
-    (keymap-set map "M-m D" (cons "Diff Source Multi Org" #'sfmm:diff3-metadata))
-    map)
-  "Keymap for `salesforce-minor-mode'.")
+      ;; metadata features
+      (keymap-set map "M-m t" (cons "Source Tracker" #'sfmm:source-tracker))
+      (keymap-set map "M-m d" (cons "Diff Source" #'sfmm:diff-metadata))
+      (keymap-set map "M-m D" (cons "Diff Source Multi Org" #'sfmm:diff3-metadata))
+      map)
+    "Keymap for `salesforce-minor-mode'.")
 #+end_src
 
 ** Hook functions
@@ -1620,46 +1699,27 @@ Default key map for minor mode
 (defun turn-off-salesforce-mode ()
   "turn on salesforce-minor-mode"
   (salesforce-minor-mode -1))
-
-;;;###autoload
-(defun sfmm--internal:initialize-config (projects)
-  "add config to projects."
-  (cl-loop for dir in projects
-           collect (dir-locals-set-directory-class (expand-file-name dir) 'sfmm:salesforce-project-config)))
 #+end_src
 ** Config mode line
 #+begin_src emacs-lisp
-;;;###autoload
-(defun sfmm--internal-set-mode-line (org-name)
-  "set mode line."
-  (cond ((stringp global-mode-string)
-         (set 'global-mode-string `(,org-name)))
-        ((listp global-mode-string)
-         (set 'global-mode-string (if (stringp (remove 'global-mode-string sfmm:org-name))
-                                    '("")
-                                    (remove 'global-mode-string sfmm:org-name)))
-         (add-to-list 'global-mode-string org-name))))
-
-(defun salesforce-minor-mode--init ()
- "Initialize mode."
- (setopt sfmm:org-name (sfmm--internal-current-org))
- (setq-local sfmm:project-root-dir (sfmm--internal:find-root-dir)))
+  (defun salesforce-minor-mode--init ()
+    "Initialize mode."
+    (setq-default sfmm:org-name (sfmm--internal-current-org)
+                  sfmm:project-root-dir (sfmm--internal:find-root-dir)))
 #+end_src
 ** Define minor mode
 #+begin_src emacs-lisp
-;;;###autoload
-(define-minor-mode salesforce-minor-mode
-  "Toggles global salesforce minor mode."
-  nil ; Inital value, nil for disabled
-  :global nil
-  :group 'salesforce
-  :keymap salesforce-mode-map
+  ;;;###autoload
+  (define-minor-mode salesforce-minor-mode
+    "Toggles global salesforce minor mode."
+    nil ; Inital value, nil for disabled
+    :global nil
+    :group 'salesforce
+    :keymap salesforce-mode-map
 
+    (if salesforce-minor-mode
+        (add-hook 'salesforce-minor-mode-hook #'salesforce-minor-mode--init)
+      (remove-hook 'salesforce-minor-mode-hook #'salesforce-minor-mode--init)))
 
-  (if salesforce-minor-mode
-      (add-hook 'salesforce-minor-mode-hook #'salesforce-minor-mode--init)
-    (setopt sfmm:org-name "")
-    (remove-hook 'salesforce-minor-mode-hook #'salesforce-minor-mode--init)))
-
-(provide 'salesforce-minor-mode) ;;; salesforce-minor-mode end here.
+  (provide 'salesforce-minor-mode) ;;; salesforce-minor-mode end here.
 #+end_src
