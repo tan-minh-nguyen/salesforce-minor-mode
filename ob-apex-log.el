@@ -1,4 +1,4 @@
-;;; ob-template.el --- org-babel functions for template evaluation
+;;; ob-apex-log.el --- org-babel functions for template evaluation
 
 ;; Copyright (C) your name here
 

@@ -1,3 +1,4 @@
+;; -*- no-byte-compile: t; no-native-compile: t; lexical-binding: t -*-
 ;;; ob-apex.el --- org-babel functions for Apexq evaluation
 
 ;; Copyright (C) your name here
@@ -75,7 +76,8 @@
 (require 'ob-ref)
 (require 'ob-comint)
 (require 'ob-eval)
-(require 'salesforce-minor-mode)
+(require 'dx-process)
+(require 'dx-core)
 
 (add-to-list 'org-babel-tangle-lang-exts '("apex" . "cls"))
 
@@ -142,96 +144,92 @@
     (execute-apex-code processed-params full-body)))
 
 (defun execute-apex-code (processed-params content)
-  ""
+  "Execute apex code in org source."
   (let* ((uuid (org-id-uuid))
          (buffer (buffer-file-name))
          (tempfile (make-temp-file "temp-code"))
          (result-eval (format "%s" (cdr (assq :results processed-params))))
          (command
-           (sfmm--internal:build-sf-command "apex" "run" "-f" tempfile "--json"))
+          (dx-build-sf-command "apex" "run" "-f" tempfile "--json"))
          process 'nil)
 
-   (write-region content nil tempfile)
+    (write-region content nil tempfile)
 
-   (cond ((not (eq (cdr (assq :org processed-params))
+    (cond ((not (eq (cdr (assq :org processed-params))
                    ""))
-          (setq command (append command
-                                (list "-o" (cdr (assq :org processed-params)))))))
+           (setq command (append command
+                                 (list "-o" (cdr (assq :org processed-params)))))))
 
-   ;; Clear default result
-   (org-babel-remove-result)
+    ;; Clear default result
+    (org-babel-remove-result)
 
-   (unless (string= result-eval "none")
-     (re-search-forward "#\\+end_src")
-     ;; Insert new result with uuid
-     (insert (format "\n#+RESULTS:\n#+begin_src apex-log :uuid %s\n %s\n#+end_src"
-                     uuid
-                     uuid)))
+    (unless (string= result-eval "none")
+      (re-search-forward "#\\+end_src")
+      ;; Insert new result with uuid
+      (insert (format "\n#+RESULTS:\n#+begin_src apex-log :uuid %s\n %s\n#+end_src"
+                      uuid
+                      uuid)))
 
 
-   (sfmm--internal:make-async-process
-    :command command
-    :buffer-name uuid
-    :handle-success-lambda
-    `(lambda (process json-instance buffer)
+    (dx-make-process-json-async
+     :cmd command
+     (let ((log-content (dx-get-data-json "result.logs" json-instance))
+           (log-filter-type (cdr (assq :log-filter-type processed-params)))
+           (log-filter-value (cdr (assq :log-filter-value processed-params))))
 
-       (let ((log-content (sfmm--internal:get-data-hashtable "result.logs" json-instance))
-             (log-filter-type ,(cdr (assq :log-filter-type processed-params)))
-             (log-filter-value ,(cdr (assq :log-filter-value processed-params))))
+       (unless (or (eq log-filter-type 'none)
+                  (null log-filter-type))
+         (let ((debug-keywords '("DEBUG"))
+               (executable-keywords '("VARIABLE_ASSIGNMENT"
+                                      "STATEMENT_EXECUTE"
+                                      "METHOD_ENTRY"
+                                      "CONSTRUCTOR_EXIT"
+                                      "CODE_UNIT_STARTED"))
+               (system-keywords '("VARIABLE_SCOPE_BEGIN"
+                                  "USER_INFO"
+                                  "EXECUTION_STARTED"
+                                  "CODE_UNIT_STARTED"
+                                  "HEAP_ALLOCATE"
+                                  "STATEMENT_EXECUTE"
+                                  "METHOD_ENTRY"))
+               (groverment-keywords '("LIMIT_USAGE_FOR_NS"
+                                      "Number of"
+                                      "Maximum CPU"
+                                      "Maximum heap")))
 
-         (unless (or (eq log-filter-type 'none)
-                     (null log-filter-type))
-           (let ((debug-keywords '("DEBUG"))
-                 (executable-keywords '("VARIABLE_ASSIGNMENT"
-                                        "STATEMENT_EXECUTE"
-                                        "METHOD_ENTRY"
-                                        "CONSTRUCTOR_EXIT"
-                                        "CODE_UNIT_STARTED"))
-                 (system-keywords '("VARIABLE_SCOPE_BEGIN"
-                                    "USER_INFO"
-                                    "EXECUTION_STARTED"
-                                    "CODE_UNIT_STARTED"
-                                    "HEAP_ALLOCATE"
-                                    "STATEMENT_EXECUTE"
-                                    "METHOD_ENTRY"))
-                 (groverment-keywords '("LIMIT_USAGE_FOR_NS"
-                                        "Number of"
-                                        "Maximum CPU"
-                                        "Maximum heap")))
+           (setq log-content
+                 (mapconcat (lambda (line)
+                              (cond ((and (equal log-filter-type "DEBUG")
+                                        (string-match (regexp-opt debug-keywords) line))
 
-              (setq log-content
-                    (mapconcat (lambda (line)
-                                 (cond ((and (equal log-filter-type "DEBUG")
-                                             (string-match (regexp-opt debug-keywords) line))
+                                     (concat line "\n"))
+                                    ((and (equal log-filter-type "FILTER")
+                                        (search log-filter-value line))
+                                     (concat line "\n"))
+                                    ((and (equal log-filter-type "EXECUTABLE")
+                                        (string-match (regexp-opt executable-keywords) line))
+                                     (concat line "\n"))
+                                    ((and (equal log-filter-type "SYSTEM")
+                                        (string-match (regexp-opt system-keywords) line))
 
-                                        (concat line "\n"))
-                                       ((and (equal log-filter-type "FILTER")
-                                             (search log-filter-value line))
-                                        (concat line "\n"))
-                                       ((and (equal log-filter-type "EXECUTABLE")
-                                             (string-match (regexp-opt executable-keywords) line))
-                                        (concat line "\n"))
-                                       ((and (equal log-filter-type "SYSTEM")
-                                             (string-match (regexp-opt system-keywords) line))
+                                     (concat line "\n"))
+                                    ((and (eq log-filter-type "GOVERNMENT")
+                                        (match-string (regexp-opt groverment-keywords) line))
+                                     (concat line "\n"))))
+                            (split-string log-content "\n")
+                            ""))))
 
-                                        (concat line "\n"))
-                                       ((and (eq log-filter-type "GOVERNMENT")
-                                             (match-string (regexp-opt groverment-keywords) line))
-                                        (concat line "\n"))))
-                              (split-string log-content "\n")
-                              ""))))
+       (unless (equal result-eval "none")
 
-         (unless (equal ,result-eval "none")
+         (with-current-buffer (find-file-noselect buffer)
+           (beginning-of-buffer)
+           (re-search-forward uuid nil t 2)
+           (delete-line)
 
-           (with-current-buffer (find-file-noselect ,buffer)
-             (beginning-of-buffer)
-             (re-search-forward ,uuid nil t 2)
-             (delete-line)
+           (insert log-content)))
 
-             (insert log-content)))
-
-         (alert "Run apex code complete"
-                :title "Salesforce Alert"))))))
+       (alert "Run apex code complete"
+              :title "Salesforce Alert")))))
 
 (defun binding-declare-variable (pair)
   ""
