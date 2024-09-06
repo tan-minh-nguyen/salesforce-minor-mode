@@ -24,10 +24,6 @@
       (setq project-pass (or project-pass (projectile-verify-file-wildcard file))))
     project-pass))
 
-;; (defun salesforce-initialize-configuration-projectes (projects)
-;;   "Initialize configuration for list of projects."
-;;   (dotimes (project projects)))
-
 ;;;###autoload
 (defun dx-project-init ()
   "Initialize configuarion for Salesforce project."
@@ -41,8 +37,8 @@
                                   :compile "npm install")
 
 ;; Add initialize salesforce for projectile
-(eval-after-load 'projectile
-  (add-hook 'projectile-find-file-hook #'dx-project-init))
+;; (eval-after-load 'projectile
+;;   (add-hook 'projectile-after-switch-hook #'dx-project-init))
 
 (defun dx-project-create ()
   "Create dx project"
