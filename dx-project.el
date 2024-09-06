@@ -41,8 +41,8 @@
                                   :compile "npm install")
 
 ;; Add initialize salesforce for projectile
-(eval-after-load 'projectile
-  (add-hook 'projectile-after-switch-project-hook #'dx-project-init))
+;; (eval-after-load 'projectile
+;;   (add-hook 'projectile-after-switch-project-hook #'dx-project-init))
 
 (defun dx-project-create ()
   "Create dx project"
