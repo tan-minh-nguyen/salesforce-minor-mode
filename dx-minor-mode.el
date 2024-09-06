@@ -57,8 +57,7 @@
 
 ;;;###autoload
 (easy-mmode-define-minor-mode dx-minor-mode
-  "Toggles global salesforce minor mode."
-  nil ; Inital value, nil for disabled
+  "Toggles salesforce minor mode."
   :init-value nil
   :group 'dx
   :keymap dx-mode-map
