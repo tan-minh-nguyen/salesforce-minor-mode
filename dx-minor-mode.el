@@ -60,9 +60,8 @@
   "Toggles salesforce minor mode."
   :init-value nil
   :group 'dx
-  :keymap dx-mode-map
+  :keymap dx-mode-map)
 
-  (when dx-minor-mode
-    (dx-minor-mode--init)))
+(add-hook 'dx-minor-mode-hook #'dx-minor-mode--init)
 
 (provide 'dx-minor-mode) ;;; dx-minor-mode end here.
