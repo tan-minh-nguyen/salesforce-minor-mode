@@ -12,6 +12,7 @@
 ;; load core packages
 (require 'apex-ts-mode)
 (require 'soql-ts-mode)
+(require 'ob-apex)
 
 (defvar dx-mode-map
   (let ((map (make-sparse-keymap)))
