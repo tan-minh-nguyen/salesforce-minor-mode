@@ -1,0 +1,9 @@
+{
+    "name": "lwc",
+    "languageId": "lwc",
+    "command": [
+      "lwc-language-server",
+      "--stdio"
+    ],
+    "settings": {}
+}

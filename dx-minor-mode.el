@@ -11,19 +11,19 @@
 (require 'dx-log)
 ;; load core packages
 (require 'apex-ts-mode)
-(require 'soql-ts-mode)
 (require 'ob-apex)
+(require 'dx-data)
 
 (defvar dx-mode-map
   (let ((map (make-sparse-keymap)))
     ;; org features
     (keymap-set map "M-o s" (cons "Authorize Org" #'dx-org-authorize))
-    (keymap-set map "M-o c" (cons "Switch Org" #'dx-org-change))
+    (keymap-set map "M-o c" (cons "Switch Org" #'dx-org-change-connection))
 
-    (keymap-set map "M-o r" (cons "Retrieve Metadata" #'dx-source-retrieve))
-    (keymap-set map "M-o d" (cons "Deploy Metadata" #'dx-source-push))
+    (keymap-set map "M-o r" (cons "Retrieve Metadata" #'dx-project-source-retrieve))
+    (keymap-set map "M-o d" (cons "Deploy Metadata" #'dx-project-source-push))
 
-    (keymap-set map "M-o o" (cons "Open Org" #'dx-org-default-open))
+    (keymap-set map "M-o o" (cons "Open Org" #'dx-org-open-current))
     (keymap-set map "M-o n" (cons "View All Orgs" #'dx-org-display-all-orgs))
     (keymap-set map "M-o m" (cons "View All Devhubs" #'dx-org-display-all-devhubs))
     (keymap-set map "M-o N" (cons "Notes" #'dx-open-project-note))
@@ -32,12 +32,13 @@
     (keymap-set map "M-o l" (cons "Clear Log" #'dx-clear-log))
 
     ;; apex features
-    (keymap-set map "M-c t" (cons "Create Trigger" #'dx-apex-generate-trigger))
-    (keymap-set map "M-c c" (cons "Create Apex Class" #'dx-apex-generate-class))
-    (keymap-set map "M-c T" (cons "Create Apex Class Test" #'dx-apex-generate-test-class))
-    (keymap-set map "M-c F" (cons "Create Method Test" #'dx-apex-generate-test-method))
+    (keymap-set map "M-c" (cons "Create DX Resource" #'dx-apex--transient:generate-resource))
+    ;; (keymap-set map "M-c t" (cons "Create Trigger" #'dx-apex-generate-trigger))
+    ;; (keymap-set map "M-c c" (cons "Create Apex Class" #'dx-apex-generate-class))
+    ;; (keymap-set map "M-c T" (cons "Create Apex Class Test" #'dx-apex-generate-test-class))
+    ;; (keymap-set map "M-c F" (cons "Create Method Test" #'dx-apex-generate-test-method))
     ;; project features
-    (keymap-set map "M-q t" (cons "Query Record" #'dx-soql-string))
+    ;;(keymap-set map "M-q t" (cons "Query Record" #'dx-soql-string))
     ;; (keymap-set map "M-q f" (cons "Ex" #'dx-fetch-dx-file))
 
     ;; visualforce features
@@ -53,8 +54,8 @@
 
 (defun dx-minor-mode--init ()
   "Initialize mode."
-  (setq-default dx-org-name (dx-internal-current-org)
-                dx-project-root-dir (dx-find-root-dir)))
+  (setq dx-org-name (dx-internal-current-org)
+        dx-project-root-dir (dx-find-root-dir)))
 
 ;;;###autoload
 (easy-mmode-define-minor-mode dx-minor-mode

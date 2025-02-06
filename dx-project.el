@@ -4,6 +4,7 @@
 (require 'dx-config)
 (require 'dx-process)
 (require 'dx-core)
+(require 'transient)
 
 (defcustom dx-files-test-root '(".forceignore")
   "The list of files to determine a project is Salesforce project."
@@ -15,6 +16,7 @@
   :type 'list
   :type 'salesforce-project)
 
+;;;###autoload
 (defun dx-project-p (&optional dir)
   "Check root is Salesforce project."
   (let ((default-directory (or dir (projectile-project-root)))
@@ -32,175 +34,46 @@
     (dir-locals-set-directory-class (projectile-project-root) 'project-configuration)))
 
 ;; Define own projectile
-(projectile-register-project-type 'dx #'dx-project-p
-                                  :project-file "package.json"
-                                  :compile "npm install")
+(with-eval-after-load 'projectile
+  (projectile-register-project-type 'dx #'dx-project-p
+                                    :project-file "package.json"
+                                    :compile "npm install")
 
-;; Add initialize salesforce for projectile
-;; (eval-after-load 'projectile
-;;   (add-hook 'projectile-after-switch-hook #'dx-project-init))
+  ;; Add initialize salesforce for projectile
+  (add-hook 'projectile-after-switch-project-hook #'dx-project-init))
+
 
 (defun dx-project-create ()
   "Create dx project"
   (interactive)
-  (let* ((project-path (read-directory-name "project path: "))
-         (package-dir (read-string "package dir: ")))
+  (let* ((project-dir (read-directory-name "Directory: "))
+         (project-name (read-string "Project name: "))
+         (project-template (completing-read "Project template: " (list "standard" "empty" "project")))
+         (default-directory project-dir))
 
-    (make-directory project-path 'parents)
+    (make-directory project-dir 'parents)
 
-    (dx-make-process-json-async
-     :cmd (dx-build-sf-command
-           dx-project-command-alias
-           "generate"
-           "--name" project-path
-           "--default-package-dir" package-dir
-           "--json")
-     (let ((project-output (dx-get-data-json "result.outputDir" json-instance)))
+    (dx-core--project-process 
+     :cmd (list "generate" "--name" project-name "--template" project-template "--json")
+     (alert "Create Project Success"
+            :title "DX Alert"))))
 
-       (alert "Create Project Success"
-              :title "DX Alert")))))
-
-(defun dx-source-push (buffer)
+(defun dx-project-source-push (buffer)
   "Push file to salesforce org."
   (interactive (list (buffer-file-name)))
+  (dx-core--project-process 
+   :cmd (list "deploy" "start" "-d" buffer "--json")
+   (alert (format "Deploy %s success" buffer)
+          :title "DX Alert")))
 
-  (if (file-in-directory-p buffer (dx-build-full-path dx-default-apex-class-path))
-      (dx-source-backup
-       (dx-make-process-json-async
-        :cmd (dx-build-sf-command "force" "source" "deploy" "-p" buffer "--json")
-        (cond ((and (plist-member json-instance :code)
-                  (= (plist-get json-instance :code) 1)
-                  (string= (plist-get json-instance :name) "RefreshTokenAuthError"))
-               (alert (plist-get json-instance :message)
-                      :title "DX Alert"))
-              ((= (plist-get json-instance :status) 0)
-               (alert (format "Deploy %s success" buffer)
-                      :title "DX Alert"))
-              (t (funcall #'dx-handle-process-error--json json-instance)))))
-
-    (dx-make-process-json-async
-     :cmd (dx-build-sf-command "force" "source" "deploy" "-p" buffer "--json")
-     (cond ((and (plist-member json-instance :code)
-               (= (plist-get json-instance :code) 1)
-               (string= (plist-get json-instance :name) "RefreshTokenAuthError"))
-            (alert (plist-get json-instance :message)
-                   :title "DX Alert"))
-           ((= (plist-get json-instance :status) 0)
-            (alert (format "Deploy %s success" buffer)
-                   :title "DX Alert"))
-           (t (funcall #'dx-handle-process-error--json json-instance))))))
-
-(defun dx-source-backup-sync ()
-  "Backup the current buffer to the source directory."
-  (let* ((buffer (buffer-file-name))
-         (file-name (file-name-base buffer))
-         (cache-dir (dx--get-cache-folder-path))
-         (backup-file-name (concat file-name "_" (format "%s" (time-convert (current-time) 'integer))))
-         (json-instance))
-
-    (unless (file-exists-p cache-dir)
-      (make-directory cache-dir 'parents))
-
-    (setq json-instance (dx-make-process-json-sync
-                         :cmd (append (dx-build-sf-command dx-project-command-alias
-                                                           "retrieve"
-                                                           "start"
-                                                           "-d" buffer
-                                                           "-z"
-                                                           "-t" cache-dir
-                                                           "--zip-file-name" backup-file-name
-                                                           "--json"))))
-    (unless json-instance
-      (error (concat "Backup " file-name " Failure")))
-    ;; rename backup directory to new directory containing the last modified id
-    ;; and the last modified date
-
-    (when-let ((new-dir-name (concat cache-dir "/" backup-file-name "_"
-                                     (dx-get-data-json "result.fileProperties.0.lastModifiedById"
-                                                       json-instance)
-                                     "_"
-                                     (format "%s"
-                                             (time-convert
-                                              (date-to-time
-                                               (dx-get-data-json "result.fileProperties.0.lastModifiedDate"
-                                                                 json-instance))
-                                              'integer)))))
-      (rename-file (concat cache-dir "/" backup-file-name)
-                   new-dir-name))))
-
-(defun dx-source-push-chain-test-1 ()
-  "Test 1"
-  (dx--execute-asynchronous-process (list #'dx-source-backup-sync #'dx-source-retrieve)))
-
-(defun dx-source-push-chain-test (buffer)
-  "Push file to Salesforce org."
-  (interactive (list (buffer-file-name)))
-  (let* ((file-name (file-name-base buffer))
-         (cache-dir (dx--get-cache-folder-path))
-         (backup-file-name (concat file-name "_" (format "%s" (time-convert (current-time) 'integer)))))
-
-    (dx-make-chain-process
-     (list :cmd (dx-build-sf-command dx-project-command-alias
-                                     "retrieve"
-                                     "start"
-                                     "-d" buffer
-                                     "-z"
-                                     "-t" cache-dir
-                                     "--zip-file-name" backup-file-name
-                                     "--json")
-           :callback (lambda (content params)
-                       (let ((json-instance (dx--process-parse-json content)))
-
-                         (unless json-instance
-                           (error (concat "Backup " file-name " Failure")))
-                         ;; rename backup directory to new directory containing the last modified id
-                         ;; and the last modified date
-
-                         (when-let ((new-dir-name (concat cache-dir "/" backup-file-name "_"
-                                                          (dx-get-data-json "result.fileProperties.0.lastModifiedById"
-                                                                            json-instance)
-                                                          "_"
-                                                          (format "%s"
-                                                                  (time-convert
-                                                                   (date-to-time
-                                                                    (dx-get-data-json "result.fileProperties.0.lastModifiedDate"
-                                                                                      json-instance))
-                                                                   'integer)))))
-                           (rename-file (concat cache-dir "/" backup-file-name)
-                                        new-dir-name)))))
-     ;; Push source 
-     (list :cmd (dx-build-sf-command "force"
-                                     "source"
-                                     "deploy"
-                                     "-p"
-                                     buffer
-                                     "--json")
-           :callback (lambda (content params)
-                       (let ((json-instance (dx--process-parse-json content)))
-                         (cond ((and (plist-member json-instance :code)
-                                     (= (plist-get json-instance :code) 1)
-                                     (string= (plist-get json-instance :name) "RefreshTokenAuthError"))
-                                (alert (plist-get json-instance :message)
-                                       :title "DX Alert"))
-                               ((= (plist-get json-instance :status) 0)
-                                (alert (format "Deploy %s success" buffer)
-                                       :title "DX Alert"))
-                               (t (funcall #'dx-handle-process-error--json json-instance)))))))))
-
-(defun dx-source-retrieve (buffer)
+(defun dx-project-source-retrieve (buffer)
   "Retrieve source salesforce form org"
   (interactive (list (buffer-file-name)))
-  (dx-make-process-json-async
-   :cmd (dx-build-sf-command "force" "source" "retrieve" "-p" buffer "--json")
-   (cond ((and (plist-member json-instance :code)
-             (= (plist-get json-instance :code) 1)
-             (string= (plist-get json-instance :name) "RefreshTokenAuthError"))
-          (alert (plist-get json-instance :message)
-                 :title "DX Alert"))
-         ((= (plist-get json-instance :status) 0)
-          (alert (format "Retrieve %s success" (dx-get-data-json "result.inboundFiles.0.filePath" json-instance))
-                 :title "DX Alert"))
-         (t (funcall #'dx-handle-process-error--json json-instance)))))
+  (dx-core--project-process 
+   :cmd (list "retrieve" "start" "-d" buffer "--json")
+   (alert (format "Retrieve %s success" buffer)
+          :title "DX Alert")))
+
 
 (cl-defmacro dx-source-backup (&rest body &key target-org &allow-other-keys)
   "Backup the current buffer to the source directory."
@@ -212,36 +85,31 @@
      (unless (file-exists-p cache-dir)
        (make-directory cache-dir 'parents))
 
-     (dx-make-process-json-async
-      :cmd (append (dx-build-sf-command dx-project-command-alias
-                                        "retrieve"
-                                        "start"
-                                        "-d" buffer
-                                        "-z"
-                                        "-t" cache-dir
-                                        "--zip-file-name" backup-file-name
-                                        "--json")
-                   (when ,target-org (list "-o" ,target-org)))
+     (dx-core--project-process 
+      :cmd (list "retrieve"
+              "start"
+              "-d" buffer
+              "-z"
+              "-t" cache-dir
+              "--zip-file-name" backup-file-name
+              "-o" (or ,target-org dx-org-name)
+              "--json")
       (unless json-instance
         (error (concat "Backup " file-name " Failure")))
       ;; rename backup directory to new directory containing the last modified id
       ;; and the last modified date
 
       (when-let ((new-dir-name (concat cache-dir "/" backup-file-name "_"
-                                       (dx-get-data-json "result.fileProperties.0.lastModifiedById"
-                                                         json-instance)
+                                       (dx-core--get-data-json "result.fileProperties.0.lastModifiedById"
+                                                               json-instance)
                                        "_"
-                                       (format "%s"
-                                               (time-convert
-                                                (date-to-time
-                                                 (dx-get-data-json "result.fileProperties.0.lastModifiedDate"
-                                                                   json-instance))
-                                                'integer)))))
+                                       (format "%s" (time-convert (date-to-time (dx-core--get-data-json "result.fileProperties.0.lastModifiedDate" json-instance))
+                                                                  'integer)))))
         (rename-file (concat cache-dir "/" backup-file-name)
                      new-dir-name)
         ,@body))))
 
-(defun dx-ediff-startup-hook ()
+(defun dx-project--ediff-startup-hook ()
   "Ediff hook on startup."
   (let* ((coding-system (with-current-buffer ediff-buffer-B
                           buffer-file-coding-system)))
@@ -260,7 +128,7 @@
 
     (ediff-update-diffs)))
 
-(defun dx-ediff-quit-hook ()
+(defun dx-project--ediff-quit-hook ()
   "Hook on quit."
   (with-current-buffer ediff-buffer-A
     (kill-buffer-and-window))
@@ -269,11 +137,11 @@
       (kill-buffer-and-window)))
 
   ;; Clear hooks
-  (remove-hook 'ediff-startup-hook #'dx-ediff-startup-hook)
-  (remove-hook 'ediff-quit-hook #'dx-ediff-quit-hook))
+  (remove-hook 'ediff-startup-hook #'dx-project--ediff-startup-hook)
+  (remove-hook 'ediff-quit-hook #'dx-project--ediff-quit-hook))
 
 (defun dx-diff-metadata ()
-  "diff metadata between local and cloud."
+  "diff source between local project and salesforce platform."
   (interactive)
   (let ((full-file-name (buffer-file-name)))
 
@@ -283,8 +151,8 @@
                                       new-dir-name)
                 full-file-name
                 `((lambda ()
-                    (add-hook 'ediff-quit-hook #'dx-ediff-quit-hook)
-                    (add-hook 'ediff-startup-hook #'dx-ediff-startup-hook))))
+                    (add-hook 'ediff-quit-hook #'dx-project--ediff-quit-hook)
+                    (add-hook 'ediff-startup-hook #'dx-project--ediff-startup-hook))))
        (error
         (alert (format "%s" error)
                :title "DX Alert"
@@ -293,7 +161,7 @@
 (defun dx-diff-metadata-other-org ()
   "diff metadata between local and cloud."
   (interactive)
-  (dx-org-alias-list
+  (dx-org--fetch-org-list
    (let* ((full-file-name (buffer-file-name))
           (org (completing-read "Target Org: " org-list nil 'require-match))
           (org-status (dx--org-status org)))
@@ -308,8 +176,8 @@
                                        new-dir-name)
                  full-file-name
                  '((lambda ()
-                     (add-hook 'ediff-startup-hook #'dx-ediff-startup-hook)
-                     (add-hook 'ediff-quit-hook #'dx-ediff-quit-hook))))
+                     (add-hook 'ediff-startup-hook #'dx-project--ediff-startup-hook)
+                     (add-hook 'ediff-quit-hook #'dx-project--ediff-quit-hook))))
         (error
          (alert (format "%s" error)
                 :title "DX Alert"
@@ -318,7 +186,7 @@
 (defun dx-diff3-metadata ()
   "diff metadata between three enviroments."
   (interactive)
-  (let* ((minibuffer-history (dx-org-alias-list))
+  (let* ((minibuffer-history (dx-org--fetch-org-list))
          (file-name (buffer-file-name))
          (target-org (read-from-minibuffer "Target Org: "))
          (bk-file-org (dx-source-backup))
@@ -328,8 +196,8 @@
     (condition-case error
         (ediff3 (car (directory-files-recursively (concat bk-file-org "/") (file-name-nondirectory file-name))) file-name (car (directory-files-recursively (concat bk-file-target-org "/") (file-name-nondirectory file-name)))
                 '((lambda ())
-                  (add-hook 'ediff-startup-hook #'dx-ediff-startup-hook)
-                  (add-hook 'ediff-quit-hook #'dx-ediff-quit-hook)))
+                  (add-hook 'ediff-startup-hook #'dx-project--ediff-startup-hook)
+                  (add-hook 'ediff-quit-hook #'dx-project--ediff-quit-hook)))
       (error
        (alert error
               :title "DX Alert"
@@ -373,9 +241,128 @@
                                (ediff (car (directory-files-recursively cache-dir ,file-name))
                                       ,buffer-file-name
                                       '((lambda ()
-                                          (add-hook 'ediff-startup-hook #'dx-ediff-startup-hook)
-                                          (add-hook 'ediff-quit-hook #'dx-ediff-quit-hook))))))
+                                          (add-hook 'ediff-startup-hook #'dx-project--ediff-startup-hook)
+                                          (add-hook 'ediff-quit-hook #'dx-project--ediff-quit-hook))))))
 
     (pop-to-buffer (ctbl:cp-get-buffer component))))
+
+(defun dx-project--push-multi-sources (files)
+  "Push multi metadata files to org."
+  (interactive (list (transient-args 'dx-project--deploy-files-menu)))
+  (async-start `(lambda ()
+                  ;; set default directory run command
+                  (setq default-directory ,(projectile-project-root))
+                  ;; loading library
+                  ,(async-inject-variables "\\`load-path\\'")
+                  (require 'async nil t)
+                  (require 'dx-project nil t)
+                  (require 'cl-macs nil t)
+                  (setq async-debug t)
+                  (let ((proc (apply #'dx-start-process nil 
+                                     (append '(,dx-project-command-alias "deploy" "start" "--json") 
+                                             (cons "-d" ',files)))))
+                    (async-wait proc)
+                    (if (eq (process-exit-status proc) 1)
+                        (list :status 1 :error (dx--async-when-done proc))
+                      (list :status 0 :json-instance (dx-parse-buffer-json (process-buffer proc))))))
+               (lambda (result)
+                 (when (eq (plist-get result :status) 0)
+                   (alert (concat "Success deploy files:\n"
+                                  (string-join files "\n"))
+                          :title "DX Alert")))))
+
+(defun dx-project--retrieve-multi-sources (files)
+  "Push multi metadata files to org."
+  (interactive (list (transient-args 'dx-project--deploy-files-menu)))
+  (async-start `(lambda ()
+                  ;; set default directory run command
+                  (setq default-directory ,(projectile-project-root))
+                  ;; loading library
+                  ,(async-inject-variables "\\`load-path\\'")
+                  (require 'async nil t)
+                  (require 'dx-project nil t)
+                  (require 'cl-macs nil t)
+                  (let ((proc (apply #'dx-start-process nil 
+                                     (append '(,dx-project-command-alias "retrieve" "start" "--json") 
+                                             (cons "-d" ',files)))))
+                    (async-wait proc)
+                    (if (eq (process-exit-status proc) 1)
+                        (list :status 1 :error (dx--async-when-done proc))
+                      (list :status 0 :json-instance (dx-parse-buffer-json (process-buffer proc))))))
+               (lambda (result)
+                 (when (eq (plist-get result :status) 0)
+                   (alert (concat "Success retrieve files:\n"
+                                  (string-join files "\n"))
+                          :title "DX Alert")))))
+
+(defun dx-project--group-files-menu (files)
+  "Group files on transient menu."
+  (cl-loop for file in files
+           if (and (string-match-p (regexp-quote dx-default-apex-class-path) file)
+                   (not (member (dx-project--remove-xml-suffix file) classes)))
+           collect (dx-project--remove-xml-suffix file) into classes
+           else if (and (string-match-p (regexp-quote dx-default-vf-path) file)
+                        (not (member (dx-project--remove-xml-suffix file) pages)))
+           collect (dx-project--remove-xml-suffix file) into pages
+           else if (string-match-p (concat dx-default-object-path "/[A-Za-z_]+/fields") file)
+           collect file into fields
+           else if (string-match-p (regexp-quote dx-default-object-path) file)
+           collect (dx-project--remove-xml-suffix file) into objects
+           ;; else 
+           ;; collect file into other
+           finally return (list (cons "classes" classes) 
+                                (cons "pages" pages)
+                                (cons "objects" objects)
+                                (cons "fields" fields)
+                                ;; (cons "Misc" other)
+                                )))
+
+(defun dx-project--remove-xml-suffix (original-name)
+  "Format name of item display on transient menu."
+  (string-replace "-meta.xml" "" original-name))
+
+(defun dx-project--generate-files-menu (prefix-name files &rest sections)
+  "Configuration deploy files change menu."
+  `(transient-define-prefix ,(intern (concat "dx-project--" prefix-name)) ()
+     "Files deploy menu."
+     ,@(cl-loop for (name . items) in (dx-project--group-files-menu files)
+                as section = (vconcat (list (capitalize name))
+                                      (cl-loop for chunk in (dx-project--generate-files-section items (substring name 0 1))
+                                               as col = (vconcat "" chunk)
+                                               vconcat col))
+                collect section)
+     ,@sections))
+
+(defun dx-project--generate-files-section (files prefix &optional max-row)
+  "Generate column dilay files."
+  (seq-split (cl-loop for index from 1
+                      for file in files
+                      as file-name = (file-name-base file)
+                      as file-name-ext = (concat file-name (file-name-extension file))
+                      when (not (string= file-name ""))
+                      collect (list (format "%s%s" prefix index) file-name file :transient t)) 
+             (or max-row 5)))
+
+(defun dx-project--git-change-source-1 ()
+"Deploy changed sources on local to org."
+(require 'magit nil t)
+(let ((target-branch (magit-read-local-branch "Branch" (magit-local-branch-at-point))))
+  (async-start 
+   `(lambda ()
+      ;;,(async-inject-variables "\\`load-path\'")
+      (setq default-directory ,(projectile-project-root))
+      (shell-command-to-string (format "git diff $(git reflog --date=local %s | tail -n 1 | cut -d' ' -f 1) %s --name-only" ,target-branch ,target-branch)))
+   (lambda (files-string)
+     (let ((files (split-string files-string "\n")))
+       (eval (dx-project--generate-files-menu "deploy-files-menu" files 
+                                              ["" 
+                                               ("d" "Push sources" dx-project--push-multi-sources)
+                                               ("r" "Sync sources" dx-project--retrieve-multi-sources)]))
+       (transient-setup 'dx-project--deploy-files-menu))))))
+
+(defun dx-project-git-change-source ()
+  "View all sources changed on version control."
+  (interactive)
+  (dx-project--git-change-source-1))
 
 (provide 'dx-project)

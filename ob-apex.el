@@ -1,5 +1,4 @@
-;; -*- no-byte-compile: t; no-native-compile: t; lexical-binding: t -*-
-;;; ob-apex.el --- org-babel functions for Apexq evaluation
+;;; ob-apex.el --- org-babel functions for Apexq evaluation -*- no-byte-compile: t; no-native-compile: t; lexical-binding: t -*-
 
 ;; Copyright (C) your name here
 
@@ -83,21 +82,41 @@
 
 ;; optionally declare default header arguments for this language
 (defvar org-babel-default-header-args:apex (list '(:results . "none")
-                                                 '(:org . "")
-                                                 '(:log-filter-type . "none")
-                                                 '(:log-filter-value . "none")))
-                                                  ;; (assq-delete-all :session org-babel-default-header-args:apex)
-                                                  ;; (assq-delete-all :noweb org-babel-default-header-args:apex)
-                                                  ;; (assq-delete-all :cache org-babel-default-header-args:apex)
-                                                  ;; (assq-delete-all :hlines org-babel-default-header-args:apex)))
-
+                                              '(:org . "")
+                                              '(:log-filter-type . "DEBUG")
+                                              '(:log-filter-value . nil)))
 
 (defvar org-babel-default-inline-header-args:apex (list '(:results . "none")
-                                                        '(:org . "")
-                                                        '(:log-filter-type . "none")
-                                                        '(:log-filter-value . "none")))
-                                                         ;; (assq-delete-all :session org-babel-default-header-args:apex)
-                                                         ;; (assq-delete-all :hlines org-babel-default-header-args:apex)))
+                                                     '(:org . "")
+                                                     '(:log-filter-type . "DEBUG")
+                                                     '(:log-filter-value . nil)))
+
+(defvar org-babel-executable-keywords '("VARIABLE_ASSIGNMENT"
+                                        "STATEMENT_EXECUTE"
+                                        "METHOD_ENTRY"
+                                        "CONSTRUCTOR_EXIT"
+                                        "CODE_UNIT_STARTED")
+  "Keywords use for filter with Executable type.")
+
+(defvar org-babel-system-keywords '("VARIABLE_ASSIGNMENT"
+                                    "STATEMENT_EXECUTE"
+                                    "METHOD_ENTRY"
+                                    "CONSTRUCTOR_EXIT"
+                                    "CODE_UNIT_STARTED")
+  "Keywords use for filter with System type.")
+
+(defvar org-babel-debug-keywords '("VARIABLE_ASSIGNMENT"
+                                   "STATEMENT_EXECUTE"
+                                   "METHOD_ENTRY"
+                                   "CONSTRUCTOR_EXIT"
+                                   "CODE_UNIT_STARTED")
+  "Keywords use for filter with Debug type.")
+
+(defvar org-babel-governor-keywords '("LIMIT_USAGE_FOR_NS"
+                                      "Number of"
+                                      "Maximum CPU"
+                                      "Maximum heap")
+  "Keywords use for filter with Government type.")
 
 ;; This function expands the body of a source code block by doing things like
 ;; prepending argument definitions to the body, it should be called by the
@@ -111,7 +130,7 @@
   (let ((vars
          (org-babel--get-vars
           (or processed-params
-              (org-babel-process-params params)))))
+             (org-babel-process-params params)))))
 
     (concat
      (mapconcat #'binding-declare-variable vars "\n")
@@ -141,123 +160,97 @@
          (full-body (org-babel-expand-body:apex
                         body params processed-params)))
 
-    (execute-apex-code processed-params full-body)))
+    (ob-apex--execute-apex-code processed-params full-body)))
 
-(defun execute-apex-code (processed-params content)
+(defun ob-apex--get-param (key param-list)
+  "Extract param in list."
+  (cdr (assq key param-list)))
+
+
+(defun ob-apex--filter-log (content type value)
+  "Filter content of the log file."
+  (mapconcat (lambda (line)
+               (cond ((and (string-equal-ignore-case type "DEBUG")
+                         (string-match (regexp-opt org-babel-debug-keywords) line))
+
+                      (concat line "\n"))
+                     ((and (string-equal-ignore-case type "STRING")
+                         (search value line))
+                      (concat line "\n"))
+                     ((and (string-equal-ignore-case type "EXECUTABLE")
+                         (string-match (regexp-opt org-babel-executable-keywords) line))
+                      (concat line "\n"))
+                     ((and (string-equal-ignore-case type "SYSTEM")
+                         (string-match (regexp-opt org-babel-system-keywords) line))
+
+                      (concat line "\n"))
+                     ((and (string-equal-ignore-case type "GOVERNOR")
+                         (match-string (regexp-opt org-babel-goverment-keywords) line))
+                      (concat line "\n"))))
+             (split-string content "\n")
+             ""))
+
+(defun ob-apex--execute-apex-code (processed-params content)
   "Execute apex code in org source."
   (let* ((uuid (org-id-uuid))
-         (buffer (buffer-file-name))
+         (buffer (current-buffer))
          (tempfile (make-temp-file "temp-code"))
-         (result-eval (format "%s" (cdr (assq :results processed-params))))
-         (command
-          (dx-build-sf-command "apex" "run" "-f" tempfile "--json"))
-         process 'nil)
+         (result-eval (ob-apex--get-param :results processed-params))
+         (log-filter-type (ob-apex--get-param :log-filter-type processed-params))
+         (log-filter-value (ob-apex--get-param :log-filter-value processed-params)))
 
     (write-region content nil tempfile)
-
-    (cond ((not (eq (cdr (assq :org processed-params))
-                   ""))
-           (setq command (append command
-                                 (list "-o" (cdr (assq :org processed-params)))))))
 
     ;; Clear default result
     (org-babel-remove-result)
 
-    (unless (string= result-eval "none")
+    (unless (string-equal-ignore-case result-eval "none")
       (re-search-forward "#\\+end_src")
       ;; Insert new result with uuid
       (insert (format "\n#+RESULTS:\n#+begin_src apex-log :uuid %s\n %s\n#+end_src"
                       uuid
                       uuid)))
 
-
-    (dx-make-process-json-async
-     :cmd command
-     (let ((log-content (dx-get-data-json "result.logs" json-instance))
-           (log-filter-type (cdr (assq :log-filter-type processed-params)))
-           (log-filter-value (cdr (assq :log-filter-value processed-params))))
-
-       (unless (or (eq log-filter-type 'none)
-                  (null log-filter-type))
-         (let ((debug-keywords '("DEBUG"))
-               (executable-keywords '("VARIABLE_ASSIGNMENT"
-                                      "STATEMENT_EXECUTE"
-                                      "METHOD_ENTRY"
-                                      "CONSTRUCTOR_EXIT"
-                                      "CODE_UNIT_STARTED"))
-               (system-keywords '("VARIABLE_SCOPE_BEGIN"
-                                  "USER_INFO"
-                                  "EXECUTION_STARTED"
-                                  "CODE_UNIT_STARTED"
-                                  "HEAP_ALLOCATE"
-                                  "STATEMENT_EXECUTE"
-                                  "METHOD_ENTRY"))
-               (groverment-keywords '("LIMIT_USAGE_FOR_NS"
-                                      "Number of"
-                                      "Maximum CPU"
-                                      "Maximum heap")))
-
-           (setq log-content
-                 (mapconcat (lambda (line)
-                              (cond ((and (equal log-filter-type "DEBUG")
-                                        (string-match (regexp-opt debug-keywords) line))
-
-                                     (concat line "\n"))
-                                    ((and (equal log-filter-type "FILTER")
-                                        (search log-filter-value line))
-                                     (concat line "\n"))
-                                    ((and (equal log-filter-type "EXECUTABLE")
-                                        (string-match (regexp-opt executable-keywords) line))
-                                     (concat line "\n"))
-                                    ((and (equal log-filter-type "SYSTEM")
-                                        (string-match (regexp-opt system-keywords) line))
-
-                                     (concat line "\n"))
-                                    ((and (eq log-filter-type "GOVERNMENT")
-                                        (match-string (regexp-opt groverment-keywords) line))
-                                     (concat line "\n"))))
-                            (split-string log-content "\n")
-                            ""))))
-
-       (unless (equal result-eval "none")
-
-         (with-current-buffer (find-file-noselect buffer)
+    (dx-core--apex-process
+     :cmd `("run" "-f" ,tempfile "-o" ,(cdr (assq :org processed-params)) "--json")
+     (unless (string-equal-ignore-case result-eval "none")
+       (with-current-buffer buffer
+         ;; Replace uuid with log content
+         (save-excursion
            (beginning-of-buffer)
            (re-search-forward uuid nil t 2)
            (delete-line)
 
-           (insert log-content)))
+           (insert (ob-apex--filter-log (dx-core--get-data-json "result.logs" json-instance)
+                                        log-filter-type
+                                        log-filter-value)))))
 
-       (alert "Run apex code complete"
-              :title "Salesforce Alert")))))
+     (alert "Run apex code complete"
+            :title "Salesforce Alert"))))
+
+(defun ob-apex--format-var-value (type value)
+  "Format value of variable according to apex syntax."
+  (if (string= var-type "String")
+      (format "\'%s\'" value)
+    value))
 
 (defun binding-declare-variable (pair)
-  ""
-  (let* ((var
-          (split-string
-            (format "%s"(car pair)) "\\."))
+  "Handle binding value of variable to execute content."
+  (let* ((var (split-string
+               (format "%s"(car pair)) "\\."))
          (var-type (car var))
-         (var-name (car (cdr var)))
-         (value
-          (org-babel-template-var-to-template
-           (cdr pair))))
+         (var-name (cdar var))
+         (value (org-apex var-type (cdr pair))))
 
-    (format
-     "%s %s = %s;"
-     var-type
-     var-name
-     (if (string= var-type "String")
-       (format "\'%s\'" value)
-       value))))
+    (format "%s %s = %s;" var-type var-name value)))
 
 (defun org-babel-prep-session:apex (session params)
   "Prepare SESSION according to the header arguments specified in PARAMS.")
 
-
-(defun org-babel-template-var-to-template (var)
+(defun org-babel-elisp-var-to-apex (var)
   "Convert an elisp var into a string of template source code
 specifying a var of the same value."
-  (format "%s" var))
+  (format "%s" value))
 
 (defun org-babel-template-table-or-string (results)
   "If the results look like a table, then convert them into an

@@ -3,61 +3,7 @@
 (require 'dx-process)
 
 (defun dx-build-sf-command (&rest args)
-  `(,dx-lib-alias ,@args))
-
-(defun dx-execute-apex (content)
-"emacs make-process pipe Execute code"
-  (let ((code (unless content
-               (point-min)
-               content))
-        (temp-file (make-temp-file "temp_code")))
-
-   (write-region (point-min) (point-max) temp-file)
-   (setq execute-apex-code-command
-     (dx-build-sf-command "apex" "run" "-f" temp-file))
-
-   (async-shell-command execute-apex-code-command buffer)))
-
-(cl-defun dx-execute-soql (&key query (type 'string) options)
-  "Excute command fetch records from Salesforce through api"
-  (let ((execute-soql-code (dx-build-sf-command dx-data-command-alias
-                                                 "query"
-                                                 (pcase type
-                                                   ('string
-                                                    `,@("--query" query))
-                                                   ('file
-                                                    `,@("--file" query)))
-                                                 "--json")))
-
-    (dx-make-process-json
-     :cmd execute-soql-code
-     (when (length= (dx-get-data-json "result.records" json-instance) 0)
-       (alert "No records found"
-              :title "Salesforce Query")
-       (error "No records found"))
-
-     (let* ((records-list (dx-get-data-json "result.records" json-instance))
-            (header-columns (remove-if (lambda (key) (member key '("attributes")))
-                                       (hash-table-keys (aref records-list 0))))
-            (data (dx-table--make-data-table-from-vector
-                   :header-columns header-columns
-                   :data records-list)))
-
-       (add-to-list 'header-columns "No")
-
-       (with-current-buffer (pop-to-buffer
-                             (dx-table--create-table
-                              :model
-                              (dx-table--make-table-mode
-                               :column-header
-                               (cl-loop for key in header-columns
-                                        when (not (string= key ""))
-                                        collect `(:align ,'left :title ,key `:max-width ,'50))
-                               :data data)
-                              :buffer dx-dedicated-window-right
-                              :open 't))
-         (ctbl:table-mode)
-         (read-only-mode))))))
+  `(,@args))
 
 (cl-defun dx-convert-hashtable-data-to-list
     (&key hashtable-data columns (post-process nil))
@@ -94,13 +40,13 @@
          (remap-list '()))
 
     (when (length> new-list 0)
-        (setq remap-list
-              (append remap-list
-                      (dx-recursive-list new-list lambda-function))))
+      (setq remap-list
+            (append remap-list
+                    (dx-recursive-list new-list lambda-function))))
 
     (add-to-list 'remap-list (funcall lambda-function first-item))))
 
-(defun dx-get-data-json (path table)
+(defun dx-core--get-data-json (path table)
   "Get all data follow the path in hash table"
   (let* ((path-splited (split-string path "\\."))
          (key (car path-splited))
@@ -115,7 +61,7 @@
          (key-remain (cdr path-splited)))
 
     (cond (key-remain
-           (dx-get-data-json
+           (dx-core--get-data-json
             (string-join key-remain ".")
             value))
           (t
@@ -124,68 +70,8 @@
 (defun dx-find-root-dir ()
   (cdr (project-current)))
 
-(defun dx-build-full-path (&rest args)
-  (mapconcat 'identity `(,(dx-find-root-dir) ,@args) "/"))
-
-(defmacro dx-org-alias-list (&rest body)
-  "Get all alias of orgs."
-  `(let* ((json-instance (dx-make-process-json-sync
-                          :cmd (dx-build-sf-command dx-org-command-alias
-                                                    "list"
-                                                    "--json"
-                                                    "--skip-connection-status")))
-
-          (org-list (remove-if #'null (append (mapcar (lambda (data)
-                                                        (plist-get data :alias))
-                                                      (dx-get-data-json
-                                                       "result.other" json-instance))
-                                              (mapcar (lambda (data)
-                                                        (plist-get data :alias))
-                                                      (dx-get-data-json
-                                                       "result.nonScratchOrgs" json-instance))))))
-     ,@body))
-
-
-
-(defun dx-web-login (url)
-  "Authorize to `url' salesforce org."
-  (dx-org-alias-list
-   (let ((alias (completing-read "Alias: " org-list nil nil)))
-
-     (dx-make-process-json-async
-      :cmd (dx-build-sf-command dx-org-command-alias "login" "web" "-a" alias "--instance-url" url "--set-default" "--json")
-      (let ((user-name (dx-get-data-json "result.username" json-instance)))
-        (alert "Authorize success" :title "Salesforce Alert"))))))
-
-(defun dx-handle-process-error--json (json-instance)
-  "Handle error response by dx process."
-  (let ((show-message "")
-        (error-name (plist-get json-instance :name))
-        (error-message (plist-get json-instance :message)))
-
-    (cond ((and error-name
-                error-message)
-           (setq show-message (format "Name: %s\nMessage: \n%s\n" error-name error-message)))
-          (t
-           (setq show-message (mapconcat (lambda (component)
-                                           (let ((problem (plist-get component :error))
-                                                 (problem-type (plist-get component :problemType))
-                                                 (line-number (plist-get component :lineNumber))
-                                                 (file-name (plist-get component :filePath)))
-
-                                             (format "Problem-type: %s\nProblem: %s\n%s:%s"
-                                                     problem-type
-                                                     problem
-                                                     line-number
-                                                     file-name)))
-
-                                         (dx-get-data-json "result.deployedSource" json-instance)
-                                         "\n"))))
-
-    (alert show-message
-           :title "DX Alert"
-           :category 'error
-           :severity 'urgent)))
+(defun dx-core--build-path (&rest args)
+  (mapconcat 'identity `(,(dx-find-root-dir) ,@args)))
 
 ;;;###autoload
 (cl-defun dx-internal-current-org ()
@@ -209,9 +95,9 @@
                           (shell-command-to-string (concat "[ -f " config-path " ] && grep -Po '(?<=\"target-org\": )\"[^\"]+\"' " config-path " | sed -E 's/\"([^\"]+)\"/\\1/' || grep -Po '(?<=\"defaultusername\": )\"[^\"]+\"' " old-config-path " | sed -E 's/\"([^\"]+)\"/\\1/'")))
         (:success org-name)
         (error
-         (dx-get-data-json "result.0.value"
-                           (dx-make-process-json-sync
-                            :cmd (dx-build-sf-command "config" "get" "target-org" "--json")))))))))
+         (dx-core--get-data-json "result.0.value"
+                                 (dx-make-process-json-sync
+                                  :cmd (dx-build-sf-command "config" "get" "target-org" "--json")))))))))
 
 (defun dx--get-cache-folder-path ()
   "Get absolute path of cache directory."
@@ -249,7 +135,7 @@
                         :cmd (append (dx-build-sf-command dx-org-command-alias "display" "--json")
                                      (when org (list "-o" org))))))
     (cond ((= (plist-get json-instance :status) 0)
-           (dx-get-data-json "result.connectedStatus" json-instance))
+           (dx-core--get-data-json "result.connectedStatus" json-instance))
           (t (funcall #'dx-handle-process-error--json json-instance)))))
 
 (defun dx--get-lwc-directory ()
@@ -261,5 +147,63 @@
   (if (< depth 1)
       (file-name-directory (directory-file-name file))
     (dx--find-parents (file-name-directory (directory-file-name file)) (- depth 1))))
+
+(cl-defmacro dx-core--project-process (&rest body &key cmd &allow-other-keys)
+  "Start project process."
+  `(let* ((callback (lambda (json-instance)
+                      ,@body))
+          (handle-callback (lambda (proc)
+                             (funcall callback (dx-parse-buffer-json (process-buffer proc))))))
+     (apply #'dx-start-process handle-callback (cons dx-project-command-alias ,cmd))))
+
+(cl-defmacro dx-core--apex-process (&rest body &key cmd &allow-other-keys)
+  "Start apex process."
+  `(let* ((callback (lambda (json-instance)
+                      ,@body))
+          (handle-callback (lambda (proc)
+                             (funcall callback (dx-parse-buffer-json (process-buffer proc))))))
+     (apply #'dx-start-process handle-callback (cons dx-apex-command-alias ,cmd))))
+
+(cl-defmacro dx-core--visualforce-process (&rest body &key cmd &allow-other-keys)
+  "Start apex process."
+  `(let* ((callback (lambda (json-instance)
+                      ,@body))
+          (handle-callback (lambda (proc)
+                             (funcall callback (dx-parse-buffer-json (process-buffer proc))))))
+     (apply #'dx-start-process handle-callback (cons dx-visualforce-command-alias ,cmd))))
+
+(cl-defmacro dx-core--data-process (&rest body &key cmd &allow-other-keys)
+  "Start data process."
+  `(let* ((callback (lambda (json-instance)
+                      ,@body))
+          (handle-callback (lambda (proc)
+                             (funcall callback (if (member "--json" ,cmd)
+                                                   (dx-parse-buffer-json (process-buffer proc))
+                                                 (process-buffer proc))))))
+     (apply #'dx-start-process handle-callback (cons dx-data-command-alias ,cmd))))
+
+(cl-defmacro dx-core--org-process (&rest body &key cmd &allow-other-keys)
+  "Start org process."
+  `(let* ((callback (lambda (json-instance)
+                      ,@body))
+          (handle-callback (lambda (proc)
+                             (funcall callback (dx-parse-buffer-json (process-buffer proc))))))
+     (apply #'dx-start-process handle-callback (cons dx-org-command-alias ,cmd))))
+
+(cl-defmacro dx-core--lightning-process (&rest body &key cmd &allow-other-keys)
+  "Start lightning process."
+  `(let* ((callback (lambda (json-instance)
+                      ,@body))
+          (handle-callback (lambda (proc)
+                             (funcall callback (dx-parse-buffer-json (process-buffer proc))))))
+     (apply #'dx-start-process handle-callback (cons dx-lightning-command-alias ,cmd))))
+
+(cl-defmacro dx-core--config-process (&rest body &key cmd &allow-other-keys)
+  "Start lightning process."
+  `(let* ((callback (lambda (json-instance)
+                      ,@body))
+          (handle-callback (lambda (proc)
+                             (funcall callback (dx-parse-buffer-json (process-buffer proc))))))
+     (apply #'dx-start-process handle-callback (cons "config" ,cmd))))
 
 (provide 'dx-core)

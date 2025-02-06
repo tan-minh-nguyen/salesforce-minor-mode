@@ -9,7 +9,7 @@
   :type 'boolean
   :group 'dx-minor-mode)
 
-(defcustom dx-api-version nil
+(defcustom dx-api-version "53.0"
   "Custom define api version for command."
   :type 'string
   :group 'dx-minor-mode)
@@ -97,6 +97,9 @@
 
 (defvar-local dx-default-test-path "force-app/main/default/lightningTests"
   "Path save test components")
+
+(defvar-local dx-default-object-path "force-app/main/default/objects"
+  "Path save object metadata.")
 
 (defvar-local dx-package-dir "manifest"
   "Custom define api version for command")

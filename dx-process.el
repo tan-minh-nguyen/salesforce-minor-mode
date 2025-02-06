@@ -1,101 +1,9 @@
-;; -*- no-byte-compile: t; no-native-compile: t; lexical-binding: t -*-
+;; dx-process.el -*- no-byte-compile: t; no-native-compile: t; lexical-binding: t -*-
 (require 'dx-config)
 (require 'alert)
 (require 'cl)
 (require 'json)
 (require 'async)
-
-
-
-(defun dx--process-parse-json (content)
-  "Parse `content' to json."
-  (condition-case json-instance
-      (json-parse-string content :object-type 'plist)
-    (:sucess json-instance)
-    (error (cond ((string-match-p "json-parse-error" (symbol-name (car json-instance)))
-                  (alert "something wrong with JSON result."
-                         :title "DX Alert"
-                         :severity 'urgent))
-                 (t (alert (message json-instance)
-                           :title "DX Alert"
-                           :severity 'urgent))))))
-
-(defun dx-make-handle-error-process (&optional buffer)
-  "Handle errors for process."
-  (let ((output-buffer (or buffer (generate-new-buffer dx-process-error-buffer))))
-    (make-pipe-process
-     :name dx-process-error-buffer
-     :buffer output-buffer
-     :noquery nil
-     :sentinel
-     (lambda (process event) 
-       (with-current-buffer output-buffer
-         (beginning-of-buffer)
-
-         (condition-case json-instance
-             (json-parse-buffer)
-           (error (cond ((= (buffer-size) 0)
-                         nil)
-                        (t
-                         (alert (replace-regexp-in-string "" "" (buffer-string))
-                                :title "Salesforce Alert"
-                                :severity 'urgent))))))))))
-
-(cl-defun dx-make-process (&key cmd type callback)
-  "Use to make process for all dx command on dx cli.
-
-     `cmd': command want to run use list type.
-     `type': type of process, accept value is async or sync.
-     OPTION `body': function call after process complete, use for async type and use process result as parameter."
-  (unless (member type '(async sync))
-    (error "Invalid type of process"))
-
-  (with-environment-variables (("NODE_NO_WARNINGS" "1"))
-    (let* ((output-result-buffer (generate-new-buffer dx-process-success-buffer))
-           (output-error-buffer (generate-new-buffer dx-process-error-buffer))
-           (dx-process
-            (make-process
-             :name "dx"
-             :command cmd
-             :buffer (get-buffer-create dx-process-buffer)
-             :filter
-             (lambda (process output)
-               (with-current-buffer output-result-buffer
-                 (insert output)))
-             :stderr (dx-make-handle-error-process output-error-buffer))))
-
-      (pcase type
-        ('async
-         (set-process-sentinel dx-process
-                               (lambda (process event)
-                                 (message "Execute %s success" (string-join cmd " "))
-
-                                 (funcall callback
-                                          (dx-process-get-content output-result-buffer))
-
-                                 (dx-process-reset (list output-result-buffer output-error-buffer)))))
-        ('sync
-         (when (accept-process-output dx-process))
-         (message "Execute %s success" (string-join cmd " "))
-
-         (prog1 (dx-process-get-content output-result-buffer)
-           (dx-process-reset (list output-result-buffer output-error-buffer))))))))
-
-(defmacro dx-process-get-content (buffer)
-  "Get content of process."
-  `(with-current-buffer (get-buffer ,buffer)
-     (buffer-string)))
-
-(defun dx--execute-asynchronous-process (process-list &optional params)
-  "Execute asynchronous action."
-  (async-let ((proc (pop process-list)))
-    (async-start (lambda ()
-                   (cond ((fboundp proc)
-                          (funcall proc))
-                         (t
-                          (funcall-interactively proc))))
-                 (lambda (result)
-                   (message "%s" result)))))
 
 (defun dx-make-chain-process (&rest process-list &key params &allow-other-keys)
   "Chain all processes."
@@ -111,22 +19,13 @@
                                                     :severity 'urgent)))))
                    (dx-make-chain-process (car process-list) :params result-proc))))))
 
-(cl-defmacro dx-make-process-json-async (&rest body &key cmd &allow-other-keys)
+(cl-defmacro dx-process--make-handle-json (&rest body &key cmd &allow-other-keys)
   "Execute async dx cli command and return json result."
-  `(let ((cb (lambda (content)
-               (let ((json-instance (json-parse-string content :object-type 'plist)))
-                 ,@body))))
-     (condition-case json-instance
-         (dx-make-process :cmd ,cmd
-                          :type 'async 
-                          :callback cb)
-       (error (cond ((string-match-p "json-parse-error" (symbol-name (car json-instance)))
-                     (alert "something wrong with JSON result."
-                            :title "DX Alert"
-                            :severity 'urgent))
-                    (t (alert (message json-instance)
-                              :title "DX Alert"
-                              :severity 'urgent)))))))
+  `(let* ((callback (lambda (json-instance)
+                      ,@body))
+          (handle-callback (lambda (proc)
+                             (funcall callback (dx-parse-buffer-json (process-buffer proc))))))
+        (apply #'dx-start-process handle-callback ,cmd)))
 
 (cl-defmacro dx-make-process-json-sync (&key cmd)
   "Execute sync dx cli command and return json result."
@@ -141,14 +40,67 @@
                             :title "DX Alert"
                             :severity 'urgent))))))
 
-(defun dx-process-reset (buffers)
-  (mapc (lambda (buffer)
-          (when buffer
-            (with-current-buffer buffer
-              (let ((set-buffer-modified-p nil))
-                (ignore-errors
-                  (kill-process)
-                  (kill-this-buffer))))))
-        buffers))
+;; Async library
+(defun dx-start-process (&optional callback &rest params &allow-other-keys)
+  "Start dx process."
+  (message "%s" params)
+  (apply #'async-start-process "dx-process"
+         dx-lib-alias 
+         callback
+         params))
+           
+
+(defun dx-parse-buffer-json (buffer)
+  "Parsing json on buffer."
+  (condition-case data
+      (with-current-buffer buffer
+        (beginning-of-buffer)
+        (json-parse-buffer :object-type 'plist))
+   (:succes data)
+   (error (with-current-buffer buffer (buffer-string)))))
+
+(defun dx-process--handle-error-metadata-action (json-instance)
+  "Get error messages of metadata action."
+  (mapconcat (lambda (component-error)
+               (format "Metadata name: %s\nMetadata type: %s\nLine: %s\nError: %s"
+                       (plist-get component-error :fileName)
+                       (plist-get component-error :componentType)
+                       (plist-get component-error :lineNumber)
+                       (plist-get component-error :problem)))
+             ;; List of error messages
+             (dx-core--get-data-json "result.details.componentFailures" json-instance)
+             ;; Separator for each failed components
+             "\n=======================\n"))
+             
+
+(defun dx-process--handle-common-error (json-instance)
+  "Get common error message in fail operation."
+  (format "Name: %s\nMessage: %s" 
+          (plist-get json-instance :name)
+          (plist-get json-instance :message)))
+
+(defun dx-handle-process-error--json (json-instance)
+  "Handle error response by dx process."
+  (let ((show-message (cond 
+                       ;; TODO: handle error base on type of action instead of status prop
+                       ((not (plist-member json-instance :context)) 
+                        (dx-process--handle-error-metadata-action json-instance))
+                       (t (dx-process--handle-common-error json-instance)))))
+
+    (alert show-message
+           :title "DX Alert"
+           :category 'error
+           :severity 'urgent)
+    show-message))
+
+;; Modify async package to handle signal process
+(defun dx--async-when-done (proc &optional _change)
+  "Handle signal process return from sf package."
+  (when-let ((_ (eq (process-exit-status proc) 1))
+             (_ (string= "dx-process" (process-name proc))))
+    (condition-case error
+        (dx-handle-process-error--json (dx-parse-buffer-json (process-buffer proc))))))
+
+(advice-add 'async-when-done :after #'dx--async-when-done)
 
 (provide 'dx-process)
