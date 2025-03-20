@@ -1,22 +1,39 @@
-#+title:    Salesforce-Minor-Mode
+#+title: Salesforce Development Tools for Emacs
 
 * Table Of Contents :toc_1:
+- [[#overview][Overview]]
 - [[#dependencies][Dependencies]]
-- [[#quick-setup][Quick Setup]]
+- [[#installation][Installation]]
 - [[#features][Features]]
+- [[#key-bindings][Key Bindings]]
+- [[#configuration][Configuration]]
+- [[#contributing][Contributing]]
+
+* Overview
+This package provides comprehensive Salesforce development tools for Emacs, including:
+
+- Apex development support
+- SOQL query execution
+- Salesforce DX integration
+- Lightning Web Components (LWC) support
+- Metadata deployment and retrieval
+- Test execution and debugging
+- Data import/export tools
 
 * Dependencies
 + [[https://developer.salesforce.com/docs/atlas.en-us.sfdx_setup.meta/sfdx_setup/sfdx_setup_install_cli.htm#sfdx_setup_install_cli_npm][Salesforce CLI]]
++ Emacs 27.1 or later
++ treesit (for syntax highlighting)
 
-* Quick Setup
-** Doom Package
+* Installation
+** Doom Emacs
 #+begin_src emacs-lisp
-(use-package! salesforce-miner-mode
-   :recipe (:host github :repo "furucrm-minhtan/salesforce-minor-mode" :fiels ("*.el")))
+(use-package! salesforce-minor-mode
+   :recipe (:host github :repo "furucrm-minhtan/salesforce-minor-mode" :files ("*.el")))
 #+end_src
-* Features
-** Deploy metadata [:white_check_mark:]
-** Retrieve metadata [:white_check_mark:]
-** Open default org [:white_check_mark:]
-** Run test class [:white_check_mark:]
-** Run all test class [:white_check_mark:]
+
+** Vanilla Emacs
+Clone the repository and add to your load path:
+#+begin_src emacs-lisp
+(add-to-list 'load-path "/path/to/salesforce-minor-mode")
+(require 'salesforce-minor-mode)
