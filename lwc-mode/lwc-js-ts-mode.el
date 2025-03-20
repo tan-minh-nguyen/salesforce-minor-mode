@@ -109,15 +109,50 @@
 
 
 (defvar lwc-js-ts-mode--js-indent-rules
-  `(javascript
-    ((parent-is ,(regexp-opt '("variable_declaration" "function_declaration"))) column-0 lwc-js-ts-mode--indent-offset)
-    ((node-is "statement_block") prev-sibling 2)
-    ((parent-is "statement_block") parent-bol lwc-js-ts-mode--indent-offset)
-    ((parent-is "object") parent lwc-js-ts-mode--indent-offset)
-    ((field-name "object") parent lwc-js-ts-mode--indent-offset)
-    ((node-is ,(regexp-opt '("property_identifier" "return_statement")) parent-bol lwc-js-ts-mode--indent-offset))
-    ((node-is "}") parent-bol 0)
-    (no-node parent 0))
+  `(javascript ((parent-is "program") parent-bol 0) ((node-is "}") parent-bol 0)
+               ((node-is ")") parent-bol 0) ((node-is "]") parent-bol 0)
+               ((node-is ">") parent-bol 0)
+               ((and (parent-is "comment") c-ts-common-looking-at-star)
+                c-ts-common-comment-start-after-first-star -1)
+               ((parent-is "comment") prev-adaptive-prefix 0)
+               ((parent-is "ternary_expression") parent-bol js-indent-level)
+               ((parent-is "member_expression") parent-bol js-indent-level)
+               ((node-is "switch_\\(?:case\\|default\\)") parent-bol 0)
+               ((node-is "statement_block") parent-bol js-indent-level)
+               ((parent-is "named_imports") parent-bol js-indent-level)
+               ((parent-is "statement_block") parent-bol js-indent-level)
+               ((parent-is "variable_declarator") parent-bol js-indent-level)
+               ((parent-is "arguments") parent-bol js-indent-level)
+               ((parent-is "array") parent-bol js-indent-level)
+               ((parent-is "formal_parameters") parent-bol js-indent-level)
+               ((parent-is "template_string") no-indent)
+               ((parent-is "template_substitution") parent-bol js-indent-level)
+               ((parent-is "object_pattern") parent-bol js-indent-level)
+               ((parent-is "object") parent-bol js-indent-level)
+               ((parent-is "pair") parent-bol js-indent-level)
+               ((parent-is "arrow_function") parent-bol js-indent-level)
+               ((parent-is "parenthesized_expression") parent-bol js-indent-level)
+               ((parent-is "binary_expression") parent-bol js-indent-level)
+               ((parent-is "class_body") parent-bol js-indent-level)
+               ((parent-is "switch_\\(?:case\\|default\\)") parent-bol
+                js-indent-level)
+               ((parent-is "statement_block") parent-bol js-indent-level)
+               ((match "while" "do_statement") parent-bol 0)
+               ((match "else" "if_statement") parent-bol 0)
+               ((parent-is
+                 "\\(?:do\\|for\\(?:_in\\)?\\|if\\|while\\)_statement\\|else_clause")
+                parent-bol js-indent-level)
+               ((match "<" "jsx_text") parent 0)
+               ((parent-is "jsx_text") parent js-indent-level)
+               ((node-is "jsx_closing_element") parent 0)
+               ((match "jsx_element" "statement") parent js-indent-level)
+               ((parent-is "jsx_element") parent js-indent-level)
+               ((parent-is "jsx_text") parent-bol js-indent-level)
+               ((parent-is "jsx_opening_element") parent js-indent-level)
+               ((parent-is "jsx_expression") parent-bol js-indent-level)
+               ((match "/" "jsx_self_closing_element") parent 0)
+               ((parent-is "jsx_self_closing_element") parent js-indent-level)
+               (no-node parent-bol 0))
   "Indent rules for javascript on lwc component.")
 
 ;; Config indent rules is apply for Visualforce page,
@@ -153,29 +188,18 @@
                     index))))
             treesit-simple-imenu-settings)))
 
-(defun lwc-js-ts-mode--css-setup ()
-  "Setup font lock settings for css."
-  (when-let ((_ (treesit-ready-p 'css t)))
-
-    (treesit-range-rules
-     :embed 'css
-     :host 'html
-     '((style_element (raw_text) @capture)))))
-
-;; (defun lwc-js-ts-mode--js-setup ()
-;;   "Setup font lock settings for javascript."
-;;   (when-let (_ (treesit-ready-p 'javascript t))
-
-;;     (treesit-range-rules
-;;      :embed 'javascript
-;;      :host 'html
-;;      '((script_element (raw_text) @capture)))))
-
+;;;###autoload
 (defun lwc-js-ts-mode--js-file ()
   "JS settings of tree-sitter for `lwc-js-ts-mode'."
 
   (treesit-parser-create 'javascript)
 
+  ;; Electric-indent.
+  (setq-local electric-indent-chars
+              (append "{}():;,<>/" electric-indent-chars)) ;FIXME: js2-mode adds "[]*".
+
+  (setq-local electric-layout-rules
+	          '((?\; . after) (?\{ . after) (?\} . before)))
   ;; Font-lock.
   (setq-local treesit-font-lock-settings
               `(,@lwc-js-ts-mode--js-font-lock-settings))
@@ -185,10 +209,17 @@
                 (declaration operator constant function)
                 (bracket delimiter)))
 
-  ;; Electric
-
   ;; Indent.
   (setq-local treesit-simple-indent-rules `((,@lwc-js-ts-mode--js-indent-rules)))
+
+  (setq-local treesit-defun-name-function #'js--treesit-defun-name)
+
+  ;; Navigation.
+  (setq-local treesit-defun-type-regexp
+              (rx (or "class_declaration"
+                     "method_definition"
+                     "function_declaration"
+                     "lexical_declaration")))
 
   ;; Imenu
   (setq-local treesit-simple-imenu-settings
@@ -197,20 +228,11 @@
                 ("Expression" lwc-js-ts-mode--expression-p nil lwc-ts-mode--format-expression html)
                 ;; JS
                 ("Variable" "\\`lwc_declaration\\'" nil (lambda (node)
-                                                               (treesit-node-text (treesit-node-child-by-field-name node "name"))))
+                                                          (treesit-node-text (treesit-node-child-by-field-name node "name"))))
                 ("Function" "\\`function_declaration\\'" nil (lambda (node)
                                                                (treesit-node-text (treesit-node-child-by-field-name node "name"))))))
 
   ;; (setq treesit--indent-verbose t)
-  (treesit-major-mode-setup))
-
-;;;###autoload
-(define-derived-mode lwc-js-ts-mode fundamental-mode "lwc"
-  "Major mode use tree-sitter for Visualforce page, powered by tree-sitter."
-  :group 'lwc-js-ts-mode
-
-  (unless (treesit-ready-p 'javascript t)
-    (error "Tree-sitter for js isn't available."))
-  (lwc-js-ts-mode--js-file))
+  )
 
 (provide 'lwc-js-ts-mode)

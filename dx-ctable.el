@@ -1,5 +1,5 @@
 ;; -*- no-byte-compile: t; no-native-compile: t; lexical-binding: t -*-
-(require 'dx-config)
+
 (require 'ctable)
 
 (cl-defun dx-table--create-table (&key model buffer open)

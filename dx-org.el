@@ -1,5 +1,6 @@
 ;; -*- no-byte-compile: t; no-native-compile: t; lexical-binding: t -*-
 (require 'dx-core)
+(require 'dx-soql)
 
 ;;TODO: create transient menu
 
@@ -7,7 +8,7 @@
   "Use a specific user name to open org"
   (interactive)
   (let ((user-name (or (ctbl:cp-get-selected-data-cell (ctbl:cp-get-component))
-                      (read-string "user name:"))))
+                       (read-string "user name:"))))
 
     (dx-core--org-process
      :cmd (list "org" "open" "--json" "-o" user-name "-r")
@@ -111,13 +112,76 @@
   (dx-core--org-process
    :cmd `("list" "--json" "--skip-connection-status")
    (funcall cb (remove-if #'null (append (mapcar (lambda (data)
-                                                (plist-get data :alias))
-                                              (dx-core--get-data-json
-                                               "result.other" json-instance))
-                                      (mapcar (lambda (data)
-                                                (plist-get data :alias))
-                                              (dx-core--get-data-json
-                                               "result.nonScratchOrgs" json-instance)))))))
+                                                   (plist-get data :alias))
+                                                 (dx-core--get-data-json
+                                                  "result.other" json-instance))
+                                         (mapcar (lambda (data)
+                                                   (plist-get data :alias))
+                                                 (dx-core--get-data-json
+                                                  "result.nonScratchOrgs" json-instance)))))))
 
+(defun dx-org-view-log ()
+  "View specific log."
+  (interactive)
+  (dx-org--fetch-logs
+   (lambda (log-list)
+     (let ((log-map (cl-loop for data in log-list
+                             with log-map = (make-hash-table :test #'equal)
+                             do (puthash (dx-core--get-data-json "Id" data) data log-map)
+                             finally return log-map))
+           (read-log (consult--read (hash-table-keys log--map)
+                                    :prompt "Log: "
+                                    :require-match t
+                                    :annotate (lambda (item)
+                                                (funcall #'dx-org--annotation item log-map)))))
+
+       (dx-core--apex-process
+        :cmd `("get" "log" "--log-id" ,read-log "--json")
+        (let ((file (create-file-buffer (format "%s%s.log" (dx--get-log-dir-path) read-log))))
+          (with-current-buffer file
+            (with-silent-modifications
+              (setf (buffer-string) (dx-core--get-data-json "result.0.log" json-instance))))
+          (alert (format "Fetch log %s success" read-log)
+                 :title "DX Alert")))))))
+
+(defun dx-org--annotation (item log-map)
+  "Build log annotate"
+  (let* ((data (gethash item log-map))
+         (size (/ (dx-core--get-data-json "LogLength" data) (* 1024 1024)))
+         (op (dx-core--get-data-json "Operation" data))
+         (time (format-time-string "%Y-%m-%d" (parse-time-string (dx-core--get-data-json "StartTime" data)))))
+
+    (list (propertize item 'face '(:width 10 :foreground "yellow")) nil (format "%s:%s" size time))))
+
+(defun dx-org--convert-log-to-obarray (log-list attrs)
+  "Generate obarray from plist."
+  (let ((array (obarray-make (* (length log-list) (length attrs)))))
+
+    (dolist (log-data log-list)
+      (dolist (attr attrs)
+        (obarray-put array (plist-get log-data attr))))))
+
+(defun dx-org--fetch-logs (callback)
+  "Fetch all logs list."
+  (dx-core--apex-process
+   :cmd ("log" "list" "--json")
+   (funcall callback (dx-core--get-data-json "result" json-instance))))
+
+;; TODO: Clear log with input date condition
+(defun dx-org-clear-log-data ()
+  "Clear all apex log on org."
+  (interactive)
+  (dx-org--fetch-org-list
+   (lambda (org-list)
+     (let ((temp-file (make-temp-file "log" nil ".csv"))
+           (org-name (completing-read "Org alias: " org-list nil nil dx-org-name)))
+
+       (dx-core--data-process
+        :cmd `("query" "--query" "SELECT Id FROM ApexLog" "-t" "-r" "csv" "-o" ,org-name)
+        ;; Save data to temp file.
+        (write-region (with-current-buffer json-instance (buffer-string)) nil temp-file)
+
+        ;; Clear log on org.
+        (dx-soql--delete-bulk "ApexLog" temp-file))))))
 
 (provide 'dx-org)

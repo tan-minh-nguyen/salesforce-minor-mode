@@ -1,8 +1,8 @@
 ;; -*- no-byte-compile: t; no-native-compile: t; lexical-binding: t -*-
 ;;; Code
 (require 'projectile)
-(require 'dx-config)
-(require 'dx-process)
+
+(require 'dx-core)
 (require 'dx-core)
 (require 'transient)
 
@@ -139,24 +139,6 @@
   ;; Clear hooks
   (remove-hook 'ediff-startup-hook #'dx-project--ediff-startup-hook)
   (remove-hook 'ediff-quit-hook #'dx-project--ediff-quit-hook))
-
-(defun dx-diff-metadata ()
-  "diff source between local project and salesforce platform."
-  (interactive)
-  (let ((full-file-name (buffer-file-name)))
-
-    (dx-source-backup
-     (condition-case error
-         (ediff (dx--find-backup-file (file-name-nondirectory full-file-name)
-                                      new-dir-name)
-                full-file-name
-                `((lambda ()
-                    (add-hook 'ediff-quit-hook #'dx-project--ediff-quit-hook)
-                    (add-hook 'ediff-startup-hook #'dx-project--ediff-startup-hook))))
-       (error
-        (alert (format "%s" error)
-               :title "DX Alert"
-               :severity 'urgent))))))
 
 (defun dx-diff-metadata-other-org ()
   "diff metadata between local and cloud."
@@ -364,5 +346,41 @@
   "View all sources changed on version control."
   (interactive)
   (dx-project--git-change-source-1))
+
+(defun dx-open-project-note ()
+  "Open note for current project."
+  (interactive)
+  (if-let ((note-file (plist-get (cl-find-if (lambda (el)
+                                               (string= (expand-file-name (plist-get el :project)) dx-project-root-dir))
+                                             dx-project-config)
+                                 :note-file)))
+
+      (display-buffer-in-side-window (find-file-noselect
+                                      (expand-file-name note-file))
+                                     '((side . right)
+                                       (window-width . 0.4)))
+    (error "note file not found.")))
+
+;; Select section to deploy
+;; use command convert metadata in cache to deploy able data?
+;; support apex only now
+
+(defun dx-org-preview-metadata-change ()
+  "diff source between local project and salesforce platform."
+  (interactive)
+  (let ((full-file-name (buffer-file-name)))
+
+    (dx-source-backup
+     (condition-case error
+         (ediff (dx--find-backup-file (file-name-nondirectory full-file-name)
+                                      new-dir-name)
+                full-file-name
+                `((lambda ()
+                    (add-hook 'ediff-quit-hook #'dx-project--ediff-quit-hook)
+                    (add-hook 'ediff-startup-hook #'dx-project--ediff-startup-hook))))
+       (error
+        (alert (format "%s" error)
+               :title "DX Alert"
+               :severity 'urgent))))))
 
 (provide 'dx-project)

@@ -9,27 +9,29 @@
   (add-to-list 'eglot-server-programs
                `((lwc-js-ts-mode :language-id "javascript") . (,lwc-ts-mode--lsp-path "--stdio" ,@lwc-ts-mode--eglot-config)))
   (add-to-list 'eglot-server-programs
-                `((lwc-html-ts-mode :language-id "html") . (,lwc-ts-mode--lsp-path "--stdio" ,@lwc-ts-mode--eglot-config))))
+               `((lwc-html-ts-mode :language-id "html") . (,lwc-ts-mode--lsp-path "--stdio" ,@lwc-ts-mode--eglot-config))))
 
-
-;; Auto detect file
-(defun lwc-ts-mode--lwc-file ()
-  "Dectect file in lwc directory `lwc-ts-mode'."
-  (when-let ((_ (dx-project-p))
-             (lwc-dir (expand-file-name dx-default-lwc-path (projectile-project-root))))
-    (string-search lwc-dir (buffer-file-name))))
 
 ;;;###autoload
-(defun lwc-ts-mode-enable-safe ()
-  "Enable `lwc-ts-mode'."
-  (interactive)
-  (cond ((and (lwc-ts-mode--lwc-file)
-            (eq (file-name-extension (buffer-file-name)) "js"))
-         (lwc-js-ts-mode))
-        ((and (lwc-ts-mode--lwc-file)
-            (eq (file-name-extension (buffer-file-name)) "html"))
-         (lwc-html-ts-mode))))
+(define-derived-mode lwc-ts-mode fundamental-mode "lwc"
+  "Major mode use tree-sitter for Visualforce page, powered by tree-sitter."
+  :group 'lwc
+  (cond ((string= (file-name-extension (buffer-file-name)) "js")
+         (unless (treesit-ready-p 'javascript t)
+           (error "Tree-sitter for js isn't available."))
+         (lwc-js-ts-mode--js-file))
+        ((string= (file-name-extension (buffer-file-name)) "html")
+         (unless (treesit-ready-p 'html t)
+           (error "Tree-sitter for html isn't available."))
+         (lwc-html-ts-mode--html-file)))
 
-(add-to-list 'auto-mode-alist '("\\.\\(js\\|html\\)\\'" . lwc-ts-mode-enable-safe))
+  (treesit-major-mode-setup)
+
+  (when (lwc-ts-mode--lwc-file)
+    (setq-default eglot-workspace-configuration '(:lwc-ts-mode (:documentSelector [(:language "html" :scheme "file")
+                                                                                   (:language "javascript" :scheme "file")
+                                                                                   (:language "typescript" :scheme "file")])))))
+
+;;(add-to-list 'auto-mode-alist '("\\.\\(js\\|html\\)\\'" . lwc-ts-mode))
 
 (provide 'lwc-ts-mode)

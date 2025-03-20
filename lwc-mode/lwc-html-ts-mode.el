@@ -164,7 +164,7 @@
                 ("Expression" lwc-html-ts-mode--expression-p nil lwc-ts-mode--format-expression html)
                 ;; JS
                 ("Variable" "\\`lwc_declaration\\'" nil (lambda (node)
-                                                               (treesit-node-text (treesit-node-child-by-field-name node "name"))))
+                                                          (treesit-node-text (treesit-node-child-by-field-name node "name"))))
                 ("Function" "\\`function_declaration\\'" nil (lambda (node)
                                                                (treesit-node-text (treesit-node-child-by-field-name node "name"))))))
 
@@ -175,14 +175,6 @@
 
   ;; (setq treesit--indent-verbose t)
   (treesit-major-mode-setup))
-
-;;;###autoload
-(define-derived-mode lwc-html-ts-mode fundamental-mode "lwc"
-  "Major mode use tree-sitter for Visualforce page, powered by tree-sitter."
-  :group 'lwc
-  (unless (treesit-ready-p 'html t)
-    (error "Tree-sitter for html isn't available."))
-  (lwc-html-ts-mode--html-file))
 
 ;; configuration lsp bridge
 ;; (defvar lwc-lsp-mode--root-dir (file-name-directory load-file-name)

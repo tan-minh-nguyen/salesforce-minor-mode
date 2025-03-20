@@ -4,27 +4,40 @@
 (require 'treesit)
 
 (defvar sflog-ts-mode--keywords
-  '("SELECT" "FROM" "LIMIT" "ORDER_BY"
-    "GROUP_BY" "HAVING" "DESC" "ASC" "OR" "AND"
-    "UPDATE" "EXCLUDES" "NULL" "WHERE" "WITH")
-  "Keywords use for soql statement.")
+  '("APEX_CODE" "DEBUG" "APEX_PROFILING" "CALLOUT"
+    "DB" "NBA" "SYSTEM" "VALIDATION" "VISUALFORCE" "WAVE"
+    "WORKFLOW" "EXTERNAL")
+  "Keywords use for SF log statement.")
 
 (defvar sflog-ts-mode--operators
-  '("=" "!=" "<>" ">" "<" "INCLUDES" "NOT_IN" "IN" "LIKE")
+  '()
   "Operators use for soql statement.")
 
 (defvar sflog-ts-mode--font-lock-settings
   (treesit-font-lock-rules
-   ;; SOQL rules
+   ;; SF log rules
+   ;; :language 'sflog
+   ;; :feature 'comment
+   ;; `((line_comment) @font-lock-comment-face
+   ;;   (block_comment) @font-lock-comment-face)
    :language 'sflog
-   :feature 'comment
-   `((line_comment) @font-lock-comment-face
-     (block_comment) @font-lock-comment-face)
+   :feature 'version
+   `((log_header (version)) @font-lock-constant-face)
    
    :language 'sflog
-   :override t
-   :feature 'operator
-   `([,@apex-ts-mode--soql-operators] @font-lock-operator-face)
+   :feature 'event
+   `((log_entry (timestamp (time) @font-lock-comment-face
+                           (duration) @font-lock-number-face)
+                (event_identifier) @font-lock-constant-face)
+     ((location [(number) "EXTERNAL"] @font-lock-type-face))
+     ((event_detail) @font-lock-variable-name-face)
+     ((event_detail_value) @font-lock-string-face))
+
+   :language 'sflog
+   :feature 'limit
+   `((limit (identifier) @font-lock-builtin-face
+            (number) @font-lock-regexp-face
+            (number) @font-lock-constant-face))
 
    :language 'sflog
    :override t
@@ -33,44 +46,13 @@
 
    :language 'sflog
    :override t
-   :feature 'definition
-   '((field_identifier) @font-lock-property-use-face
-     (storage_identifier) @font-lock-constant-face)
-
-   :language 'sflog
-   :override t
-   :feature 'literal
-   '((string_literal) @font-lock-string-face
-     [(int) (decimal)] @font-number-face)
-
-   :language 'sflog
-   :override t
-   :feature 'alias
-   '((storage_alias (identifier) @font-lock-variable-name-face))
-
-   :language 'sflog
-   :override t
-   :feature 'type
-   '([(fields_type) (update_type)] @font-lock-type-face)
-   
-   :language 'sflog
-   :override t
-   :feature 'error
-   '([(ERROR)] @font-lock-apex-error-face)
-
-   :language 'sflog
    :feature 'bracket
    '((["(" ")" "[" "]" "{" "}"]) @font-lock-bracket-face)
 
    :language 'sflog
    :override t
-   :feature 'literal
-   '((string_literal) @font-lock-string-face
-     [(int) (decimal)] @font-number-face)
-   
-   :language 'sflog
    :feature 'delimiter
-   '((["," ":" ";"]) @font-lock-delimiter-face))
+   '((["|" ":"]) @font-lock-delimiter-face))
   "Tree-sitter font lock rules for `sflog-ts-mode'.")
 
 (defvar sflog-ts-mode--indent-rules
@@ -89,16 +71,18 @@
   
   (setq-local treesit-font-lock-settings sflog-ts-mode--font-lock-settings)
   (setq-local treesit-font-lock-feature-list
-              '((comment)
-                (keyword definition type alias)
-                (literal error)
-                (bracket delimiter operator)))
+              '((event keyword limit)
+                (delimiter version)))
+
+  ;; Imenu.
+  ;; (setq-local treesit-simple-imenu-settings
+  ;;             '(("Limit" "\\`limit\\'" nil sflog-ts-mode--limit-usage)))
 
   (treesit-major-mode-setup))
 
 ;;;###autoload
-(define-derived-mode sflog-ts-mode prog-mode "SOQL"
-  "Major mode for editing SOQL, powered by tree-sitter."
+(define-derived-mode sflog-ts-mode prog-mode "SFLog"
+  "Major mode for editing SF log, powered by tree-sitter."
   :group 'sflog
   (unless (treesit-ready-p 'sflog)
     (error "Tree-sitter for Apex isn't available"))
@@ -106,6 +90,6 @@
   (treesit-parser-create 'sflog)
   (sflog-ts-mode--setup))
 
-(add-to-list 'auto-mode-alist '("\\.soql\\'" . sflog-ts-mode))
+(add-to-list 'auto-mode-alist '("\\.log\\'" . sflog-ts-mode))
 
 (provide 'sflog-ts-mode)

@@ -50,9 +50,9 @@
   (save-match-data
     (cl-block nil
       (while t
-        (let ((str (read-directory-name prompt initial-input nil nil history)))
+        (let ((str (read-directory-name prompt initial-input)))
           (unless (string-equal str "")
-            (cl-return str)))
+            (cl-return (expand-file-name str))))
         (message (or message-error "Please select a directory name."))
         (sit-for 1)))))
 

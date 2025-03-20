@@ -1,14 +1,11 @@
 ;; -*- no-byte-compile: t; no-native-compile: t; lexical-binding: t -*-
 ;;; Salesforce minor mode -- add sf cli to emacs
-(require 'dx-config)
+
 (require 'dx-ctable)
 (require 'dx-core)
 (require 'dx-apex)
 (require 'dx-org)
-(require 'dx-feature)
 (require 'dx-project)
-(require 'dx-query)
-(require 'dx-log)
 ;; load core packages
 (require 'apex-ts-mode)
 (require 'ob-apex)
@@ -42,12 +39,12 @@
     ;; (keymap-set map "M-q f" (cons "Ex" #'dx-fetch-dx-file))
 
     ;; visualforce features
-    (keymap-set map "M-c v" (cons "Create Visualforce Page" #'dx-visualforce-generate-page))
-    (keymap-set map "M-c C" (cons "Create Visualforce Component" #'dx-visualforce-generate-component))
+    ;;(keymap-set map "M-c v" (cons "Create Visualforce Page" #'dx-visualforce-generate-page))
+    ;;(keymap-set map "M-c C" (cons "Create Visualforce Component" #'dx-visualforce-generate-component))
 
     ;; metadata features
     (keymap-set map "M-m t" (cons "Source Tracker" #'dx-source-tracker))
-    (keymap-set map "M-m d" (cons "Diff Source" #'dx-diff-metadata))
+    (keymap-set map "M-m d" (cons "Diff Source" #'dx-org-preview-metadata-change))
     (keymap-set map "M-m D" (cons "Diff Source Multi Org" #'dx-diff3-metadata))
     map)
   "Keymap for `dx-minor-mode'.")

@@ -2,7 +2,6 @@
 
 (require 'dx-soql)
 (require 'dx-core)
-(require 'dx-process)
 (require 'dx-transient-menu)
 
 (defcustom dx-data-wait-value 10
