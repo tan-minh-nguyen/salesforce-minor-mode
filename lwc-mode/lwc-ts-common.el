@@ -21,7 +21,7 @@ This list will be passed to Eglot for configuring the LSP client."
 NODE is the treesit node to process. OVERride determines how face properties
 are applied (t, prepend, or append). START and END define the buffer region
 to process. Handles both property binding and expression keywords."
-  (let* ((node-text (treesit-node-text NODE t))
+  (let* ((node-text (treesit-node-text node t))
          (node-pos (treesit-node-start NODE))
          (matches (lwc-ts-mode--extract-expression node-text)))
 
@@ -106,8 +106,8 @@ in the buffer, OVERride controls face property application."
   "Check if NODE represents an LWC template expression.
 Returns non-nil if the node is an attribute value or text node containing
 template expression syntax like {variable}."
-  (when-let ((node-type (treesit-node-type NODE))
-             (node-text (treesit-node-text NODE t)))
+  (when-let ((node-type (treesit-node-type node))
+             (node-text (treesit-node-text node t)))
 
     (and (or (string= "attribute_value" node-type)
           (string= "text" node-type))
@@ -116,7 +116,7 @@ template expression syntax like {variable}."
 (defun lwc-ts-mode--element-p (node)
   "Check if NODE represents an HTML element tag.
 Returns non-nil for both self-closing (<tag/>) and regular opening tags (<tag>)."
-  (when-let ((node-type (treesit-node-type NODE)))
+  (when-let ((node-type (treesit-node-type node)))
 
     (or (string= "self_closing_tag" node-type)
        (string= "start_tag" node-type))))
@@ -124,7 +124,7 @@ Returns non-nil for both self-closing (<tag/>) and regular opening tags (<tag>).
 (defun lwc-ts-mode--find-component (node)
   "Check if NODE represents an LWC component tag.
 Components are identified by the presence of a namespace prefix (colon) in the tag name."
-  (when-let (tag-name (treesit-node-text (treesit-node-child NODE 1 "tag_name")))
+  (when-let (tag-name (treesit-node-text (treesit-node-child node 1 "tag_name")))
 
     (string-match-p ":" tag-name)))
 
