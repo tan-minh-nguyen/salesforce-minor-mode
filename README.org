@@ -37,3 +37,4 @@ Clone the repository and add to your load path:
 #+begin_src emacs-lisp
 (add-to-list 'load-path "/path/to/salesforce-minor-mode")
 (require 'salesforce-minor-mode)
+#+end_src
