@@ -155,8 +155,8 @@ Returns the final node at the end of the traversal path."
                       0)))
 
     (if (length> depth-list 1)
-        (lwc-ts-mode--rescursion-children-node
-         (treesit-node-child NODE index node-name)
+        (lwc-ts-mode--recursion-children-node
+         (treesit-node-child node index node-name)
          (cdr depth-list))
       (treesit-node-child NODE index node-name))))
 
