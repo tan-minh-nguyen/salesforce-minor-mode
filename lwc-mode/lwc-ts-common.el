@@ -167,26 +167,26 @@ First calls `lwc-ts-mode--recursion-children-node' with DEPTH-LIST,
 then returns the text of the resulting node."
   (treesit-node-text (lwc-ts-mode--recursion-children-node node depth-list) t))
 
-(defun lwc-ts-mode--format-element (NODE)
-  "Find tag name NODE."
-  (let* ((attr-nodes (treesit-node-children NODE "attribute"))
-         (id-format `(lambda (node)
-                       (concat "#" (lwc-ts-mode--rescursion-children-node-text node
-                                                                               '(-1 "attribute_value")))))
-         (class-format `(lambda (node)
-                          (when-let ((class-node (lwc-ts-mode--rescursion-children-node-text node
-                                                                                             '(-1 "attribute_value"))))
-                            (concat "."
-                                    (string-join (split-string class-node) " .")))))
+(defun lwc-ts-mode--format-element (node)
+  "Format element information for Imenu display.
+NODE is the treesit element node to format. Returns a string combining
+the tag name with CSS selectors from id and class attributes."
+  (let* ((attr-nodes (treesit-node-children node "attribute"))
+         (format-id-attribute
+          (lambda (n)
+            (concat "#" (lwc-ts-mode--recursion-children-node-text n '(-1 "attribute_value")))))
+         (format-class-attribute
+          (lambda (n)
+            (when-let ((class-val (lwc-ts-mode--recursion-children-node-text n '(-1 "attribute_value"))))
+              (concat "." (string-join (split-string class-val) " .")))))
 
-         (attr-string (mapconcat (lambda (node)
-                                   (pcase (treesit-node-text (treesit-node-child node 0 "attribute_name") t)
-                                     ("id"
-                                      (funcall id-format node))
-                                     ((or "class" "styleClass")
-                                      (funcall class-format node))
-                                     (_ "")))
-                                 attr-nodes)))
-    (concat (lwc-ts-mode--rescursion-children-node-text NODE '("tag_name")) attr-string)))
+         (formatted-attributes (mapconcat 
+                                (lambda (n)
+                                  (pcase (treesit-node-text (treesit-node-child n 0 "attribute_name") t)
+                                    ("id" (funcall format-id-attribute n))
+                                    ((or "class" "styleClass") (funcall format-class-attribute n))
+                                    (_ "")))
+                                attr-nodes)))
+    (concat (lwc-ts-mode--recursion-children-node-text node '("tag_name")) formatted-attributes)))
 
 (provide 'lwc-ts-common)
