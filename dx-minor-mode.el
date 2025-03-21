@@ -23,7 +23,7 @@
     (keymap-set map "M-o o" (cons "Open Org" #'dx-org-open-current))
     (keymap-set map "M-o n" (cons "View All Orgs" #'dx-org-display-all-orgs))
     (keymap-set map "M-o m" (cons "View All Devhubs" #'dx-org-display-all-devhubs))
-    (keymap-set map "M-o N" (cons "Notes" #'dx-open-project-note))
+    (keymap-set map "M-o N" (cons "Notes" #'dx-project-open-note))
 
     ;; log features
     (keymap-set map "M-o l" (cons "Clear Log" #'dx-clear-log))

@@ -77,34 +77,37 @@
   :type 'string
   :group 'dx-minor-mode)
 
-(defcustom dx-metadata-root-dir "force-app/main/default"
-  "Root Salesforce directory"
-  :type 'string
+(defcustom dx-metadata-define-roots '((default . "force-app/main/default"))
+  "List Root Salesforce directories."
+  :type 'alist
   :group 'dx-minor-mode)
 
-(defvar dx-trigger-dir "force-app/main/default/triggers"
+(defvar dx-metadata-root-dir "force-app/main/default"
+  "Root Salesforce directory.")
+
+(defvar dx-trigger-dir "triggers"
   "Path save apex classes")
 
-(defvar dx-default-apex-class-path "force-app/main/default/classes"
-  "Path save apex classes")
+(defvar dx-apex-dir "classes"
+  "Directory path for Apex classes")
 
-(defvar dx-default-lwc-path "force-app/main/default/lwc"
-  "Path save lwc components")
+(defvar dx-lwc-dir "lwc"
+  "Directory path for LWC components")
 
-(defvar dx-default-aura-path "force-app/main/default/aura"
-  "Path save aura components")
+(defvar dx-aura-dir "aura" 
+  "Directory path for Aura components")
 
-(defvar dx-default-vf-path "force-app/main/default/pages"
-  "Path save visualforce page")
+(defvar dx-vf-dir "pages"
+  "Directory path for Visualforce pages")
 
-(defvar dx-default-vf-components-path "force-app/main/default/components"
-  "Path save visualforce page")
+(defvar dx-vf-component-dir "components"
+  "Directory path for Visualforce components")
 
-(defvar dx-default-test-path "force-app/main/default/lightningTests"
-  "Path save test components")
+(defvar dx-test-dir "lightningTests"
+  "Directory path for test components")
 
-(defvar dx-default-object-path "force-app/main/default/objects"
-  "Path save object metadata.")
+(defvar dx-object-dir "objects"
+  "Directory path for object metadata")
 
 (defvar dx-package-dir "manifest"
   "Custom define api version for command")
@@ -228,32 +231,40 @@
 
     (add-to-list 'remap-list (funcall lambda-function first-item))))
 
-(defun dx-core--get-data-json (path table)
-  "Get all data follow the path in hash table"
-  (let* ((path-splited (split-string path "\\."))
-         (key (car path-splited))
-         (value (cond
-                 ((plistp table)
-                  (plist-get table key (lambda (prop key)
-                                         (string= (format ":%s" key) (symbol-name prop)))))
-                 ((arrayp table)
-                  (aref table (string-to-number key)))
-                 (t
-                  (gethash key table))))
-         (key-remain (cdr path-splited)))
+(defun dx-core--get-json-value (table key)
+  "Get value from TABLE by KEY based on data structure type."
+  (cond
+   ((plistp table)
+    (plist-get table key (lambda (prop key)
+                (string= (format ":%s" key) (symbol-name prop))))
+   ((arrayp table)
+    (aref table (string-to-number key)))
+   (t
+    (gethash key table)))))
 
-    (cond (key-remain
-           (dx-core--get-data-json
-            (string-join key-remain ".")
-            value))
-          (t
-           value))))
+(defun dx-core--get-data-json (path table)
+  "Get nested data from TABLE following the dot-separated PATH.
+Example: (dx-core--get-data-json \"result.data.0.name\" table)"
+  (let* ((path-parts (split-string path "\\."))
+    (cl-reduce (lambda (acc key)
+                (dx-core--get-json-value acc key))
+              path-parts
+              :initial-value table))))
 
 (defun dx-find-root-dir ()
   (cdr (project-current)))
 
 (defun dx-core--build-path (&rest args)
+  "Build a full path from root directory and additional path components."
   (mapconcat 'identity `(,(dx-find-root-dir) ,@args)))
+
+(defun dx-core--metadata-path (&optional path)
+  "Get full path for metadata directory.
+If PATH is provided, append it to the metadata root directory."
+  (let ((base-path (expand-file-name dx-metadata-root-dir (dx-find-root-dir))))
+  (if path
+      (expand-file-name path base-path)
+    base-path)))
 
 ;;;###autoload
 (cl-defun dx-internal-current-org ()
@@ -290,14 +301,17 @@
 
     cache-dir))
 
+(defun dx--ensure-directory-exists (path)
+  "Create directory at PATH if it doesn't exist."
+  (unless (file-exists-p path)
+    (make-directory path 'parents))
+  path)
+
 (defun dx--get-log-dir-path ()
-  "Get absolute path of log directory."
-  (let ((cache-dir (expand-file-name (concat dx-log-dir-path "/") (dx-find-root-dir))))
-
-    (unless (file-exists-p cache-dir)
-      (make-directory cache-dir 'parents))
-
-    cache-dir))
+  "Get absolute path of log directory.
+Creates the directory if it doesn't exist."
+  (let ((log-dir (expand-file-name dx-log-dir-path (dx-find-root-dir))))
+    (dx--ensure-directory-exists log-dir)))
 
 (defmacro dx--find-backup-files (file-name &optional dir)
   "Find backup files."

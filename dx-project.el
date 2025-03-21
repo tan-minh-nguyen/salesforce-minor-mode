@@ -7,7 +7,7 @@
 (require 'transient)
 
 (defcustom dx-files-test-root '(".forceignore")
-  "The list of files to determine a project is Salesforce project."
+  "The list of files and directories to determine a project is Salesforce project."
   :type 'list
   :group 'salesforce-project)
 
@@ -28,10 +28,29 @@
 
 ;;;###autoload
 (defun dx-project-init ()
-  "Initialize configuarion for Salesforce project."
+  "Initialize configuration for Salesforce project.
+Scans project folders to detect 'force-app/main/default' path and sets dx-metadata-root-dir."
   (when (eq (projectile-project-type) 'dx)
-    (dir-locals-set-class-variables 'project-configuration dx-project-configuration)
-    (dir-locals-set-directory-class (projectile-project-root) 'project-configuration)))
+    (let ((enable-local-variables :all))
+      ;; Find and set metadata root directory
+      (dx-project--locate-metadata-dir)
+      ;; Set project configuration
+      (dir-locals-set-class-variables 'project-configuration dx-project-configuration)
+      (dir-locals-set-directory-class (projectile-project-root) 'project-configuration)
+      (hack-dir-local-variables-non-file-buffer))))
+
+(defun dx-project--locate-metadata-dir ()
+  "Find location of metadata directory then update to `dx-metadata-root-dir'."
+  (when-let* ((root-dir (projectile-project-root))
+              (root-defined (or (alist-get root-dir dx-metadata-define-roots)
+                               (alist-get 'default dx-metadata-define-roots)))
+              (metadata-dir (locate-dominating-file root-dir root-defined))
+              (project-config (assoc-default nil dx-project-configuration)))
+
+    (if project-config
+        (setf (alist-get nil dx-project-configuration)
+              `(,@project-config (dx-metadata-root-dir . ,(expand-file-name root-defined metadata-dir))))
+      (add-to-list 'dx-project-configuration `(nil . ((dx-metadata-root-dir . ,(expand-file-name root-defined metadata-dir))))))))
 
 ;; Define own projectile
 (with-eval-after-load 'projectile
@@ -347,7 +366,7 @@
   (interactive)
   (dx-project--git-change-source-1))
 
-(defun dx-open-project-note ()
+(defun dx-project-open-note ()
   "Open note for current project."
   (interactive)
   (if-let ((note-file (plist-get (cl-find-if (lambda (el)

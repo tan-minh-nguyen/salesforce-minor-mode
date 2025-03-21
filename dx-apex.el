@@ -142,21 +142,21 @@
   "Open create Apex class transient menu."
   (interactive)
   (let ((dx-apex--transient:template "DefaultApexClass")
-        (dx--transient-menu:output-dir (dx-core--build-path dx-default-apex-class-path)))
+        (dx--transient-menu:output-dir (dx-core--metadata-path dx-apex-dir)))
     (dx-apex--transient:apex-resource)))
 
 (defun dx-apex--create-trigger-menu ()
   "Open create Apex class transient menu."
   (interactive)
   (let ((dx-apex--transient:template "ApexTrigger")
-        (dx--transient-menu:output-dir (dx-core--build-path dx-default-apex-trigger-path)))
+        (dx--transient-menu:output-dir (dx-core--metadata-path dx-trigger-dir)))
     (dx-apex--transient:trigger-resource)))
 
 (defun dx-apex--create-lightning-app-menu ()
   "Generate lightning app transient menu."
   (interactive)
   (let ((dx-apex--lightning-organize "app")
-        (dx--transient-menu:output-dir (dx-core--build-path dx-default-lwc-path)))
+        (dx--transient-menu:output-dir (dx-core--metadata-path dx-lwc-dir)))
     (dx-apex--transient:lightning-resource)))
 
 (defun dx-apex--create-lightning-component-menu ()
@@ -164,7 +164,7 @@
   (interactive)
   (let ((dx-apex--lightning-organize "component")
         (dx-apex--transient:template "default")
-        (dx--transient-menu:output-dir (dx-core--build-path dx-default-lwc-path)))
+        (dx--transient-menu:output-dir (dx-core--build-path dx-lwc-dir)))
     (dx-apex--transient:lightning-resource)))
 
 (defun dx-apex-execute-code (content)
@@ -206,7 +206,7 @@
          (command ))
 
     (dx-core--visualforce-process
-     :cmd `("generate" "component" "--json" "--name" ,page-name "--label" ,page-label "--output-dir" ,(dx-core--build-path dx-default-vf-components-path))
+     :cmd `("generate" "component" "--json" "--name" ,page-name "--label" ,page-label "--output-dir" ,(dx-core--build-path dx-vf-component-dir))
      (alert (format "Create visualforce page" page-name)
             :title "Salesforce Alert"))))
 
@@ -214,7 +214,7 @@
   "Generate apex class"
   (interactive (list (transient-args 'dx-apex--transient:trigger-resource)))
   (dx-core--apex-process
-   :cmd `("generate" "trigger" ,@args  "--json")
+   `("generate" "trigger" ,@args  "--json")
    (switch-to-buffer (find-file (dx-core--get-data-json "result.created.0" json-instance)))))
 
 ;; TODO: add feature can custom content in created class
@@ -222,7 +222,7 @@
   "Generate apex class"
   (interactive (list (transient-args 'dx-apex--transient:apex-resource)))
   (dx-core--apex-process
-   :cmd `("generate" "class" ,@args "--json")
+   `("generate" "class" ,@args "--json")
    (switch-to-buffer (find-file (dx-core--get-data-json "result.created.0" json-instance)))))
 
 (defun dx-apex--generate-lightning-component (args)
@@ -243,9 +243,9 @@
      :cmd `("generate"
             "class"
             "--name" ,class-name
-            "--output-dir" ,(dx-core--build-path dx-default-apex-class-path)
+            "--output-dir" ,(dx-core--build-path dx-apex-dir)
             "--json")
-     (switch-to-buffer (find-file (dx-core--build-path dx-default-apex-class-path
+     (switch-to-buffer (find-file (dx-core--build-path dx-apex-dir
                                                        (concat class-name ".cls")))
                        (beginning-of-buffer)
                        (insert "@isTest\n")
