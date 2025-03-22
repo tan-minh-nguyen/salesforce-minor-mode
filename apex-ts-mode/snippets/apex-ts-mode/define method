@@ -1,0 +1,7 @@
+# -*- mode: snippet -*-
+# name: define method
+# key: dm
+# --
+${1:$$(yas-choose-value '("public" "global" ""))} static ${2:return} ${3:method} (${4:params}) {
+    $0
+}

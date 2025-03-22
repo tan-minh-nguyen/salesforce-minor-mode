@@ -1,0 +1,9 @@
+# -*- mode: snippet -*-
+# name: file_class
+# key: file
+# --
+${1:$$(yas-choose-value '("private" "public" "protected" "global" ""))} ${2:$$(yas-choose-value '("with sharing" "without sharing" ""))} class ${3:`(file-name-base
+                                                                                                                                                       (or (buffer-file-name)
+                                                                                                                                                           (buffer-name)))`} {
+  $0
+}

@@ -1,0 +1,9 @@
+# -*- mode: snippet; require-final-newline: nil -*-
+# name: define test method
+# key: dt
+# group: test
+# --
+@isTest
+${1:$$(yas-choose-value '("private" "public" "protected" "global" ""))} static void ${2:Name} () {
+    $0
+}

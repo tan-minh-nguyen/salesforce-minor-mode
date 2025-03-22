@@ -1,0 +1,13 @@
+# -*- mode: snippet -*-
+# name: test class
+# key: tc
+# --
+@isTest
+private with sharing class ${3:`(file-name-base
+                                   (or (buffer-file-name)
+                                       (buffer-name)))`} {
+  @TestSetup
+  private static void initializeTestData() {
+      $0
+  }
+}

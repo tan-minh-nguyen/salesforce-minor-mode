@@ -1,0 +1,6 @@
+# -*- mode: snippet -*-
+# name: debug
+# key: debug
+# --
+System.debug(${1:object});
+$0
