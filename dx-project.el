@@ -93,6 +93,26 @@ Scans project folders to detect 'force-app/main/default' path and sets dx-metada
    (alert (format "Retrieve %s success" buffer)
           :title "DX Alert")))
 
+(cl-defun dx-project--clone-cloud-metadata (&key metadata-file target-path target-org finish-func)
+  "Backup the current buffer to the source directory."
+  (let* ((file-name (file-name-base metadata-file)))
+
+    (dx-core--project-process 
+     :cmd `("retrieve"
+            "start"
+            "-d" ,metadata-file
+            "-z"
+            "-t" ,temporary-file-directory
+            "--zip-file-name" ,file-name
+            ,@(when target-org (list "-o" target-org))
+            "--json")
+     ;; rename backup directory to new directory containing the last modified id
+     ;; and the last modified date
+     (when target-path
+       (unless (file-exists-p target-path)
+         (error "Path not exist"))
+       (copy-file (concat temporary-file-directory file-name) target-path) t)
+     (funcall finish-func (or target-path (concat temporary-file-directory file-name))))))
 
 (cl-defmacro dx-source-backup (&rest body &key target-org &allow-other-keys)
   "Backup the current buffer to the source directory."
@@ -129,14 +149,14 @@ Scans project folders to detect 'force-app/main/default' path and sets dx-metada
         ,@body))))
 
 (defun dx-project--ediff-startup-hook ()
-  "Ediff hook on startup."
+  "Ediff hook on startup with additional actions."
   (let* ((coding-system (with-current-buffer ediff-buffer-B
                           buffer-file-coding-system)))
 
     ;; Set coding for buffer A
     (with-current-buffer ediff-buffer-A
       (set-buffer-file-coding-system coding-system t t))
-    (ediff-toggle-read-only ediff-buffer-A)
+    ;; (ediff-toggle-read-only ediff-buffer-A)
 
     (when ediff-buffer-C
       ;; Set coding for buffer C
@@ -145,7 +165,47 @@ Scans project folders to detect 'force-app/main/default' path and sets dx-metada
 
       (ediff-toggle-read-only ediff-buffer-C))
 
-    (ediff-update-diffs)))
+    (ediff-update-diffs)
+    ;; Add custom ediff actions
+    (dx-project--ediff-add-actions)))
+
+(defun dx-project--ediff-add-actions ()
+  "Add custom actions to ediff control panel."
+  (define-key ediff-mode-map (kbd "C-c C-p") 'dx-project--ediff-push-changes)
+  (define-key ediff-mode-map (kbd "C-c C-r") 'dx-project--ediff-retrieve-changes)
+  (define-key ediff-mode-map (kbd "C-c C-s") 'dx-project--ediff-save-changes)
+  (define-key ediff-mode-map (kbd "C-c C-d") 'dx-project--ediff-discard-changes))
+
+(defun dx-project--ediff-push-changes ()
+  "Push changes from ediff buffer to Salesforce org."
+  (interactive)
+  (let ((file (buffer-file-name ediff-buffer-A)))
+    (dx-project--ediff-save-changes)
+    (when (yes-or-no-p "Push changes to Salesforce?")
+      (dx-project-source-push file))))
+
+(defun dx-project--ediff-retrieve-changes ()
+  "Retrieve changes from Salesforce org to ediff buffer."
+  (interactive)
+  (let ((file (buffer-file-name ediff-buffer-A)))
+    (when (yes-or-no-p "Retrieve changes from Salesforce?")
+      (dx-project-source-retrieve file)
+      (dx-project--ediff-save-changes))))
+
+(defun dx-project--ediff-save-changes ()
+  "Save changes from ediff buffer to local file."
+  (interactive)
+  (let ((file (buffer-file-name ediff-buffer-A)))
+    (if (interactive-p)
+        (when (yes-or-no-p "Save changes to local file?")
+          (save-buffer ediff-buffer-A))
+      (save-buffer ediff-buffer-A))))
+
+(defun dx-project--ediff-discard-changes ()
+  "Discard changes and quit ediff."
+  (interactive)
+  (when (yes-or-no-p "Discard changes?")
+    (ediff-quit)))
 
 (defun dx-project--ediff-quit-hook ()
   "Hook on quit."
@@ -155,9 +215,10 @@ Scans project folders to detect 'force-app/main/default' path and sets dx-metada
     (with-current-buffer ediff-buffer-C
       (kill-buffer-and-window)))
 
-  ;; Clear hooks
+  ;; Clear hooks and keybindings
   (remove-hook 'ediff-startup-hook #'dx-project--ediff-startup-hook)
-  (remove-hook 'ediff-quit-hook #'dx-project--ediff-quit-hook))
+  (remove-hook 'ediff-quit-hook #'dx-project--ediff-quit-hook)
+  (remove-hook 'ediff-mode-hook #'dx-project--ediff-add-actions))
 
 (defun dx-diff-metadata-other-org ()
   "diff metadata between local and cloud."
@@ -300,10 +361,10 @@ Scans project folders to detect 'force-app/main/default' path and sets dx-metada
   "Group files on transient menu."
   (cl-loop for file in files
            if (and (string-match-p (regexp-quote dx-default-apex-class-path) file)
-                   (not (member (dx-project--remove-xml-suffix file) classes)))
+                 (not (member (dx-project--remove-xml-suffix file) classes)))
            collect (dx-project--remove-xml-suffix file) into classes
            else if (and (string-match-p (regexp-quote dx-default-vf-path) file)
-                        (not (member (dx-project--remove-xml-suffix file) pages)))
+                      (not (member (dx-project--remove-xml-suffix file) pages)))
            collect (dx-project--remove-xml-suffix file) into pages
            else if (string-match-p (concat dx-default-object-path "/[A-Za-z_]+/fields") file)
            collect file into fields
@@ -312,11 +373,11 @@ Scans project folders to detect 'force-app/main/default' path and sets dx-metada
            ;; else 
            ;; collect file into other
            finally return (list (cons "classes" classes) 
-                                (cons "pages" pages)
-                                (cons "objects" objects)
-                                (cons "fields" fields)
-                                ;; (cons "Misc" other)
-                                )))
+                        (cons "pages" pages)
+                        (cons "objects" objects)
+                        (cons "fields" fields)
+                        ;; (cons "Misc" other)
+                        )))
 
 (defun dx-project--remove-xml-suffix (original-name)
   "Format name of item display on transient menu."
@@ -345,21 +406,21 @@ Scans project folders to detect 'force-app/main/default' path and sets dx-metada
              (or max-row 5)))
 
 (defun dx-project--git-change-source-1 ()
-"Deploy changed sources on local to org."
-(require 'magit nil t)
-(let ((target-branch (magit-read-local-branch "Branch" (magit-local-branch-at-point))))
-  (async-start 
-   `(lambda ()
-      ;;,(async-inject-variables "\\`load-path\'")
-      (setq default-directory ,(projectile-project-root))
-      (shell-command-to-string (format "git diff $(git reflog --date=local %s | tail -n 1 | cut -d' ' -f 1) %s --name-only" ,target-branch ,target-branch)))
-   (lambda (files-string)
-     (let ((files (split-string files-string "\n")))
-       (eval (dx-project--generate-files-menu "deploy-files-menu" files 
-                                              ["" 
-                                               ("d" "Push sources" dx-project--push-multi-sources)
-                                               ("r" "Sync sources" dx-project--retrieve-multi-sources)]))
-       (transient-setup 'dx-project--deploy-files-menu))))))
+  "Deploy changed sources on local to org."
+  (require 'magit nil t)
+  (let ((target-branch (magit-read-local-branch "Branch" (magit-local-branch-at-point))))
+    (async-start 
+     `(lambda ()
+        ;;,(async-inject-variables "\\`load-path\'")
+        (setq default-directory ,(projectile-project-root))
+        (shell-command-to-string (format "git diff $(git reflog --date=local %s | tail -n 1 | cut -d' ' -f 1) %s --name-only" ,target-branch ,target-branch)))
+     (lambda (files-string)
+       (let ((files (split-string files-string "\n")))
+         (eval (dx-project--generate-files-menu "deploy-files-menu" files 
+                                                ["" 
+                                                 ("d" "Push sources" dx-project--push-multi-sources)
+                                                 ("r" "Sync sources" dx-project--retrieve-multi-sources)]))
+         (transient-setup 'dx-project--deploy-files-menu))))))
 
 (defun dx-project-git-change-source ()
   "View all sources changed on version control."
@@ -380,9 +441,84 @@ Scans project folders to detect 'force-app/main/default' path and sets dx-metada
                                        (window-width . 0.4)))
     (error "note file not found.")))
 
-;; Select section to deploy
-;; use command convert metadata in cache to deploy able data?
-;; support apex only now
+(defun dx-project--prepare-ediff-session (local-file cloud-file)
+  "Prepare ediff session with proper hooks and settings."
+  (ediff local-file cloud-file
+         `((lambda ()
+             (add-hook 'ediff-quit-hook #'dx-project--ediff-quit-hook)
+             (add-hook 'ediff-startup-hook #'dx-project--ediff-startup-hook)))))
+
+(defun dx-project--get-relative-path (file-name)
+  "Get relative path of file within project."
+  (file-name-directory (file-relative-name file-name (projectile-project-root)))
+
+(defun dx-project-selection-deploy (file-name)
+  "Backup metadata and select section to deploy.
+FILE-NAME is the path to the file being deployed.
+
+This function:
+1. Clones the metadata from Salesforce org
+2. Creates a temporary project structure
+3. Sets up an ediff session to compare local and cloud versions"
+  (interactive (list (buffer-file-name)))
+  
+  (dx-project--clone-cloud-metadata
+   :metadata-file file-name
+   :finish-func (lambda (cloned-path)
+                  (let* ((backup-file (dx--find-backup-file 
+                                      (file-name-nondirectory file-name)
+                                      cloned-path))
+                         (relative-path (dx-project--get-relative-path file-name))
+                         (project-temp (dx-project--initialize-file-temp 
+                                      backup-file 
+                                      relative-path))
+                         (cloud-file-path (concat project-temp 
+                                                (file-name-base file-name) 
+                                                "." 
+                                                (file-name-extension file-name))))
+                    
+                    (dx-project--prepare-ediff-session cloud-file-path file-name)))))
+
+(defun dx-project--create-temp-project-folder (temp-dir relative-path)
+  "Create temporary folder structure matching project layout."
+  (let ((dest-dir (file-name-directory (expand-file-name relative-path temp-dir)))
+        (temp-dir (dx--ensure-directory-exists temp-dir)))
+    
+    ;; Create destination directory structure
+    (unless (file-exists-p dest-dir)
+      (make-directory dest-dir t))
+    
+    ;; Copy sfdx-project.json file to project temp
+    (let ((dx-project-file (expand-file-name "sfdx-project.json" (projectile-project-root))))
+      (unless (file-exists-p (expand-file-name "sfdx-project.json" temp-dir))
+        (copy-file dx-project-file (expand-file-name "sfdx-project.json" temp-dir) t)))
+    
+    dest-dir))
+
+(defun dx-project--copy-file-to-temp (file dest-path)
+  "Copy file and metadata to temporary directory."
+  (let* ((file-directory (file-name-directory file))
+         (copy-files `(,file ,(expand-file-name (concat file "-meta.xml") file-directory)))
+         (file-name (concat (file-name-base file) "." (file-name-extension file))))
+    
+    ;; Copy the files
+    (cl-loop for file in copy-files
+             do (copy-file file (concat dest-path (file-name-base file) "." (file-name-extension file)) t))
+    ;; Return the destination path
+    dest-path))
+
+(defun dx-project--initialize-file-temp (current-file relative-path)
+  "Initialize temporary project for section deploy.
+Copies current file to temp folder with same path structure as project root."
+  (when current-file
+    (let* ((project-name (projectile-project-name))
+           (temp-dir (expand-file-name project-name temporary-file-directory)))
+      
+      ;; Create folder structure
+      (dx-project--create-temp-project-folder temp-dir relative-path)
+      
+      ;; Copy files
+      (dx-project--copy-file-to-temp current-file (expand-file-name relative-path temp-dir)))))
 
 (defun dx-org-preview-metadata-change ()
   "diff source between local project and salesforce platform."

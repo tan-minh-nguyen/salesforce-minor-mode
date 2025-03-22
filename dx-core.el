@@ -21,59 +21,52 @@
   :group 'dx-minor-mode)
 
 (defcustom dx-lib-alias "sf"
-  ""
+  "The command alias for the Salesforce CLI."
   :type 'string
   :group 'dx-minor-mode)
 
 (defcustom dx-legacy-alias "force"
-  ""
+  "The legacy command alias for Salesforce CLI (sfdx)."
   :type 'string
   :group 'dx-minor-mode)
 
 (defcustom dx-project-command-alias "project"
-  ""
+  "The command alias for project-related Salesforce CLI commands."
   :type 'string
   :group 'dx-minor-mode)
 
 (defcustom dx-data-command-alias "data"
-  ""
+  "The command alias for data-related Salesforce CLI commands."
   :type 'string
   :group 'dx-minor-mode)
 
 (defcustom dx-visualforce-command-alias "visualforce"
-  ""
+  "The command alias for Visualforce-related Salesforce CLI commands."
   :type 'string
   :group 'dx-minor-mode)
 
 (defcustom dx-apex-command-alias "apex"
-  ""
+  "The command alias for Apex-related Salesforce CLI commands."
   :type 'string
   :group 'dx-minor-mode)
 
 (defcustom dx-org-command-alias "org"
-  ""
+  "The command alias for org-related Salesforce CLI commands."
   :type 'string
   :group 'dx-minor-mode)
 
 (defcustom dx-lightning-command-alias "lightning"
-  ""
+  "The command alias for Lightning-related Salesforce CLI commands."
   :type 'string
   :group 'dx-minor-mode)
 
-(defcustom dx-project-deploy-command
-  (concat dx-project-command-alias " " "deploy")
-  ""
-  :type 'string
-  :group 'dx-minor-mode)
-
-(defcustom dx-project-retrieve-command
-  (concat dx-project-command-alias " " "retrieve")
-  ""
+(defcustom dx-config-command-alias "config"
+  "The command alias for configuration-related Salesforce CLI commands."
   :type 'string
   :group 'dx-minor-mode)
 
 (defcustom dx-default-browser "qutebrowser"
-  "Browser use for open url"
+  "The default browser to use for opening Salesforce URLs."
   :type 'string
   :group 'dx-minor-mode)
 
@@ -113,47 +106,48 @@
   "Custom define api version for command")
 
 (defcustom dx-org-cache-dir ".cache/"
-  "Directory to store cache files."
+  "Directory to store cache files relative to the project root."
   :type 'string
   :group 'dx-minor-mode)
 
 (defcustom dx-dedicated-window-right "*List View*"
-  "Name of dedicated window buffer on right."
+  "Name of the dedicated window buffer displayed on the right side."
   :type 'string
   :group 'dx-minor-mode)
 
 (defcustom dx-tracking-time-format "%Y-%m-%d %H:%M:%S"
-  "format of time show on tracking metadata buffer."
+  "Format string for displaying timestamps in the metadata tracking buffer."
   :type 'string
   :group 'dx-minor-mode)
 
 (defcustom dx-process-buffer "*DX Process*"
-  "name of process buffer."
+  "Name of the buffer used for displaying Salesforce CLI process output."
   :type 'string
   :group 'dx-minor-mode)
 
 (defcustom dx-process-success-buffer "DX Success"
-  "name of process success buffer."
+  "Name of the buffer used for displaying successful process results."
   :type 'string
   :group 'dx-minor-mode)
 
 (defcustom dx-process-error-buffer "DX Error"
-  "name of process error buffer."
+  "Name of the buffer used for displaying process error messages."
   :type 'string
   :group 'dx-minor-mode)
 
 (defcustom dx-project-config '()
-  "List of config in project
-   Ex: ((:project \"test\" :note-file \"org\" ))"
+  "List of project configurations.
+Each element should be a plist with :project and :note-file keys.
+Example: ((:project \"test\" :note-file \"org\"))"
   :type 'list
   :group 'dx-minor-mode)
 
 (defcustom dx-org-name ""
-  "org name showing on mode line."
+  "The name of the currently active Salesforce org, displayed in the mode line."
   :type 'string)
 
 (defcustom dx-prefix-keymap "M"
-  "Prefix for salesforce dx commands."
+  "The prefix key for Salesforce DX commands in the keymap."
   :type 'string
   :group 'dx-config)
 
@@ -183,7 +177,7 @@
 
 ;; dx-log.el configurations
 (defcustom dx-log-dir-path ".sfdx/tools/debug/logs/"
-  "Path of directory log."
+  "Path to the directory where Salesforce debug logs are stored."
   :type 'string
   :group 'dx-config)
 
@@ -233,23 +227,22 @@
 
 (defun dx-core--get-json-value (table key)
   "Get value from TABLE by KEY based on data structure type."
-  (cond
-   ((plistp table)
-    (plist-get table key (lambda (prop key)
-                (string= (format ":%s" key) (symbol-name prop))))
-   ((arrayp table)
-    (aref table (string-to-number key)))
-   (t
-    (gethash key table)))))
+  (cond ((plistp table)
+         (plist-get table key (lambda (prop key)
+                                (string= (format ":%s" key) (symbol-name prop)))))
+        ((arrayp table)
+         (aref table (string-to-number key)))
+        (t
+         (gethash key table))))
 
 (defun dx-core--get-data-json (path table)
   "Get nested data from TABLE following the dot-separated PATH.
 Example: (dx-core--get-data-json \"result.data.0.name\" table)"
-  (let* ((path-parts (split-string path "\\."))
+  (let ((path-parts (split-string path "\\.")))
     (cl-reduce (lambda (acc key)
-                (dx-core--get-json-value acc key))
-              path-parts
-              :initial-value table))))
+                 (dx-core--get-json-value acc key))
+               path-parts
+               :initial-value table)))
 
 (defun dx-find-root-dir ()
   (cdr (project-current)))
@@ -344,63 +337,30 @@ Creates the directory if it doesn't exist."
       (file-name-directory (directory-file-name file))
     (dx--find-parents (file-name-directory (directory-file-name file)) (- depth 1))))
 
-(cl-defmacro dx-core--project-process (&rest body &key cmd &allow-other-keys)
-  "Start project process."
-  `(let* ((callback (lambda (json-instance)
-                      ,@body))
-          (handle-callback (lambda (proc)
-                             (funcall callback (dx-parse-buffer-json (process-buffer proc))))))
-     (apply #'dx-start-process handle-callback (cons dx-project-command-alias ,cmd))))
+(defmacro dx-core--make-process (command-alias)
+  "Create a process macro for a specific command type.
+COMMAND-ALIAS is the command prefix (e.g. dx-project-command-alias).
+BODY contains the process handling code."
+  `(cl-defmacro ,(intern (format "dx-core--%s-process" (symbol-value command-alias)))
+       (&rest body &key cmd &allow-other-keys)
+     (let ((alias ,(symbol-value command-alias)))
+       `(let* ((callback (lambda (json-instance)
+                           ,@body))
+               (handle-callback (lambda (proc)
+                                  (funcall callback 
+                                           (if (member "--json" ,cmd)
+                                               (dx-parse-buffer-json (process-buffer proc))
+                                             (process-buffer proc))))))
+          (apply #'dx-start-process handle-callback (cons ,alias ,cmd))))))
 
-(cl-defmacro dx-core--apex-process (&rest body &key cmd &allow-other-keys)
-  "Start apex process."
-  `(let* ((callback (lambda (json-instance)
-                      ,@body))
-          (handle-callback (lambda (proc)
-                             (funcall callback (dx-parse-buffer-json (process-buffer proc))))))
-     (apply #'dx-start-process handle-callback (cons dx-apex-command-alias ,cmd))))
-
-(cl-defmacro dx-core--visualforce-process (&rest body &key cmd &allow-other-keys)
-  "Start apex process."
-  `(let* ((callback (lambda (json-instance)
-                      ,@body))
-          (handle-callback (lambda (proc)
-                             (funcall callback (dx-parse-buffer-json (process-buffer proc))))))
-     (apply #'dx-start-process handle-callback (cons dx-visualforce-command-alias ,cmd))))
-
-(cl-defmacro dx-core--data-process (&rest body &key cmd &allow-other-keys)
-  "Start data process."
-  `(let* ((callback (lambda (json-instance)
-                      ,@body))
-          (handle-callback (lambda (proc)
-                             (funcall callback (if (member "--json" ,cmd)
-                                                   (dx-parse-buffer-json (process-buffer proc))
-                                                 (process-buffer proc))))))
-     (apply #'dx-start-process handle-callback (cons dx-data-command-alias ,cmd))))
-
-(cl-defmacro dx-core--org-process (&rest body &key cmd &allow-other-keys)
-  "Start org process."
-  `(let* ((callback (lambda (json-instance)
-                      ,@body))
-          (handle-callback (lambda (proc)
-                             (funcall callback (dx-parse-buffer-json (process-buffer proc))))))
-     (apply #'dx-start-process handle-callback (cons dx-org-command-alias ,cmd))))
-
-(cl-defmacro dx-core--lightning-process (&rest body &key cmd &allow-other-keys)
-  "Start lightning process."
-  `(let* ((callback (lambda (json-instance)
-                      ,@body))
-          (handle-callback (lambda (proc)
-                             (funcall callback (dx-parse-buffer-json (process-buffer proc))))))
-     (apply #'dx-start-process handle-callback (cons dx-lightning-command-alias ,cmd))))
-
-(cl-defmacro dx-core--config-process (&rest body &key cmd &allow-other-keys)
-  "Start lightning process."
-  `(let* ((callback (lambda (json-instance)
-                      ,@body))
-          (handle-callback (lambda (proc)
-                             (funcall callback (dx-parse-buffer-json (process-buffer proc))))))
-     (apply #'dx-start-process handle-callback (cons "config" ,cmd))))
+;; Generate all process macros using the factory
+(dx-core--make-process dx-project-command-alias)
+(dx-core--make-process dx-apex-command-alias) 
+(dx-core--make-process dx-visualforce-command-alias)
+(dx-core--make-process dx-data-command-alias)
+(dx-core--make-process dx-org-command-alias)
+(dx-core--make-process dx-lightning-command-alias)
+(dx-core--make-process dx-config-command-alias)
 
 (defun dx-make-chain-process (&rest process-list &key params &allow-other-keys)
   "Chain all processes."
