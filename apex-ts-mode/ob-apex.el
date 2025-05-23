@@ -82,9 +82,9 @@
 
 ;; optionally declare default header arguments for this language
 (defvar org-babel-default-header-args:apex (list '(:results . "none")
-                                              '(:org . "")
-                                              '(:filter-type . "DEBUG")
-                                              '(:filter-value . nil)))
+                                                 '(:org . "")
+                                                 '(:filter-type . "DEBUG")
+                                                 '(:filter-value . nil)))
 
 (defvar org-babel-default-inline-header-args:apex (list '(:results . "none")
                                                      '(:org . "")
@@ -171,22 +171,22 @@
   "Filter content of the log file."
   (mapconcat (lambda (line)
                (cond ((and (string-equal-ignore-case type "DEBUG")
-                         (string-match (regexp-opt org-babel-debug-keywords) line)
-                         (search "DEBUG" line))
+                           ;;(string-match (regexp-opt org-babel-debug-keywords) line)
+                           (search "DEBUG" line))
 
                       (concat line "\n"))
                      ((and (string-equal-ignore-case type "STRING")
-                         (search value line))
+                           (search value line))
                       (concat line "\n"))
                      ((and (string-equal-ignore-case type "EXECUTABLE")
-                         (string-match (regexp-opt org-babel-executable-keywords) line))
+                           (string-match (regexp-opt org-babel-executable-keywords) line))
                       (concat line "\n"))
                      ((and (string-equal-ignore-case type "SYSTEM")
-                         (string-match (regexp-opt org-babel-system-keywords) line))
+                           (string-match (regexp-opt org-babel-system-keywords) line))
 
                       (concat line "\n"))
                      ((and (string-equal-ignore-case type "GOVERNOR")
-                         (match-string (regexp-opt org-babel-goverment-keywords) line))
+                           (match-string (regexp-opt org-babel-goverment-keywords) line))
                       (concat line "\n"))))
              (split-string content "\n")
              ""))

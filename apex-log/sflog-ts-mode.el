@@ -55,10 +55,22 @@
    '((["|" ":"]) @font-lock-delimiter-face))
   "Tree-sitter font lock rules for `sflog-ts-mode'.")
 
+(defvar sflog-ts-mode-header-format ""
+  "Format for emacs header in `sflog-ts-mode'.")
+
 (defvar sflog-ts-mode--indent-rules
   `((sflog
      ((parent-is "parser_output") column-0 0)))
   "Tree-sitter indent rules.")
+
+(defun sflog-ts-mode--header-mode ()
+  "Format log header."
+  (let ((governor-limits (treesit-query-capture (treesit-buffer-root-node) '((limit (identifier) @limit-name
+                                                                                    (number) @limit-value) @limit))))
+    (setq sflog-ts-mode-header-format (cl-loop for limit in governor-limits
+                                               concat (concat "%s: %s"
+                                                              (treesit-node-text (assoc-default 'limit-name limit))
+                                                              (treesit-node-text (assoc-default 'limit-value limit)))))))
 
 (defun sflog-ts-mode--setup ()
   "Setup tree-sitter for `sflog-ts-mode'."
@@ -88,7 +100,12 @@
     (error "Tree-sitter for Apex isn't available"))
 
   (treesit-parser-create 'sflog)
-  (sflog-ts-mode--setup))
+  (sflog-ts-mode--setup)
+  (sflog-ts-mode--header-mode)
+  (when sflog-ts-mode
+    (cond ((null header-line-format)
+           (setq header-line-format sflog-ts-mode-header-format))
+          (t (add-to-list header-line-format sflog-ts-mode-header-format)))))
 
 (add-to-list 'auto-mode-alist '("\\.log\\'" . sflog-ts-mode))
 

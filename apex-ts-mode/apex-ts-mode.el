@@ -630,10 +630,11 @@ Return nil if there is no name or if NODE is not a defun node."
 (defun apex-to-mode--soql-p ()
   "Current point is in SOQL range parser."
   (or (equal (treesit-language-at (point)) 'soql)))
+
 ;;TODO; get prefix of soql statment before point and suffix of point
 (defun apex-ts-mode--soql-company-prefix ()
   "Prefix for `company-soql' backend."
-  `(1 2))
+  `(1 2 3))
 
 (defun apex-ts-mode--soql-statment (atom)
   "Search atribute SOQL statment."
@@ -653,7 +654,8 @@ Return nil if there is no name or if NODE is not a defun node."
   (cl-case command
     (`interactive (company-begin-backend 'company-soql))
     (`prefix (apex-ts-mode--soql-company-prefix))
-    (`candidates `(:async apex-ts-mode--soql-candidates))))
+    (`candidates (cons :async . (lambda (callback)
+                                  (apex-ts-mode--soql-candidates callback))))))
 
 (provide 'apex-ts-mode)
 ;;; apex-ts-mode.el ends here

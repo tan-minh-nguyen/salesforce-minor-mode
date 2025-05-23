@@ -7,14 +7,18 @@
   :type 'string
   :group 'apex-ts-dap)
 
-(defvar apex-ts-dap-log-file ""
-  "Path to log directory for Apex mode.")
+(defvar-local apex-ts-dap-log-file nil
+  "Path to log file.")
+
+(defvar-local apex-ts-dap-workspace nil
+  "Path to workspace directory for replay debug.")
 
 ;;;###autoload
 (defun apex-ts-dap-start-replay-debugger ()
   "Start Replay Debugger for Apex mode."
   (interactive)
-  (setq apex-ts-dap-log-file (read-file-name "File:"))
+  (setq-local apex-ts-dap-log-file (read-file-name "File:")
+              apex-ts-dap-workspace (projectile-project-root))
   (call-interactively #'dape))
 
 ;; Configuration replay-debugger for Apex mode
@@ -26,7 +30,7 @@
                                            :type "apex-replay"
                                            :request "launch"
                                            :logFile apex-ts-dap-log-file
-                                           :projectPath "."
+                                           :projectPath apex-ts-dap-workspace
                                            :stopOnEntry t
                                            :trace t
                                            :languages ["apex"]

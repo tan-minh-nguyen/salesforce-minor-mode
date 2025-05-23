@@ -48,9 +48,8 @@
                      "https://login.salesforce.com")
                     (_ (read-from-minibuffer "URL: ")))))
 
-    (dx-org--fetch-org-list 
+    (dx-org--list 
      (lambda (org-list)
-
        (dx-core--org-process
         :cmd (list "login" "web" "-a" (completing-read "Alias: " org-list nil nil) "--instance-url" org-url "--set-default" "--json")
         (alert (format "Authorize to %s success" (dx-core--get-data-json "result.username" json-instance)) :title "Salesforce Alert"))))))
@@ -66,21 +65,21 @@
 (defun dx-org-change-connection ()
   "Change default connection org."
   (interactive)
-  (dx-org--fetch-org-list (lambda (org-list)
-                            (dx-core--config-process
-                             :cmd `("set" "target-org" ,(completing-read "Org name: " org-list)  "--json")
-                             (let ((org-name (dx-core--get-data-json "result.successes.0.value" json-instance)))
-                               (alert (format "Change to %s success" (setq dx-org-name org-name)) :title "DX Alert"))))))
+  (dx-org--list (lambda (org-list)
+                  (let ((org (completing-read "Org name: " org-list)))
+                    (dx-core--config-process
+                     :cmd `("set" "target-org" ,org "--json")
+                     (let ((org-name (dx-core--get-data-json "result.successes.0.value" json-instance)))
+                       (alert (format "Change to %s success" (setq dx-org-name org-name)) :title "DX Alert")))))))
 
 (defun dx-org--get-status ()
   "Checking connect status on current org"
-  (dx-process--make-handle-json
-   :cmd (list dx-org-command-alias "display" "--json")
+  (dx-core--org-process
+   :cmd `("display" "--json")
    (when (string= (dx-core--get-data-json "result.connectedStatus" json-instance)
                   "RefreshTokenAuthError")
      (alert "Token expired !!" :title "Salesforce Alert"))))
 
-;;TODO: change to use om-dash instead of ctable
 (defun dx-org--fetch-users-org (org-type)
   "Show all user connected organizations."
   (dx-core--org-process
@@ -107,18 +106,6 @@
                (concat "result." org-type) json-instance))))
     :buffer dx-dedicated-window-right)))
 
-(defun dx-org--fetch-org-list (cb)
-  "Get all alias of orgs."
-  (dx-core--org-process
-   :cmd `("list" "--json" "--skip-connection-status")
-   (funcall cb (remove-if #'null (append (mapcar (lambda (data)
-                                                   (plist-get data :alias))
-                                                 (dx-core--get-data-json
-                                                  "result.other" json-instance))
-                                         (mapcar (lambda (data)
-                                                   (plist-get data :alias))
-                                                 (dx-core--get-data-json
-                                                  "result.nonScratchOrgs" json-instance)))))))
 
 (defun dx-org-view-log ()
   "View specific log."
@@ -171,7 +158,7 @@
 (defun dx-org-clear-log-data ()
   "Clear all apex log on org."
   (interactive)
-  (dx-org--fetch-org-list
+  (dx-org--list
    (lambda (org-list)
      (let ((temp-file (make-temp-file "log" nil ".csv"))
            (org-name (completing-read "Org alias: " org-list nil nil dx-org-name)))
@@ -183,5 +170,67 @@
 
         ;; Clear log on org.
         (dx-soql--delete-bulk "ApexLog" temp-file))))))
+
+(defun dx-org--clear-cache ()
+  "Clear the org list cache."
+  (interactive)
+  (setq dx-core--org-list-cache nil)
+  (message "Org list cache cleared"))
+
+(defun dx-org--list (finish-func &optional org-type)
+  "Fetch list of available Salesforce orgs with caching.
+Optional ORG-TYPE can be 'devhub' or 'scratch' to filter orgs.
+Returns list of org aliases or nil on error."
+  (let* ((now (time-to-seconds))
+         (cached (assoc 'timestamp dx-core--org-list-cache))
+         (cache-valid (and cached 
+                         (< (- now (cdr cached)) 
+                            dx-core--org-list-cache-ttl))))
+    (if cache-valid
+        (let ((orgs (assoc 'data dx-core--org-list-cache)))
+          (funcall finish-func
+                   (if org-type
+                       (cl-loop for org in (cdr orgs)
+                                when (or (and (eq org-type 'devhub)
+                                           (plist-get org :isDevHub))
+                                        (and (eq org-type 'scratch)
+                                           (string= (plist-get org :orgType) "ScratchOrg")))
+                                collect (plist-get org :alias))
+                     (mapcar (lambda (org) (plist-get org :alias)) (cdr orgs)))))
+      (let ((default-directory (or (projectile-project-root) default-directory)))
+        (dx-core--org-process
+         :cmd `("list" "--skip-connection-status" "--json")
+         (condition-case err
+             (if-let ((org-types (dx-core--get-data-json "result" json-instance)))
+                 (let ((org-data (cl-loop for (_ orgs) on org-types by #'cddr
+                                          append (cl-loop for org across orgs
+                                                          collect (list :username (dx-core--get-data-json "username" org)
+                                                                     :alias (dx-core--get-data-json "alias" org)
+                                                                     :isDevHub (dx-core--get-data-json "isDevHub" org)
+                                                                     :orgType (dx-core--get-data-json "orgType" org))))))
+                   ;; Update cache
+                   (setq dx-core--org-list-cache 
+                         `((timestamp . ,now)
+                           (data . ,org-data)))
+                   ;; Return filtered results
+                   (funcall finish-func
+                            (if org-type
+                                (cl-loop for org in org-data
+                                         when (or (and (eq org-type 'devhub)
+                                                    (plist-get org :isDevHub))
+                                                 (and (eq org-type 'scratch)
+                                                    (string= (plist-get org :orgType) "ScratchOrg")))
+                                         collect (plist-get org :alias))
+                              (mapcar (lambda (org) (or (plist-get org :alias) (plist-get org :username))) org-data))))
+               (error "No orgs found in JSON response"))
+           (error
+            (message "Error fetching org list: %s" (error-message-string err))
+            nil)))))))
+
+(cl-defun dx-org--status (&key finish-func org)
+  "Check current org status."
+  (dx-core--org-process
+   :cmd `("display" "-o" ,(or org dx-org-name) "--json")
+   (funcall finish-func json-instance)))
 
 (provide 'dx-org)

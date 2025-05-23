@@ -24,12 +24,11 @@
     (keymap-set map "M-o n" (cons "View All Orgs" #'dx-org-display-all-orgs))
     (keymap-set map "M-o m" (cons "View All Devhubs" #'dx-org-display-all-devhubs))
     (keymap-set map "M-o N" (cons "Notes" #'dx-project-open-note))
-
-    ;; log features
-    (keymap-set map "M-o l" (cons "Clear Log" #'dx-clear-log))
+    (keymap-set map "M-o l" (cons "Clear Log" #'dx-org-clear-log-data))
 
     ;; apex features
     (keymap-set map "M-c" (cons "Create DX Resource" #'dx-apex--transient:generate-resource))
+    (keymap-set map "M-c" (cons "Excute Apex Code" #'dx-apex-execute-code))
     ;; (keymap-set map "M-c t" (cons "Create Trigger" #'dx-apex-generate-trigger))
     ;; (keymap-set map "M-c c" (cons "Create Apex Class" #'dx-apex-generate-class))
     ;; (keymap-set map "M-c T" (cons "Create Apex Class Test" #'dx-apex-generate-test-class))
@@ -44,15 +43,24 @@
 
     ;; metadata features
     (keymap-set map "M-m t" (cons "Source Tracker" #'dx-source-tracker))
-    (keymap-set map "M-m d" (cons "Diff Source" #'dx-org-preview-metadata-change))
+    (keymap-set map "M-m d" (cons "Diff Source" #'dx-project-preview-metadata-change))
     (keymap-set map "M-m D" (cons "Diff Source Multi Org" #'dx-diff3-metadata))
     map)
   "Keymap for `dx-minor-mode'.")
 
+;; TODO: call check connect function to show it as status
 (defun dx-minor-mode--init ()
   "Initialize mode."
   (setq dx-org-name (dx-internal-current-org)
-        dx-project-root-dir (dx-find-root-dir)))
+        dx-project-root-dir (dx-find-root-dir))
+  (dx-org--status :org dx-org-name
+                  :finish-func
+                  (lambda (json-instance)
+                    (setq dx-mode-line-current-org-status
+                          (if (string= (dx-core--get-data-json "result.connectedStatus" json-instance)
+                                       "Connected")
+                              (propertize dx-mode-line-active-connect-icon 'face 'success)
+                            (propertize dx-mode-line-disconnect-icon 'face 'error))))))
 
 ;;;###autoload
 (easy-mmode-define-minor-mode dx-minor-mode

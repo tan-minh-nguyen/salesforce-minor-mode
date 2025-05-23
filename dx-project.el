@@ -1,56 +1,84 @@
-;; -*- no-byte-compile: t; no-native-compile: t; lexical-binding: t -*-
-;;; Code
-(require 'projectile)
+;;; dx-project.el --- Salesforce DX Project Management -*- lexical-binding: t; no-byte-compile: t; -*-
 
-(require 'dx-core)
+;; Copyright (C) 2024 Your Name
+
+;; Author: Your Name <your@email.com>
+;; Version: 0.1
+;; Package-Requires: ((emacs "27.1") (projectile "0.14.0") (transient "0.1.0"))
+;; Keywords: salesforce, dx, project
+;; URL: https://github.com/your/repo
+
+;;; Commentary:
+;; This package provides Salesforce DX project management functionality for Emacs.
+
+;;; Code:
+
+(require 'projectile)
 (require 'dx-core)
 (require 'transient)
 
+(defvar dx-project-ediff-help-message
+  "\n=====================|===========================|=============================
+    C-c C-p -push    |  C-c C-r -retrieve        |  C-c C-s -save changes
+"
+  "Help message for Salesforce DX ediff actions.")
+
+;;; Customization
+(defgroup salesforce-project nil
+  "Salesforce DX project management."
+  :group 'tools)
+
 (defcustom dx-files-test-root '(".forceignore")
-  "The list of files and directories to determine a project is Salesforce project."
+  "Files/dirs to identify Salesforce projects."
   :type 'list
   :group 'salesforce-project)
 
 (defcustom dx-project-configuration '((nil . ((eval . (dx-minor-mode 1)))))
-  "The list of configuration for Salesforce project."
+  "Project configuration for Salesforce projects."
   :type 'list
-  :type 'salesforce-project)
+  :group 'salesforce-project)
 
 ;;;###autoload
 (defun dx-project-p (&optional dir)
-  "Check root is Salesforce project."
-  (let ((default-directory (or dir (projectile-project-root)))
-        (project-pass nil))
+  "Check if DIR is a Salesforce project."
+  (let ((default-directory (or dir (projectile-project-root))))
+    (cl-some #'projectile-verify-file-wildcard dx-files-test-root)))
 
-    (dolist (file dx-files-test-root)
-      (setq project-pass (or project-pass (projectile-verify-file-wildcard file))))
-    project-pass))
-
-;;;###autoload
+;;;###autoload 
 (defun dx-project-init ()
-  "Initialize configuration for Salesforce project.
-Scans project folders to detect 'force-app/main/default' path and sets dx-metadata-root-dir."
+  "Initialize Salesforce project configuration."
   (when (eq (projectile-project-type) 'dx)
     (let ((enable-local-variables :all))
-      ;; Find and set metadata root directory
-      (dx-project--locate-metadata-dir)
-      ;; Set project configuration
-      (dir-locals-set-class-variables 'project-configuration dx-project-configuration)
-      (dir-locals-set-directory-class (projectile-project-root) 'project-configuration)
-      (hack-dir-local-variables-non-file-buffer))))
+      (dx-project--setup-metadata)
+      (dx-project--apply-dir-locals))))
 
-(defun dx-project--locate-metadata-dir ()
-  "Find location of metadata directory then update to `dx-metadata-root-dir'."
-  (when-let* ((root-dir (projectile-project-root))
-              (root-defined (or (alist-get root-dir dx-metadata-define-roots)
-                               (alist-get 'default dx-metadata-define-roots)))
-              (metadata-dir (locate-dominating-file root-dir root-defined))
-              (project-config (assoc-default nil dx-project-configuration)))
+(defun dx-project--setup-metadata ()
+  "Find and set metadata directory."
+  (when-let* ((root (projectile-project-root))
+              (config (dx-project--get-root-config root)))
+    (dx-project--update-config-with-metadata root config)))
 
-    (if project-config
-        (setf (alist-get nil dx-project-configuration)
-              `(,@project-config (dx-metadata-root-dir . ,(expand-file-name root-defined metadata-dir))))
-      (add-to-list 'dx-project-configuration `(nil . ((dx-metadata-root-dir . ,(expand-file-name root-defined metadata-dir))))))))
+(defun dx-project--get-root-config (root)
+  "Get project configuration for ROOT directory."
+  (or (alist-get root dx-metadata-define-roots)
+      (alist-get 'default dx-metadata-define-roots)))
+
+(defun dx-project--update-config-with-metadata (root config)
+  "Update project CONFIG with metadata path for ROOT."
+  (when-let ((metadata-dir (locate-dominating-file root config)))
+    (let ((metadata-path (expand-file-name config metadata-dir)))
+      (if (assoc nil dx-project-configuration)
+          (setf (alist-get nil dx-project-configuration)
+                `(,@(assoc-default nil dx-project-configuration)
+                  (dx-metadata-root-dir . ,metadata-path)))
+        (add-to-list 'dx-project-configuration 
+                    `(nil . ((dx-metadata-root-dir . ,metadata-path))))))))
+
+(defun dx-project--apply-dir-locals ()
+  "Apply directory local variables for project."
+  (dir-locals-set-class-variables 'project-configuration dx-project-configuration)
+  (dir-locals-set-directory-class (projectile-project-root) 'project-configuration)
+  (hack-dir-local-variables-non-file-buffer))
 
 ;; Define own projectile
 (with-eval-after-load 'projectile
@@ -77,19 +105,19 @@ Scans project folders to detect 'force-app/main/default' path and sets dx-metada
      (alert "Create Project Success"
             :title "DX Alert"))))
 
-(defun dx-project-source-push (buffer)
+(defun dx-project-source-push (buffer &optional target-org)
   "Push file to salesforce org."
   (interactive (list (buffer-file-name)))
   (dx-core--project-process 
-   :cmd (list "deploy" "start" "-d" buffer "--json")
+   :cmd `("deploy" "start" "-d" ,buffer ,@(when target-org (list "-o" target-org)) "--json")
    (alert (format "Deploy %s success" buffer)
           :title "DX Alert")))
 
-(defun dx-project-source-retrieve (buffer)
+(defun dx-project-source-retrieve (buffer &optional target-org)
   "Retrieve source salesforce form org"
   (interactive (list (buffer-file-name)))
   (dx-core--project-process 
-   :cmd (list "retrieve" "start" "-d" buffer "--json")
+   :cmd `("retrieve" "start" "-d" ,buffer ,@(when target-org (list "-o" target-org)) "--json")
    (alert (format "Retrieve %s success" buffer)
           :title "DX Alert")))
 
@@ -104,7 +132,7 @@ Scans project folders to detect 'force-app/main/default' path and sets dx-metada
             "-z"
             "-t" ,temporary-file-directory
             "--zip-file-name" ,file-name
-            ,@(when target-org (list "-o" target-org))
+            ,@(when (and target-org (not (string-blank-p target-org))) (list "-o" target-org))
             "--json")
      ;; rename backup directory to new directory containing the last modified id
      ;; and the last modified date
@@ -169,43 +197,45 @@ Scans project folders to detect 'force-app/main/default' path and sets dx-metada
     ;; Add custom ediff actions
     (dx-project--ediff-add-actions)))
 
+(defun dx-project--ediff-help-menu ()
+  "Add hints to ediff help menu."
+  ;; Add our help message to ediff's help system
+  (concat ediff-long-help-message-head
+          ediff-long-help-message-compare2 
+          dx-project-ediff-help-message
+          ediff-long-help-message-tail))
+
 (defun dx-project--ediff-add-actions ()
   "Add custom actions to ediff control panel."
-  (define-key ediff-mode-map (kbd "C-c C-p") 'dx-project--ediff-push-changes)
-  (define-key ediff-mode-map (kbd "C-c C-r") 'dx-project--ediff-retrieve-changes)
-  (define-key ediff-mode-map (kbd "C-c C-s") 'dx-project--ediff-save-changes)
-  (define-key ediff-mode-map (kbd "C-c C-d") 'dx-project--ediff-discard-changes))
+  ;; TODO: add logic handle help menu for compare 3 files
+  (define-key ediff-mode-map (kbd "C-c C-p") #'(lambda () (interactive) (dx-project--ediff-push-changes dx-org-name)))
+  (define-key ediff-mode-map (kbd "C-c C-r") #'(lambda () (interactive) (dx-project--ediff-retrieve-changes dx-org-name)))
+  (define-key ediff-mode-map (kbd "C-c C-s") #'(lambda () (interactive) (dx-project--ediff-save-changes ediff-buffer-A))))
 
-(defun dx-project--ediff-push-changes ()
-  "Push changes from ediff buffer to Salesforce org."
+(defun dx-project--ediff-push-changes (target-org)
+  "Push changes from ediff buffer to TARGET-ORG."
   (interactive)
   (let ((file (buffer-file-name ediff-buffer-A)))
     (dx-project--ediff-save-changes)
-    (when (yes-or-no-p "Push changes to Salesforce?")
-      (dx-project-source-push file))))
+    (when (yes-or-no-p "Push changes to %s org?" target-org)
+      (dx-project-source-push file target-org))))
 
-(defun dx-project--ediff-retrieve-changes ()
-  "Retrieve changes from Salesforce org to ediff buffer."
+(defun dx-project--ediff-retrieve-changes (target-org)
+  "Retrieve changes from TARGET-ORG to ediff buffer."
   (interactive)
   (let ((file (buffer-file-name ediff-buffer-A)))
-    (when (yes-or-no-p "Retrieve changes from Salesforce?")
-      (dx-project-source-retrieve file)
-      (dx-project--ediff-save-changes))))
+    (when (yes-or-no-p "Retrieve changes from %s org?" target-org)
+      (dx-project-source-retrieve file target-org)
+      (dx-project--ediff-save-changes ediff-buffer-A))))
 
-(defun dx-project--ediff-save-changes ()
+(defun dx-project--ediff-save-changes (buffer)
   "Save changes from ediff buffer to local file."
   (interactive)
-  (let ((file (buffer-file-name ediff-buffer-A)))
+  (let ((file (buffer-file-name buffer)))
     (if (interactive-p)
-        (when (yes-or-no-p "Save changes to local file?")
-          (save-buffer ediff-buffer-A))
-      (save-buffer ediff-buffer-A))))
-
-(defun dx-project--ediff-discard-changes ()
-  "Discard changes and quit ediff."
-  (interactive)
-  (when (yes-or-no-p "Discard changes?")
-    (ediff-quit)))
+        (when (yes-or-no-p "Save changes to %s file?" file)
+          (save-buffer file))
+      (save-buffer file))))
 
 (defun dx-project--ediff-quit-hook ()
   "Hook on quit."
@@ -220,50 +250,56 @@ Scans project folders to detect 'force-app/main/default' path and sets dx-metada
   (remove-hook 'ediff-quit-hook #'dx-project--ediff-quit-hook)
   (remove-hook 'ediff-mode-hook #'dx-project--ediff-add-actions))
 
-(defun dx-diff-metadata-other-org ()
-  "diff metadata between local and cloud."
+(defun dx-project-preview-metadata-multi-org ()
+  "Diff metadata between current file and two different orgs using ediff."
   (interactive)
-  (dx-org--fetch-org-list
-   (let* ((full-file-name (buffer-file-name))
-          (org (completing-read "Target Org: " org-list nil 'require-match))
-          (org-status (dx--org-status org)))
+  (dx-org--list (lambda (org-list)
+                  (let* ((current-file (buffer-file-name))
+                         (file-name (file-name-nondirectory current-file))
+                         (org1 (completing-read "First Org: " org-list nil 'require-match))
+                         (org2 (completing-read "Second Org: " org-list nil 'require-match))
+                         (temp-dir1 (make-temp-file "dx-diff-" t))
+                         (temp-dir2 (make-temp-file "dx-diff-" t))
+                         (file1 nil)
+                         (file2 nil)
+                         (poll-timer nil))
 
-     (unless (string= org-status "Connected"))
-     ;;(dx-authen))
+                    ;; Set up polling timer
+                    (setq poll-timer (run-with-timer 
+                                      1 1 ; start after 1s, repeat every 1s
+                                      (lambda ()
+                                        (when (and file1 file2)
+                                          (cancel-timer poll-timer)
+                                          (dx-project--setup-ediff3 current-file file1 file2)))))
 
-     (dx-source-backup
-      :target-org org
-      (condition-case error
-          (ediff (dx--find-backup-file (file-name-nondirectory full-file-name)
-                                       new-dir-name)
-                 full-file-name
-                 '((lambda ()
-                     (add-hook 'ediff-startup-hook #'dx-project--ediff-startup-hook)
-                     (add-hook 'ediff-quit-hook #'dx-project--ediff-quit-hook))))
-        (error
-         (alert (format "%s" error)
-                :title "DX Alert"
-                :severity 'urgent)))))))
+                    ;; Clone metadata from first org
+                    (dx-project--clone-cloud-metadata
+                     :metadata-file current-file
+                     :target-org org1
+                     :target-path temp-dir1
+                     :finish-func (lambda (path)
+                                    (setq file1 (car (directory-files-recursively path file-name)))))
 
-(defun dx-diff3-metadata ()
-  "diff metadata between three enviroments."
-  (interactive)
-  (let* ((minibuffer-history (dx-org--fetch-org-list))
-         (file-name (buffer-file-name))
-         (target-org (read-from-minibuffer "Target Org: "))
-         (bk-file-org (dx-source-backup))
-         (bk-file-target-org (dx-source-backup
-                              :target-org target-org)))
+                    ;; Clone metadata from second org
+                    (dx-project--clone-cloud-metadata
+                     :metadata-file current-file
+                     :target-org org2
+                     :target-path temp-dir2
+                     :finish-func (lambda (path)
+                                    (setq file2 (car (directory-files-recursively path file-name)))))))))
 
-    (condition-case error
-        (ediff3 (car (directory-files-recursively (concat bk-file-org "/") (file-name-nondirectory file-name))) file-name (car (directory-files-recursively (concat bk-file-target-org "/") (file-name-nondirectory file-name)))
-                '((lambda ())
-                  (add-hook 'ediff-startup-hook #'dx-project--ediff-startup-hook)
-                  (add-hook 'ediff-quit-hook #'dx-project--ediff-quit-hook)))
-      (error
-       (alert error
-              :title "DX Alert"
-              :severity 'urgent)))))
+(defun dx-project--setup-ediff3 (file-a file-b file-c)
+  "Setup ediff session for three files with proper hooks."
+  (ediff-files3 file-a file-b file-c
+                `((lambda ()
+                    (add-hook 'ediff-startup-hook #'dx-project--ediff-startup-hook)
+                    (add-hook 'ediff-quit-hook 
+                              (lambda () 
+                                (dx-project--ediff-quit-hook)
+                                (delete-directory (file-name-directory file-b) t)
+                                (delete-directory (file-name-directory file-c) t))))))
+  ;; (dx-project--ediff-add-actions)
+  )
 
 (defun dx-source-tracker ()
   (interactive)
@@ -443,6 +479,8 @@ Scans project folders to detect 'force-app/main/default' path and sets dx-metada
 
 (defun dx-project--prepare-ediff-session (local-file cloud-file)
   "Prepare ediff session with proper hooks and settings."
+  (setq ediff-long-help-message-function #'dx-project--ediff-help-menu)
+
   (ediff local-file cloud-file
          `((lambda ()
              (add-hook 'ediff-quit-hook #'dx-project--ediff-quit-hook)
@@ -450,7 +488,7 @@ Scans project folders to detect 'force-app/main/default' path and sets dx-metada
 
 (defun dx-project--get-relative-path (file-name)
   "Get relative path of file within project."
-  (file-name-directory (file-relative-name file-name (projectile-project-root)))
+  (file-name-directory (file-relative-name file-name (projectile-project-root))))
 
 (defun dx-project-selection-deploy (file-name)
   "Backup metadata and select section to deploy.
@@ -466,16 +504,16 @@ This function:
    :metadata-file file-name
    :finish-func (lambda (cloned-path)
                   (let* ((backup-file (dx--find-backup-file 
-                                      (file-name-nondirectory file-name)
-                                      cloned-path))
+                                       (file-name-nondirectory file-name)
+                                       cloned-path))
                          (relative-path (dx-project--get-relative-path file-name))
                          (project-temp (dx-project--initialize-file-temp 
-                                      backup-file 
-                                      relative-path))
+                                        backup-file 
+                                        relative-path))
                          (cloud-file-path (concat project-temp 
-                                                (file-name-base file-name) 
-                                                "." 
-                                                (file-name-extension file-name))))
+                                                  (file-name-base file-name) 
+                                                  "." 
+                                                  (file-name-extension file-name))))
                     
                     (dx-project--prepare-ediff-session cloud-file-path file-name)))))
 
@@ -520,22 +558,27 @@ Copies current file to temp folder with same path structure as project root."
       ;; Copy files
       (dx-project--copy-file-to-temp current-file (expand-file-name relative-path temp-dir)))))
 
-(defun dx-org-preview-metadata-change ()
+(defun dx-project-preview-metadata-change-other-org ()
+  "diff source between local project and specific salesforce platform."
+  (interactive)
+  (dx-org--list (lambda (org-list)
+                  (dx-project-preview-metadata-change (completing-read "Org: " org-list)))))
+
+(defun dx-project-preview-metadata-change (&optional target-org)
   "diff source between local project and salesforce platform."
   (interactive)
   (let ((full-file-name (buffer-file-name)))
-
-    (dx-source-backup
-     (condition-case error
-         (ediff (dx--find-backup-file (file-name-nondirectory full-file-name)
-                                      new-dir-name)
-                full-file-name
-                `((lambda ()
-                    (add-hook 'ediff-quit-hook #'dx-project--ediff-quit-hook)
-                    (add-hook 'ediff-startup-hook #'dx-project--ediff-startup-hook))))
-       (error
-        (alert (format "%s" error)
-               :title "DX Alert"
-               :severity 'urgent))))))
+    (dx-project--clone-cloud-metadata
+     :metadata-file full-file-name
+     :target-org (or target-org dx-org-name)
+     :finish-func (lambda (new-dir-name)
+                    (condition-case error
+                        (dx-project--prepare-ediff-session (dx--find-backup-file (file-name-nondirectory full-file-name)
+                                                                                 new-dir-name)
+                                                           full-file-name)
+                      (error
+                       (alert (format "%s" error)
+                              :title "DX Alert"
+                              :severity 'urgent)))))))
 
 (provide 'dx-project)

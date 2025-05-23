@@ -65,6 +65,19 @@
   :type 'string
   :group 'dx-minor-mode)
 
+(defcustom dx-whatsnew-command-alias "whatsnew"
+  "The command alias for configuration-related Salesforce CLI commands."
+  :type 'string
+  :group 'dx-minor-mode)
+
+(defvar dx-core--org-list-cache nil
+  "Cache for org list data. Format: ((timestamp . org-list-data))")
+
+(defcustom dx-core--org-list-cache-ttl 300
+  "Time-to-live for org list cache in seconds."
+  :type 'integer
+  :group 'dx-minor-mode)
+
 (defcustom dx-default-browser "qutebrowser"
   "The default browser to use for opening Salesforce URLs."
   :type 'string
@@ -142,9 +155,8 @@ Example: ((:project \"test\" :note-file \"org\"))"
   :type 'list
   :group 'dx-minor-mode)
 
-(defcustom dx-org-name ""
-  "The name of the currently active Salesforce org, displayed in the mode line."
-  :type 'string)
+(defvar dx-org-name nil
+  "The name of the currently active Salesforce org, displayed in the mode line.")
 
 (defcustom dx-prefix-keymap "M"
   "The prefix key for Salesforce DX commands in the keymap."
@@ -155,11 +167,20 @@ Example: ((:project \"test\" :note-file \"org\"))"
   "Full path project root.")
 
 (defvar dx-mode-line `(:eval (when (bound-and-true-p dx-minor-mode)
-                               (propertize (concat dx-mode-line-icon " "
-                                                   (cond ((string-blank-p dx-org-name) "")
-                                                         (t dx-org-name)))
-                                           'face 'dx-mode-line-face)))
+                               (if (string-blank-p dx-org-name) ""
+                                 (concat (propertize (concat dx-mode-line-icon " " dx-org-name)
+                                                     'face 'dx-mode-line-face)
+                                         dx-mode-line-current-org-status))))
   "Salesfoce mode line.")
+
+(defcustom dx-mode-line-active-connect-icon "\xf444"
+  "Icon display on mode-line when current org is active.")
+
+(defcustom dx-mode-line-disconnect-icon "\xf444"
+  "Icon display on mode-line when current org is disconnect.")
+
+(defcustom dx-mode-line-current-org-status nil
+  "Icon display on mode-line when current org is active.")
 
 (defvar dx-mode-line-icon "\xf0c2"
   "`dx-minor-mode' icon.")
@@ -282,8 +303,8 @@ If PATH is provided, append it to the metadata root directory."
         (:success org-name)
         (error
          (dx-core--get-data-json "result.0.value"
-                                 (dx-make-process-json-sync
-                                  :cmd (dx-build-sf-command "config" "get" "target-org" "--json")))))))))
+                                 (dx-core--config-process
+                                  :cmd '("get" "target-org" "--json")))))))))
 
 (defun dx--get-cache-folder-path ()
   "Get absolute path of cache directory."
@@ -318,15 +339,6 @@ Creates the directory if it doesn't exist."
   "Find backup file."
   `(car (dx--find-backup-files ,file-name ,dir)))
 
-(defun dx--org-status (&optional org)
-  "Check current org status."
-  (let ((json-instance (dx-make-process-json-sync
-                        :cmd (append (dx-build-sf-command dx-org-command-alias "display" "--json")
-                                     (when org (list "-o" org))))))
-    (cond ((= (plist-get json-instance :status) 0)
-           (dx-core--get-data-json "result.connectedStatus" json-instance))
-          (t (funcall #'dx-handle-process-error--json json-instance)))))
-
 (defun dx--get-lwc-directory ()
   "Get lwc directory."
   (expand-file-name dx-default-lwc-path (dx-find-root-dir)))
@@ -342,7 +354,7 @@ Creates the directory if it doesn't exist."
 COMMAND-ALIAS is the command prefix (e.g. dx-project-command-alias).
 BODY contains the process handling code."
   `(cl-defmacro ,(intern (format "dx-core--%s-process" (symbol-value command-alias)))
-       (&rest body &key cmd &allow-other-keys)
+       (&rest body &key cmd sync &allow-other-keys)
      (let ((alias ,(symbol-value command-alias)))
        `(let* ((callback (lambda (json-instance)
                            ,@body))
@@ -351,7 +363,9 @@ BODY contains the process handling code."
                                            (if (member "--json" ,cmd)
                                                (dx-parse-buffer-json (process-buffer proc))
                                              (process-buffer proc))))))
-          (apply #'dx-start-process handle-callback (cons ,alias ,cmd))))))
+          (apply #'dx-start-process
+                 (and ,sync handle-callback)
+                 (cons ,alias ,cmd))))))
 
 ;; Generate all process macros using the factory
 (dx-core--make-process dx-project-command-alias)
@@ -361,6 +375,7 @@ BODY contains the process handling code."
 (dx-core--make-process dx-org-command-alias)
 (dx-core--make-process dx-lightning-command-alias)
 (dx-core--make-process dx-config-command-alias)
+(dx-core--make-process dx-whatsnew-command-alias)
 
 (defun dx-make-chain-process (&rest process-list &key params &allow-other-keys)
   "Chain all processes."
@@ -375,14 +390,6 @@ BODY contains the process handling code."
                                                     :title "DX Alert"
                                                     :severity 'urgent)))))
                    (dx-make-chain-process (car process-list) :params result-proc))))))
-
-(cl-defmacro dx-process--make-handle-json (&rest body &key cmd &allow-other-keys)
-  "Execute async dx cli command and return json result."
-  `(let* ((callback (lambda (json-instance)
-                      ,@body))
-          (handle-callback (lambda (proc)
-                             (funcall callback (dx-parse-buffer-json (process-buffer proc))))))
-     (apply #'dx-start-process handle-callback ,cmd)))
 
 (cl-defmacro dx-make-process-json-sync (&key cmd)
   "Execute sync dx cli command and return json result."

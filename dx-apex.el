@@ -222,7 +222,7 @@
   "Generate apex class"
   (interactive (list (transient-args 'dx-apex--transient:apex-resource)))
   (dx-core--apex-process
-   `("generate" "class" ,@args "--json")
+   :cmd `("generate" "class" ,@args "--json")
    (switch-to-buffer (find-file (dx-core--get-data-json "result.created.0" json-instance)))))
 
 (defun dx-apex--generate-lightning-component (args)

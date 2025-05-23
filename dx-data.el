@@ -352,22 +352,22 @@
                    ;; Handle import error
                    (alert (format "Data import failed: %s" (plist-get result :error)) :title "DX Alert")))))
 
-
-(defun dx-data--soql-query (args &optional callback)
+(defun dx-data--soql-query (args &optional callback sync)
   "Execute SOQL string/file in specific org."
   (interactive (list (or ;;(transient-args 'dx-data--transient:data-query)
                    (dx-soql--read-content))))
   
   (dx-core--data-process
-   :cmd `,(if (plistp args) args
-            `("query" ,@(if (f-file-p args) `("-f" ,(expand-file-name args)) `("-q" ,args)) "--result-format=csv"))
-   (if callback
-       (funcall callback json-instance)
-     (let ((buffer (generate-new-buffer "*soql data results*")))
-       (with-current-buffer buffer
-         (insert (with-current-buffer json-instance (buffer-string)))
-         (csv-mode))
-       (pop-to-buffer buffer)))))
+   :cmd (if (plistp args) args
+          `("query" ,@(if (f-file-p args) `("-f" ,(expand-file-name args)) `("-q" ,args)) "--result-format=csv"))
+   (when sync
+     (if callback
+         (funcall callback json-instance)
+       (let ((buffer (generate-new-buffer "*soql data results*")))
+         (with-current-buffer buffer
+           (insert (with-current-buffer json-instance (buffer-string)))
+           (csv-mode))
+         (pop-to-buffer buffer))))))
 
 ;;;###autoload
 (defun dx-data-org-table-import ()

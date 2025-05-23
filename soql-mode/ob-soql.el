@@ -31,6 +31,8 @@
 ;; the user's system, and the Emacs major mode relevant to the
 ;; language be installed as well.
 
+;; FIXME: export data from csv to other format
+
 (require 'ob)
 (require 'ob-ref)
 (require 'ob-comint)
@@ -40,11 +42,13 @@
 (add-to-list 'org-babel-tangle-lang-exts '("soql" . "soql"))
 
 ;; optionally declare default header arguments for this language
-(defvar org-babel-default-header-args:soql (list '(:results . "value table")
-                                                 '(:org . "")))
+(defvar org-babel-default-header-args:soql `((:results . "output raw table replace")
+                                             (:org . "")
+                                             (:limit . "2000")))
 
-(defvar org-babel-default-inline-header-args:soql (list '(:results . "value table")
-                                                        '(:org . "")))
+(defvar org-babel-default-inline-header-args:soql `((:results . "output raw table replace")
+                                                    (:org . "")
+                                                    (:limit . "2000")))
 
 ;; This function expands the body of a source code block by doing things like
 ;; prepending argument definitions to the body, it should be called by the
@@ -56,11 +60,11 @@
   "Expand BODY according to PARAMS, return the expanded body."
   (require 'inf-template nil t)
   (let ((vars (org-babel--get-vars (or processed-params
-                                       (org-babel-process-params params)))))
+                                      (org-babel-process-params params))))
+        (soql (if (string-match-p "LIMIT" body) body
+                (format "%s LIMIT %s" body (ob-soql--get-param :limit processed-params)))))
 
-    (concat
-     ;; (mapconcat #'binding-declare-variable vars "\n")
-     "\n" body "\n")))
+    (concat "\n" (ob-soql--binding-declare-variable soql vars) "\n")))
 
 ;; This is the main function which is called to evaluate a code
 ;; block.
@@ -83,31 +87,29 @@
   "Execute SOQL content"
   (let* ((processed-params (org-babel-process-params params))
          (full-body (org-babel-expand-body:soql body params processed-params))
-         (file-temp (with-temp-file "soql" (insert full-body))))
+         (file-temp (make-temp-file "soql"))
+         (async-debug t)
+         (process (progn (write-region full-body nil file-temp)
+                         (async-get (dx-data--soql-query `("query" "-f" ,file-temp
+                                                           "-o" ,(ob-soql--get-param :org processed-params)
+                                                           "--result-format=csv")
+                                                         t))))
+         (result (with-current-buffer (process-buffer process)
+                   (unless (string-blank-p (buffer-string))
+                     (org-table-convert-region (point-min) (point-max))
+                     (buffer-string)))))
 
-    ;; Clear default result
-    (org-babel-remove-result)
-
-    (re-search-forward "#\\+end_src")
-    ;; Insert new result with uuid
-    (insert (format "\n#+RESULTS:\n%s" uuid))
-
-    (dx-data--soql-query `("query" "-f" ,file-temp "-o" ,(ob-soql--get-param "org" processed-params) "--result-format=csv")
-                         (lambda (data)
-                           (with-current-buffer `(current-buffer)
-                             ;; Replace uuid with log content
-                             (save-excursion
-                               (beginning-of-buffer)
-                               (re-search-forward uuid nil t 2)
-                               (delete-line)
-
-                               (let ((begin (point)))
-                                 (insert data)
-                                 (org-table-convert-region begin (point)))))))))
+    (concat result)))
 
 (defun ob-soql--get-param (key param-list)
   "Extract param in list."
   (cdr (assq key param-list)))
+
+(defun ob-soql--binding-declare-variable (soql pair)
+  "Handle binding value of variable to execute content."
+  (cl-loop for (key . value) in pair
+           do (setq soql (string-replace (format ":%s" key) (format "%s" value) soql))
+           finally return soql))
 
 (defun org-babel-prep-session:soql (session params)
   "Prepare SESSION according to the header arguments specified in PARAMS.")
@@ -117,15 +119,9 @@
 specifying a var of the same value."
   (format "%s" value))
 
-(defun org-babel-soql-table-or-string (results)
-  "If the results look like a table, then convert them into an
-Emacs-lisp table, otherwise return the results as a string.")
-
-
 (defun org-babel-template-initiate-session (&optional session)
   "If there is not a current inferior-process-buffer in SESSION then create.
 Return the initialized session."
   (unless (string= session "none")))
 
 (provide 'ob-soql)
-
