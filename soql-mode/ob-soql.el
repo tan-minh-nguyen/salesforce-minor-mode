@@ -90,10 +90,10 @@
          (file-temp (make-temp-file "soql"))
          (async-debug t)
          (process (progn (write-region full-body nil file-temp)
-                         (async-get (dx-data--soql-query `("query" "-f" ,file-temp
-                                                           "-o" ,(ob-soql--get-param :org processed-params)
-                                                           "--result-format=csv")
-                                                         t))))
+                         (async-get (dx-data--execute-query `("query" "-f" ,file-temp
+                                                              "-o" ,(ob-soql--get-param :org processed-params)
+                                                              "--result-format=csv")
+                                                            :sync t))))
          (result (with-current-buffer (process-buffer process)
                    (unless (string-blank-p (buffer-string))
                      (org-table-convert-region (point-min) (point-max))

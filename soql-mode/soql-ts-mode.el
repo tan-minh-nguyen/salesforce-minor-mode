@@ -1,7 +1,10 @@
  ;;; packages/salesforce-packages/soql-completion/soql-completion.el -*- lexical-binding: t; -*- SOQL auto completion
 
 ;; Code
+(require 'cl)
 (require 'treesit)
+(require 'soql-completion)
+(require 'soql-lsp)
 
 (defvar apex-ts-mode--soql-keywords
   '("SELECT" "FROM" "LIMIT" "ORDER_BY"
@@ -10,16 +13,16 @@
   "Keywords use for soql statement.")
 
 (defvar apex-ts-mode--soql-operators
-  '("=" "!=" "<>" ">" "<" "INCLUDES" "NOT_IN" "IN" "LIKE")
+  '("=" "!=" "<>" ">" "<" "INCLUDES" "NOT" "IN" "LIKE")
   "Operators use for soql statement.")
 
 (defvar soql-ts-mode--font-lock-settings
   (treesit-font-lock-rules
    ;; SOQL rules
-   :language 'apex
-   :feature 'comment
-   `((line_comment) @font-lock-comment-face
-     (block_comment) @font-lock-comment-face)
+   ;; :language 'soql
+   ;; :feature 'comment
+   ;; `((line_comment) @font-lock-comment-face
+   ;;   (block_comment) @font-lock-comment-face)
    
    :language 'soql
    :override t
@@ -104,6 +107,10 @@
     (error "Tree-sitter for Apex isn't available"))
 
   (treesit-parser-create 'soql)
+
+  ;;Hooks
+  (add-hook 'eglot-managed-mode-hook #'soql-company-setup)
+
   (soql-ts-mode--setup))
 
 (when (treesit-ready-p 'soql)
