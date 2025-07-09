@@ -1,4 +1,4 @@
-;;; packages/salesforce-packages/soql-completion/soql-completion.el -*- lexical-binding: t; -*- SOQL auto completion
+;;; soql-company.el -*- lexical-binding: t; -*- SOQL auto completion
 
 ;; Code
 (require 'treesit)
@@ -23,17 +23,26 @@
   :type 'list
   :group 'soql-company)
 
+(defvar-local soql-company-workspace nil
+  "Use for manually setting manual workspace if not part of project.")
+
 (defconst soql-company-pattern "__([A-Z_]+)"
   "Pattern trigger SOQL complete.")
 
 (defun soql-company--sobject-metadata (sobject-name)
   "Get metadata file of SOBJECT-NAME."
   (let* ((file-name (concat sobject-name ".json"))
-         (search-folder (dx-core--build-path (dx-core--tools-folder)
-                                             "/" dx-soql-metadata-dir "/"
-                                             (if (string-match-p "__c$" sobject-name)
-                                                 dx-custom-objects-dir
-                                               dx-stardard-objects-dir)))
+         (sobject-dir (if (string-match-p "__c$" sobject-name)
+                          dx-custom-objects-dir
+                        dx-stardard-objects-dir))
+         (search-folder (cond ((dx-project-p)
+                               (dx-core--build-path (dx-core--tools-folder)
+                                                    "/" dx-soql-metadata-dir "/"
+                                                    sobject-dir))
+                              (t (expand-file-name (concat (dx-core--tools-folder)
+                                                           "/" dx-soql-metadata-dir "/"
+                                                           sobject-dir)
+                                                   soql-company-workspace))))
          (file-path (expand-file-name file-name search-folder)))
     (and (file-exists-p file-path) file-path)))
 
@@ -45,7 +54,7 @@
 (defmacro soql-company--type-field (type)
   "Convert TYPE field to expected type."
   `(pcase ,type
-     ,@soql-completion-type-table))
+     ,@soql-company-type-table))
 
 (defun soql-company--annotation-1 (field)
   "Build annotation for auto completion.
@@ -79,26 +88,7 @@ FIELD: contains all data about that field."
               (clauses (treesit-query-capture soql-root '((from_clause) @sobject))))
     (treesit-node-text (treesit-node-child (assoc-default 'sobject clauses) 1) t)))
 
-(defun soql-company--retrieve-sobjects (sobject)
-  "Retrieve Sobject in current org."
-  (when-let* ((files (soql-completion--find-files sobject)))
-
-    (split-string files)))
-
 ;;; Company backed
-(defun soql-company--company-setup ()
-  "Setup SQOL company backend."
-  (let ((groups (car company-backends)))
-    (and (cond ((and (listp groups)
-                 (member :seperate groups))
-              (setcar company-backends
-                      `(,(car groups) soql-company ,@(cdr groups))))
-             ((and (listp groups)
-                 (member :with groups))
-              (setcar company-backends
-                      `(,(car groups) ,@(cdr groups) soql-company))))
-       (add-to-list 'company-transformers #'soql-company-delete-placeholder))))
-
 (defun soql-company--statement-root ()
   "Find SOQL root."
   (treesit-parent-until (treesit-node-at (point))
@@ -111,7 +101,7 @@ FIELD: contains all data about that field."
 
 (defun soql-company--candidates (&optional prefix)
   "Get candidates matches PREFIX for current SOQL statement."
-  (soql-completion--match-fields prefix (soql-completion--current-sobject)))
+  (soql-company--match-fields prefix (soql-company--current-sobject)))
 
 (defun soql-company--meta (candidate)
   "Format of annotation of CANDIDATE."
@@ -134,8 +124,12 @@ FIELD: contains all data about that field."
     (interactive (company-begin-backend 'company-soql))
     (prefix (and (soql-company--statement-p)
                (company-grab-symbol)))
-    (candidates (company-soql--candidates arg))
-    (annotation (company-soql--annotation arg))
-    (meta (company-soql--meta arg))))
+    (candidates (soql-company--candidates arg))
+    (annotation (soql-company--annotation arg))
+    (meta (soql-company--meta arg))))
+
+(defun soql-company-setup ()
+  "Setup SQOL company backend."
+  (add-to-list (make-local-variable 'company-backends) 'company-soql))
 
 (provide 'soql-company)

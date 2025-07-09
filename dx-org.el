@@ -177,60 +177,79 @@
   (setq dx-core--org-list-cache nil)
   (message "Org list cache cleared"))
 
-(defun dx-org--list (finish-func &optional org-type)
-  "Fetch list of available Salesforce orgs with caching.
+(defun dx-org--list-build-format-1 (json-instance)
+  "Build list of orgs from json response."
+  (when-let* ((org-types (dx-core--get-data-json "result" json-instance))
+              (org-data (cl-loop for (_ orgs) on org-types by #'cddr
+                                 append (cl-loop for org across orgs
+                                                 collect `(:username ,(dx-core--get-data-json "username" org)
+                                                                     :alias ,(dx-core--get-data-json "alias" org)
+                                                                     :isDevHub ,(dx-core--get-data-json "isDevHub" org)
+                                                                     :orgType ,(dx-core--get-data-json "orgType" org))))))
+    ;; Update cache
+    (setq dx-core--org-list-cache 
+          `((timestamp . ,(time-to-seconds))
+            (data . ,org-data)))
+    ;; Return filtered results
+    org-data))
+
+(cl-defun dx-org--list (finish-func &key org-type sync)
+  "Fetch org information."
+  (let ((data (dx-org--list-1 :finish-func finish-func
+                              :org-type org-type
+                              :sync sync)))
+    (when (processp data)
+      (ignore-errors (dx-org--list-build-format-1
+                      (json-parse-string (with-current-buffer (process-buffer data)
+                                           (buffer-string))
+                                         :object-type 'plist))))))
+
+(cl-defun dx-org--list-1 (&key finish-func org-type sync)
+  "Internal process that fetch list of available Salesforce orgs with caching.
 Optional ORG-TYPE can be 'devhub' or 'scratch' to filter orgs.
 Returns list of org aliases or nil on error."
-  (let* ((now (time-to-seconds))
-         (cached (assoc 'timestamp dx-core--org-list-cache))
+  (let* ((cached (assoc 'timestamp dx-core--org-list-cache))
+         (now (time-to-seconds))
          (cache-valid (and cached 
                          (< (- now (cdr cached)) 
                             dx-core--org-list-cache-ttl))))
     (if cache-valid
         (let ((orgs (assoc 'data dx-core--org-list-cache)))
-          (funcall finish-func
-                   (if org-type
-                       (cl-loop for org in (cdr orgs)
-                                when (or (and (eq org-type 'devhub)
-                                           (plist-get org :isDevHub))
-                                        (and (eq org-type 'scratch)
-                                           (string= (plist-get org :orgType) "ScratchOrg")))
-                                collect (plist-get org :alias))
-                     (mapcar (lambda (org) (plist-get org :alias)) (cdr orgs)))))
+          (cond (finish-func
+                 (funcall finish-func
+                          (if org-type
+                              (cl-loop for org in (cdr orgs)
+                                       when (or (and (eq org-type 'devhub)
+                                                  (plist-get org :isDevHub))
+                                               (and (eq org-type 'scratch)
+                                                  (string= (plist-get org :orgType) "ScratchOrg")))
+                                       collect (plist-get org :alias))
+                            (mapcar (lambda (org) (plist-get org :alias)) (cdr orgs)))))
+                (mapcar (lambda (org) (plist-get org :alias)) (cdr orgs))))
+
       (let ((default-directory (or (projectile-project-root) default-directory)))
         (dx-core--org-process
          :cmd `("list" "--skip-connection-status" "--json")
-         (condition-case err
-             (if-let ((org-types (dx-core--get-data-json "result" json-instance)))
-                 (let ((org-data (cl-loop for (_ orgs) on org-types by #'cddr
-                                          append (cl-loop for org across orgs
-                                                          collect (list :username (dx-core--get-data-json "username" org)
-                                                                     :alias (dx-core--get-data-json "alias" org)
-                                                                     :isDevHub (dx-core--get-data-json "isDevHub" org)
-                                                                     :orgType (dx-core--get-data-json "orgType" org))))))
-                   ;; Update cache
-                   (setq dx-core--org-list-cache 
-                         `((timestamp . ,now)
-                           (data . ,org-data)))
-                   ;; Return filtered results
-                   (funcall finish-func
-                            (if org-type
-                                (cl-loop for org in org-data
-                                         when (or (and (eq org-type 'devhub)
-                                                    (plist-get org :isDevHub))
-                                                 (and (eq org-type 'scratch)
-                                                    (string= (plist-get org :orgType) "ScratchOrg")))
-                                         collect (plist-get org :alias))
-                              (mapcar (lambda (org) (or (plist-get org :alias) (plist-get org :username))) org-data))))
-               (error "No orgs found in JSON response"))
-           (error
-            (message "Error fetching org list: %s" (error-message-string err))
-            nil)))))))
+         :sync sync
+         (unless sync
+           (let ((org-data (dx-org--list-build-format-1 json-instance)))
+             (funcall finish-func
+                      (if org-type
+                          (cl-loop for org in org-data
+                                   when (or (and (eq org-type 'devhub)
+                                              (plist-get org :isDevHub))
+                                           (and (eq org-type 'scratch)
+                                              (string= (plist-get org :orgType) "ScratchOrg")))
+                                   collect (plist-get org :alias))
+                        (mapcar (lambda (org) (or (plist-get org :alias) (plist-get org :username))) org-data))))))))))
 
 (cl-defun dx-org--status (&key finish-func org)
   "Check current org status."
   (dx-core--org-process
    :cmd `("display" "-o" ,(or org dx-org-name) "--json")
    (funcall finish-func json-instance)))
+
+(defun dx-org-retrieve-metatdata-sobjects ()
+  "Retrieves sobjects metadata on org.")
 
 (provide 'dx-org)

@@ -1,10 +1,12 @@
- ;;; packages/salesforce-packages/soql-completion/soql-completion.el -*- lexical-binding: t; -*- SOQL auto completion
+ ;;; soql-ts-mode.el -*- lexical-binding: t; -*- SOQL auto completion
 
 ;; Code
 (require 'cl)
 (require 'treesit)
-(require 'soql-completion)
-(require 'soql-lsp)
+(require 'soql-company)
+(require 'soql-eglot)
+(when (require 'lsp-bridge nil t)
+  (require 'soql-bridge))
 
 (defvar apex-ts-mode--soql-keywords
   '("SELECT" "FROM" "LIMIT" "ORDER_BY"
@@ -99,6 +101,10 @@
 
   (treesit-major-mode-setup))
 
+(defun soql-ts-mode-p ()
+  "Check current context is apex."
+  (eq major-mode 'soql-ts-mode))
+
 ;;;###autoload
 (define-derived-mode soql-ts-mode prog-mode "SOQL"
   "Major mode for editing SOQL, powered by tree-sitter."
@@ -110,6 +116,7 @@
 
   ;;Hooks
   (add-hook 'eglot-managed-mode-hook #'soql-company-setup)
+  (add-hook 'soql-ts-mode-hook #'soql-company-setup)
 
   (soql-ts-mode--setup))
 

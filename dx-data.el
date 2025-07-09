@@ -27,6 +27,23 @@
   ["Import"
    ("B" "Bulk" dx-data--transient:import-bulk)])
 
+;; Query data
+(transient-define-prefix dx-data--transient:data-query ()
+  "Menu configuration sf data query command."
+  ["Arguments"
+   [""
+    (dx-data--transient:-f)
+    (dx-data--transient:-q)
+    (dx-data--transient:--async)
+    (dx-data--transient:--all-rows)]
+   [""
+    (dx-data--transient:-r)
+    (dx-data--transient:--use-tooling-api)
+    (dx--transient-menu:-o)
+    (dx--transient-menu:--api-version)]]
+  [""
+   ("RET" "Execute SOQL" dx-data--execute-query)])
+
 ;; Import data
 (transient-define-prefix dx-data--transient:import-bulk ()
   "Menu configuration import bulk."
@@ -164,7 +181,7 @@
 
 (transient-define-argument dx-data--transient:-q ()
   :class 'transient-option
-  :description "source export"
+  :description "SOQL string"
   :key "-q"
   :shortarg "-q"
   :argument "--query="
@@ -183,6 +200,11 @@
   :shortarg "-x"
   :argument "--prefix="
   :reader #'dx-data--transient:-x-reader)
+
+(transient-define-argument dx-data--transient:--use-tooling-api ()
+  :description "use tooling API"
+  :shortarg "--use-tooling-api"
+  :argument "--use-tooling-api")
 
 (transient-define-argument dx-data--transient:--async ()
   :description "run async job"
@@ -331,7 +353,15 @@
 
                       ;; Execute the import command
                       (let ((proc (apply #'dx-start-process nil
-                                         `(,dx-data-command-alias "import" "bulk" "--file" ,file "--target-org" ,dx-org-name "--json"))))
+                                         `(
+                                           ,dx-data-command-alias
+                                           "import"
+                                           "bulk"
+                                           "--file"
+                                           ,file
+                                           "--target-org"
+                                           ,dx-org-name
+                                           "--json"))))
                         (async-wait proc)
                         (if (eq (process-exit-status proc) 1)
                             (list :status 1 :error (dx--async-when-done proc))
@@ -352,22 +382,27 @@
                    ;; Handle import error
                    (alert (format "Data import failed: %s" (plist-get result :error)) :title "DX Alert")))))
 
-(defun dx-data--soql-query (args &optional callback sync)
+(cl-defun dx-data--execute-query (args &key callback sync)
   "Execute SOQL string/file in specific org."
-  (interactive (list (or ;;(transient-args 'dx-data--transient:data-query)
-                   (dx-soql--read-content))))
-  
   (dx-core--data-process
    :cmd (if (plistp args) args
-          `("query" ,@(if (f-file-p args) `("-f" ,(expand-file-name args)) `("-q" ,args)) "--result-format=csv"))
-   (when sync
-     (if callback
-         (funcall callback json-instance)
-       (let ((buffer (generate-new-buffer "*soql data results*")))
-         (with-current-buffer buffer
-           (insert (with-current-buffer json-instance (buffer-string)))
-           (csv-mode))
-         (pop-to-buffer buffer))))))
+          `("query" ,@(if (f-file-p args) `("-f" ,(expand-file-name args)) `("-q" ,args)) "-o" ,dx-org-name "--result-format=csv"))
+   :sync sync
+   ;; use for async  process only
+   (if callback
+       (funcall callback json-instance)
+     (let ((soql-buffer (generate-new-buffer "*soql data results*")))
+       (with-current-buffer soql-buffer
+         (insert (with-current-buffer json-instance (buffer-string)))
+         (csv-mode))
+       (pop-to-buffer soql-buffer)))))
+
+(defun dx-data-execute-query (query-string)
+  "Execute SOQL statement."
+  (interactive (list (or (transient-args 'dx-data--transient:data-query)
+                     (dx-soql--read-content))))
+  (let ((stream-query (replace-regexp-in-string "\/\/.+\n" "" query-string)))
+    (dx-data--execute-query stream-query)))
 
 ;;;###autoload
 (defun dx-data-org-table-import ()

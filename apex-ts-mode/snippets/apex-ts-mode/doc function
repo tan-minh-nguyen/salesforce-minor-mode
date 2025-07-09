@@ -1,0 +1,14 @@
+# -*- mode: snippet -*-
+# name: doc function
+# key: docf
+# --
+
+/*
+*********************************************************
+* @Method Name    : ${1:name}
+* @author         : user-email-address
+* @description    : $0
+* @param          :
+* @return         : ${2:output}
+********************************************************
+*/

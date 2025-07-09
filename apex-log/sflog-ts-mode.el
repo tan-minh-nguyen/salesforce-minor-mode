@@ -1,17 +1,38 @@
- ;;; log-ts-mode.el --- Apex log syntax mode powered by tree-sitter -*- lexical-binding: t; -*-
+ ;;; sflog-ts-mode.el --- Apex log syntax mode powered by tree-sitter -*- lexical-binding: t; -*-
 
 ;; Code
 (require 'treesit)
+
+(defcustom sflog-governor-table '(("Number of SOQL queries" "SOQL")
+                                  ("Number of query rows" "SOQL rows") 
+                                  ("Number of SOSL queries" "SOQL count")
+                                  ("Number of DML statements" "DML")
+                                  ("Number of Publish Immediate DML" "Pub DML")
+                                  ("Number of DML rows" "DML rows")
+                                  ("Maximum CPU time" "CPU time")
+                                  ("Maximum heap size" "Heap size")  
+                                  ("Mumber of callouts" "Callouts") 
+                                  ("Number of Email Invocations" "Email") 
+                                  ("Number of future calls" "Future")
+                                  ("Number of queueable jobs added to the queue" "Jobs")
+                                  ("Number of Mobile Apex push calls" "Apex call"))
+  "Table convert governor limits to shorten version."
+  :type 'list
+  :group 'sflog)
+
+(defvar sflog-ts-mode-header-format ""
+  "Format for emacs header in `sflog-ts-mode'.")
+
+(defvar sflog-ts-mode--indent-rules
+  `((sflog
+     ((parent-is "log_header") column-0 0)))
+  "Tree-sitter indent rules.")
 
 (defvar sflog-ts-mode--keywords
   '("APEX_CODE" "DEBUG" "APEX_PROFILING" "CALLOUT"
     "DB" "NBA" "SYSTEM" "VALIDATION" "VISUALFORCE" "WAVE"
     "WORKFLOW" "EXTERNAL")
   "Keywords use for SF log statement.")
-
-(defvar sflog-ts-mode--operators
-  '()
-  "Operators use for soql statement.")
 
 (defvar sflog-ts-mode--font-lock-settings
   (treesit-font-lock-rules
@@ -42,35 +63,33 @@
    :language 'sflog
    :override t
    :feature 'keyword
-   `([,@apex-ts-mode--soql-keywords] @font-lock-keyword-face)
+   `([,@sflog-ts-mode--keywords] @font-lock-keyword-face)
 
-   :language 'sflog
-   :override t
-   :feature 'bracket
-   '((["(" ")" "[" "]" "{" "}"]) @font-lock-bracket-face)
+   ;; :language 'sflog
+   ;; :override t
+   ;; :feature 'bracket
+   ;; '((["(" ")" "[" "]" "{" "}"]) @font-lock-bracket-face)
 
    :language 'sflog
    :override t
    :feature 'delimiter
-   '((["|" ":"]) @font-lock-delimiter-face))
+   '(["|" ":"] @font-lock-delimiter-face))
   "Tree-sitter font lock rules for `sflog-ts-mode'.")
 
-(defvar sflog-ts-mode-header-format ""
-  "Format for emacs header in `sflog-ts-mode'.")
+(defmacro sflog-ts-mode--governor-convert (governor)
+  "Convert GOVERNOR name."
+  `(pcase ,governor
+     ,@sflog-governor-table))
 
-(defvar sflog-ts-mode--indent-rules
-  `((sflog
-     ((parent-is "parser_output") column-0 0)))
-  "Tree-sitter indent rules.")
-
+;;;###autoload
 (defun sflog-ts-mode--header-mode ()
-  "Format log header."
-  (let ((governor-limits (treesit-query-capture (treesit-buffer-root-node) '((limit (identifier) @limit-name
-                                                                                    (number) @limit-value) @limit))))
-    (setq sflog-ts-mode-header-format (cl-loop for limit in governor-limits
-                                               concat (concat "%s: %s"
-                                                              (treesit-node-text (assoc-default 'limit-name limit))
-                                                              (treesit-node-text (assoc-default 'limit-value limit)))))))
+  "Inform governor limits."
+  (let ((governor-limits (treesit-query-capture (treesit-buffer-root-node) '((limit) @limit))))
+    (setq header-line-format (cl-loop for (_ . node) in governor-limits
+                                      concat (format "%s: %s/%s "
+                                                     (sflog-ts-mode--governor-convert (s-trim (treesit-node-text (treesit-node-child-by-field-name node "name") t)))
+                                                     (treesit-node-text (treesit-node-child-by-field-name node "consumed") t)
+                                                     (treesit-node-text (treesit-node-child-by-field-name node "available") t))))))
 
 (defun sflog-ts-mode--setup ()
   "Setup tree-sitter for `sflog-ts-mode'."
@@ -95,17 +114,13 @@
 ;;;###autoload
 (define-derived-mode sflog-ts-mode prog-mode "SFLog"
   "Major mode for editing SF log, powered by tree-sitter."
+  :after-hook '(sflog-ts-mode--header-mode)
   :group 'sflog
   (unless (treesit-ready-p 'sflog)
     (error "Tree-sitter for Apex isn't available"))
 
   (treesit-parser-create 'sflog)
-  (sflog-ts-mode--setup)
-  (sflog-ts-mode--header-mode)
-  (when sflog-ts-mode
-    (cond ((null header-line-format)
-           (setq header-line-format sflog-ts-mode-header-format))
-          (t (add-to-list header-line-format sflog-ts-mode-header-format)))))
+  (sflog-ts-mode--setup))
 
 (add-to-list 'auto-mode-alist '("\\.log\\'" . sflog-ts-mode))
 

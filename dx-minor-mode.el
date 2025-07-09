@@ -7,52 +7,61 @@
 (require 'dx-org)
 (require 'dx-project)
 ;; load core packages
-(require 'apex-ts-mode)
-(require 'ob-apex)
 (require 'dx-data)
+(require 'apex-ts-mode)
+(require 'soql-ts-mode)
+(require 'ob-apex)
+(require 'ob-soql)
 
-(defvar dx-mode-map
-  (let ((map (make-sparse-keymap)))
-    ;; org features
-    (keymap-set map "M-o s" (cons "Authorize Org" #'dx-org-authorize))
-    (keymap-set map "M-o c" (cons "Switch Org" #'dx-org-change-connection))
+(defvar dx-org-keymap (let ((map (make-sparse-keymap)))
+                        (keymap-set map "TAB" (cons "Switch Org" #'dx-org-change-connection))
 
-    (keymap-set map "M-o r" (cons "Retrieve Metadata" #'dx-project-source-retrieve))
-    (keymap-set map "M-o d" (cons "Deploy Metadata" #'dx-project-source-push))
+                        (keymap-set map "r" (cons "Retrieve Metadata" #'dx-project-source-retrieve))
+                        (keymap-set map "d" (cons "Push Metadata" #'dx-project-source-push))
 
-    (keymap-set map "M-o o" (cons "Open Org" #'dx-org-open-current))
-    (keymap-set map "M-o n" (cons "View All Orgs" #'dx-org-display-all-orgs))
-    (keymap-set map "M-o m" (cons "View All Devhubs" #'dx-org-display-all-devhubs))
-    (keymap-set map "M-o N" (cons "Notes" #'dx-project-open-note))
-    (keymap-set map "M-o l" (cons "Clear Log" #'dx-org-clear-log-data))
+                        (keymap-set map "n" (cons "List All Orgs" #'dx-org-display-all-orgs))
+                        (keymap-set map "m" (cons "List All Devhubs" #'dx-org-display-all-devhubs))
+                        (keymap-set map "p" (cons "Diff File" #'dx-project-preview-metadata-change))
+                        (keymap-set map ";" (cons "Execute Apex Code" #'dx-apex-execute-code))
+                        (keymap-set map "." (cons "Open Org" #'dx-org-open-current))
+                        map)
+  "Keymap for org features.")
 
-    ;; apex features
-    (keymap-set map "M-c" (cons "Create DX Resource" #'dx-apex--transient:generate-resource))
-    (keymap-set map "M-c" (cons "Excute Apex Code" #'dx-apex-execute-code))
-    ;; (keymap-set map "M-c t" (cons "Create Trigger" #'dx-apex-generate-trigger))
-    ;; (keymap-set map "M-c c" (cons "Create Apex Class" #'dx-apex-generate-class))
-    ;; (keymap-set map "M-c T" (cons "Create Apex Class Test" #'dx-apex-generate-test-class))
-    ;; (keymap-set map "M-c F" (cons "Create Method Test" #'dx-apex-generate-test-method))
-    ;; project features
-    ;;(keymap-set map "M-q t" (cons "Query Record" #'dx-soql-string))
-    ;; (keymap-set map "M-q f" (cons "Ex" #'dx-fetch-dx-file))
+(defvar dx-mode-map (let ((map (make-sparse-keymap))
+                          (resource-feature-keymap (make-sparse-keymap)))
 
-    ;; visualforce features
-    ;;(keymap-set map "M-c v" (cons "Create Visualforce Page" #'dx-visualforce-generate-page))
-    ;;(keymap-set map "M-c C" (cons "Create Visualforce Component" #'dx-visualforce-generate-component))
+                      ;; resource features
+                      (keymap-set resource-feature-keymap "SPC" (cons "Create DX Resource" #'dx-apex--transient:generate-resource))
+                      (keymap-set resource-feature-keymap "L" (cons "Clear Log Data" #'dx-org-clear-log-data))
+                      ;;(keymap-set resource-feature-keymap "t" (cons "Source Tracker" #'dx-source-tracker))
+                      ;;(keymap-set map "M-m D" (cons "Diff Source Multi Org" #'dx-diff3-metadata))
 
-    ;; metadata features
-    (keymap-set map "M-m t" (cons "Source Tracker" #'dx-source-tracker))
-    (keymap-set map "M-m d" (cons "Diff Source" #'dx-project-preview-metadata-change))
-    (keymap-set map "M-m D" (cons "Diff Source Multi Org" #'dx-diff3-metadata))
-    map)
+                      ;; leader map
+                      (keymap-set map "M-o o" (cons "Org Features" dx-org-keymap))
+                      (keymap-set map "M-o r" (cons "Resource Features" resource-feature-keymap))
+                      (keymap-set map "M-o N" (cons "Notes" #'dx-project-open-note))
+                      (keymap-set map "M-o A" (cons "Authorize Org" #'dx-org-authorize))
+                      ;; (keymap-set map "M-c t" (cons "Create Trigger" #'dx-apex-generate-trigger))
+                      ;; (keymap-set map "M-c c" (cons "Create Apex Class" #'dx-apex-generate-class))
+                      ;; (keymap-set map "M-c T" (cons "Create Apex Class Test" #'dx-apex-generate-test-class))
+                      ;; (keymap-set map "M-c F" (cons "Create Method Test" #'dx-apex-generate-test-method))
+                      ;; project features
+                      ;;(keymap-set map "M-q t" (cons "Query Record" #'dx-soql-string))
+                      ;; (keymap-set map "M-q f" (cons "Ex" #'dx-fetch-dx-file))
+
+                      ;; visualforce features
+                      ;;(keymap-set map "M-c v" (cons "Create Visualforce Page" #'dx-visualforce-generate-page))
+                      ;;(keymap-set map "M-c C" (cons "Create Visualforce Component" #'dx-visualforce-generate-component))
+
+                      
+                      map)
   "Keymap for `dx-minor-mode'.")
 
 ;; TODO: call check connect function to show it as status
 (defun dx-minor-mode--init ()
   "Initialize mode."
   (setq dx-org-name (dx-internal-current-org)
-        dx-project-root-dir (dx-find-root-dir))
+        dx-project-root-dir (dx-core--find-root-dir))
   (dx-org--status :org dx-org-name
                   :finish-func
                   (lambda (json-instance)

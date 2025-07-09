@@ -34,6 +34,10 @@
 (eval-when-compile (require 'rx))
 (require 'c-ts-common) ; For comment indent and filling.
 (require 'cl-macs)
+(require 'apex-lsp)
+(require 'apex-ai)
+(when (require 'dape nil 'noerror)
+  (require 'apex-dap))
 
 (declare-function treesit-parser-create "treesit.c")
 (declare-function treesit-induce-sparse-tree "treesit.c")
@@ -356,6 +360,15 @@ Return nil if there is no name or if NODE is not a defun node."
           (t
            (treesit-node-child-by-field-name node (car path-splited))))))
 
+(defun apex-ts-mode--soql-embeded ()
+  "Auto hints for embedded SOQL statement."
+  (require 'soql-company nil 'noerror)
+  (add-hook 'eglot-managed-mode-hook #'soql-company-setup))
+
+(defun apex-ts-mode-p ()
+  "Check current context is apex."
+  (eq major-mode 'apex-ts-mode))
+
 (defun apex-ts-mode-setup ()
   "Initialize tree-siter config for `apex-ts-mode'."
 
@@ -365,12 +378,12 @@ Return nil if there is no name or if NODE is not a defun node."
   ;; Indent.
   (setq-local c-ts-common-indent-type-regexp-alist
               `((block . ,(rx (or "class_body"
-                                 "array_initializer"
-                                 "constructor_body"
-                                 "interface_body"
-                                 "enum_body"
-                                 "switch_block"
-                                 "block")))
+                                  "array_initializer"
+                                  "constructor_body"
+                                  "interface_body"
+                                  "enum_body"
+                                  "switch_block"
+                                  "block")))
                 (close-bracket . "}")
                 (if . "if_statement")
                 (else . ("if_statement" . "alternative"))
@@ -434,56 +447,7 @@ Return nil if there is no name or if NODE is not a defun node."
   (add-to-list 'auto-mode-alist '("\\.cls\\'" . apex-ts-mode))
   (add-to-list 'auto-mode-alist '("\\.trigger\\'" . apex-ts-mode)))
 
-;;; LSP configurations
-
-;; Configurations lsp-bridge
-(with-eval-after-load 'lsp-bridge
-  (add-to-list 'lsp-bridge-single-lang-server-mode-list '(apex-ts-mode . "apex"))
-  ;; (add-to-list 'lsp-bridge-default-mode-hooks 'apex-ts-mode-hook)
-  (add-to-list 'lsp-bridge-formatting-indent-alist '(apex-ts-mode . apex-ts-mode-indent-offset)))
-
-(defun lsp-bridge-apex-mode ()
-  "Configurate LSP for `apex-ts-mode'."
-  (interactive)
-  (let ((langserver-dir (concat apex-ts-mode--root-dir "language-server/")))
-
-    (setq-local lsp-bridge-user-langserver-dir langserver-dir)
-
-    (lsp-bridge-mode)))
-
-(defcustom apex-ts-mode--lsp-path "~/.local/apex-lsp/apex-lsp.jar"
-  "Path of LSP bin."
-  :type 'string
-  :group 'apex)
-
-;;;###autoload
-(defun apex-ts-mode--generate-server-lsp-command ()
-  "generate command run apex server."
-  `("java" "-cp" ,(expand-file-name apex-ts-mode--lsp-path) "apex.jorje.lsp.ApexLanguageServerLauncher"))
-
-
-;; lsp-mode config for apex
-(when (require 'lsp-mode nil t)
-  (add-to-list 'lsp-language-id-configuration
-               '(apex-ts-mode . "Apex"))
-
-  (lsp-register-client
-   (make-lsp-client :new-connection (lsp-stdio-connection (string-join (apex-ts-mode--generate-server-lsp-command) " "))
-                    :activation-fn (lsp-activate-on "Apex")
-                    :priority -1
-                    :server-id 'apex-lsp)))
-
-;; Eglot config for apex
-(defcustom apex-ts-mode--eglot-config '(:initializationOptions (:enableEmbeddedSoqlCompletion t))
-  "JSON use for LSP initialization config."
-  :type 'list
-  :group 'apex)
-
-;;;###autoload
-(with-eval-after-load 'eglot
-  (add-to-list 'eglot-server-programs
-               `(apex-ts-mode . (,@(apex-ts-mode--generate-server-lsp-command)
-                                 ,@apex-ts-mode--eglot-config))))
+(add-hook 'apex-ts-mode-hook #'apex-ts-mode--soql-embeded)
 
 ;; Imenu
 (defmacro apex-ts-mode--define-source-annotate (&optional text)
@@ -491,7 +455,7 @@ Return nil if there is no name or if NODE is not a defun node."
   `(lambda (cand)
      (let* (;; Return type display
             (type-text (propertize (or (plist-get cand :type)
-                                      "Void")
+                                       "Void")
                                    'face 'font-lock-type-face)))
        type-text)))
              
@@ -619,43 +583,6 @@ Return nil if there is no name or if NODE is not a defun node."
 (with-eval-after-load 'yasnippet
   (require 'apex-ts-mode-yasnippet)
   (apex-ts-mode-yasnippet-initialize))
-
-;;; Yasnippet
-(with-eval-after-load 'dape
-  (require 'apex-ts-dap)
-  (apex-ts-dap-initialize))
-
-;; SOQL auto completion
-;; FIXME: check current point in soql statement
-(defun apex-to-mode--soql-p ()
-  "Current point is in SOQL range parser."
-  (or (equal (treesit-language-at (point)) 'soql)))
-
-;;TODO; get prefix of soql statment before point and suffix of point
-(defun apex-ts-mode--soql-company-prefix ()
-  "Prefix for `company-soql' backend."
-  `(1 2 3))
-
-(defun apex-ts-mode--soql-statment (atom)
-  "Search atribute SOQL statment."
-  (let ((soql-statment (treesit-node-at)))
-    (cl-case atom
-      (`object "Account")
-      (_ nil))))
-
-(defun apex-ts-mode--soql-candidates (callback)
-  "Fetch SOQL candidates for auto completion."
-  (let ((candidates (apex-ts-mode--soql-statment 'object)))
-    (funcall callback candidates)))
-
-(defun company-soql (command &optional arg &rest ignored)
-  "Apex SOQL backend for `company-mode'."
-  (interactive (list 'interactive))
-  (cl-case command
-    (`interactive (company-begin-backend 'company-soql))
-    (`prefix (apex-ts-mode--soql-company-prefix))
-    (`candidates (cons :async . (lambda (callback)
-                                  (apex-ts-mode--soql-candidates callback))))))
 
 (provide 'apex-ts-mode)
 ;;; apex-ts-mode.el ends here

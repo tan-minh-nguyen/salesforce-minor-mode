@@ -77,6 +77,8 @@
 (require 'ob-eval)
 (require 'dx-core)
 (require 'dx-core)
+(require 'apex-company)
+(require 'apex-ts-mode)
 
 (add-to-list 'org-babel-tangle-lang-exts '("apex" . "cls"))
 
@@ -133,7 +135,7 @@
              (org-babel-process-params params)))))
 
     (concat
-     (mapconcat #'binding-declare-variable vars "\n")
+     (mapconcat #'ob-apex--binding-declare-variable vars "\n")
      "\n" body "\n")))
 
 ;; This is the main function which is called to evaluate a code
@@ -229,21 +231,30 @@
      (alert "Run apex code complete"
             :title "Salesforce Alert"))))
 
-(defun ob-apex--format-var-value (type value)
-  "Format value of variable according to apex syntax."
-  (if (string= var-type "String")
-      (format "\'%s\'" value)
-    value))
-
-(defun binding-declare-variable (pair)
+(defun ob-apex--binding-declare-variable (pair)
   "Handle binding value of variable to execute content."
-  (let* ((var (split-string
-               (format "%s"(car pair)) "\\."))
-         (var-type (car var))
-         (var-name (cdar var))
-         (value (org-apex var-type (cdr pair))))
+  (cl-loop for (key . value) in pair
+           as cast-value = (format "%s" value)
+           concat (ob-apex--build-var-code key cast-value)))
 
-    (format "%s %s = %s;" var-type var-name value)))
+(defun ob-apex--build-var-code (key value)
+  "Building variables for apex code."
+  (let ((type (cond ((string-match-p "^'" value) "string")
+                    ((string-match-p "^[1-9]+$" value) "number")
+                    ((string-match-p "^([Tt]rue|[Ff]alse)$" value) "boolean")
+                    (t "object"))))
+    (format "%s %s = %s;"
+            (pcase type
+              ("string" "String")
+              ("number" "Decimal")
+              ("boolean" "Boolean")
+              (_ value))
+            key
+            (pcase type
+              ("string" (format "'%s'" value))
+              ("number" value)
+              ("boolean" value)
+              (_ (format "new %s" value))))))
 
 (defun org-babel-prep-session:apex (session params)
   "Prepare SESSION according to the header arguments specified in PARAMS.")
@@ -252,6 +263,29 @@
   "Convert an elisp var into a string of template source code
 specifying a var of the same value."
   (format "%s" value))
+
+;; Hints value base on value of header arguments 
+;; FIXME: trigger eglot in specfic workspace
+(when (require 'company-org-header nil 'noerror)
+  (defcustom ob-apex-header-completions `((:workspace . dx-core--projects)
+                                          (:org . dx-core--orgs))
+    "Handles completions for org headers."
+    :type 'alist
+    :group 'ob-apex)
+
+  (defcustom ob-apex-src-code-hook '(ob-apex-initialize-completion)
+    "List of hooks to run when editing SOQL source code blocks."
+    :type '(repeat function)
+    :group 'ob-apex)
+
+  (defun ob-apex-initialize-completion ()
+    "Initialize the SOQL completion hook."
+    (when-let ((default-directory (assoc-default :workspace company-header-args)))
+      ;; (call-interactively #'eglot)
+      ))
+
+  (add-to-list 'company-header-src-block-hooks `(apex-ts-mode . ,ob-apex-src-code-hook))
+  (add-to-list 'company-header-handles `(apex-ts . ,ob-apex-header-completions)))
 
 (defun org-babel-template-table-or-string (results)
   "If the results look like a table, then convert them into an
@@ -262,5 +296,12 @@ Emacs-lisp table, otherwise return the results as a string.")
   "If there is not a current inferior-process-buffer in SESSION then create.
 Return the initialized session."
   (unless (string= session "none")))
+
+(defun ob-apex-company ()
+  "Enable company for apex org babel."
+  (when (apex-ts-mode-p)
+    (apex-company-setup)))
+
+(add-hook 'org-src-mode-hook #'ob-apex-company)
 
 (provide 'ob-apex)

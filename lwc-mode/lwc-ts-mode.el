@@ -12,6 +12,18 @@
                `((lwc-html-ts-mode :language-id "html") . (,lwc-ts-mode--lsp-path "--stdio" ,@lwc-ts-mode--eglot-config))))
 
 
+(defun lwc-ts-mode--lwc-file-p ()
+  "Check file is LWC."
+  (require 'dx-project nil 'noerror)
+  (and (dx-project-p)
+       (string-prefix-p (dx-core--build-path dx-metadata-root-dir dx-lwc-dir)
+                        (buffer-file-name))))
+
+(defun lwc-ts-mode-auto ()
+  "Auto enable majore-mode for file in Salesforce project."
+  (when (lwc-ts-mode--lwc-file-p)
+    (lwc-ts-mode)))
+
 ;;;###autoload
 (define-derived-mode lwc-ts-mode fundamental-mode "lwc"
   "Major mode use tree-sitter for Visualforce page, powered by tree-sitter."
@@ -27,11 +39,13 @@
 
   (treesit-major-mode-setup)
 
-  (when (lwc-ts-mode--lwc-file)
-    (setq-default eglot-workspace-configuration '(:lwc-ts-mode (:documentSelector [(:language "html" :scheme "file")
-                                                                                   (:language "javascript" :scheme "file")
-                                                                                   (:language "typescript" :scheme "file")])))))
+  (when (lwc-ts-mode--lwc-file-p)
+    (setq-default eglot-workspace-configuration
+                  '(:lwc-ts-mode (:documentSelector [(:language "html" :scheme "file")
+                                                     (:language "javascript" :scheme "file")
+                                                     (:language "typescript" :scheme "file")])))))
 
-;;(add-to-list 'auto-mode-alist '("\\.\\(js\\|html\\)\\'" . lwc-ts-mode))
+
+;;(add-to-list 'auto-mode-alist '("\\.\\(js\\|html\\)\\'" . lwc-ts-mode-auto))
 
 (provide 'lwc-ts-mode)

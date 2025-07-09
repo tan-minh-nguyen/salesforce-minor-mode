@@ -4,6 +4,27 @@
 (require 'json)
 (require 'async)
 
+(defvar dx-debug nil
+  "Enable debug.")
+
+(defconst dx-tools-dir "tools"
+  "Tools folder name.")
+
+(defconst dx-state-dir ".sfdx"
+  "Folder contains information of project.")
+
+(defconst dx-custom-objects-dir "customObjects"
+  "Directory contains custom sobjects.")
+
+(defconst dx-stardard-objects-dir "standardObjects"
+  "Directory contains standard sobjects.")
+
+(defconst dx-sobjects-dir "sobjects"
+  "Directory contains sobjects.")
+
+(defconst dx-soql-metadata-dir "soqlMetadata"
+  "Directory contains soql metadata.")
+
 (defcustom dx-tangle-on-save t
   "When t, automatically tangle Org files on save."
   :type 'boolean
@@ -73,7 +94,7 @@
 (defvar dx-core--org-list-cache nil
   "Cache for org list data. Format: ((timestamp . org-list-data))")
 
-(defcustom dx-core--org-list-cache-ttl 300
+(defcustom dx-core--org-list-cache-ttl 300000
   "Time-to-live for org list cache in seconds."
   :type 'integer
   :group 'dx-minor-mode)
@@ -265,24 +286,28 @@ Example: (dx-core--get-data-json \"result.data.0.name\" table)"
                path-parts
                :initial-value table)))
 
-(defun dx-find-root-dir ()
+(defun dx-core--find-root-dir ()
   (cdr (project-current)))
+
+(defun dx-core--tools-folder ()
+  "Get tools folder path in project."
+  (concat dx-state-dir "/" dx-tools-dir))
 
 (defun dx-core--build-path (&rest args)
   "Build a full path from root directory and additional path components."
-  (mapconcat 'identity `(,(dx-find-root-dir) ,@args)))
+  (mapconcat 'identity `(,(dx-core--find-root-dir) ,@args)))
 
 (defun dx-core--metadata-path (&optional path)
   "Get full path for metadata directory.
 If PATH is provided, append it to the metadata root directory."
-  (let ((base-path (expand-file-name dx-metadata-root-dir (dx-find-root-dir))))
-  (if path
-      (expand-file-name path base-path)
-    base-path)))
+  (let ((base-path (expand-file-name dx-metadata-root-dir (dx-core--find-root-dir))))
+    (if path
+        (expand-file-name path base-path)
+      base-path)))
 
 ;;;###autoload
 (cl-defun dx-internal-current-org ()
-  (let* ((root-dir (dx-find-root-dir))
+  (let* ((root-dir (dx-core--find-root-dir))
          (config-path (concat root-dir ".sf/config.json"))
          (old-config-path (concat root-dir ".sfdx/sfdx-config.json")))
 
@@ -308,7 +333,7 @@ If PATH is provided, append it to the metadata root directory."
 
 (defun dx--get-cache-folder-path ()
   "Get absolute path of cache directory."
-  (let ((cache-dir (expand-file-name (concat dx-org-cache-dir dx-org-name "/") (dx-find-root-dir))))
+  (let ((cache-dir (expand-file-name (concat dx-org-cache-dir dx-org-name "/") (dx-core--find-root-dir))))
 
     (unless (file-exists-p cache-dir)
       (make-directory cache-dir 'parents))
@@ -324,7 +349,7 @@ If PATH is provided, append it to the metadata root directory."
 (defun dx--get-log-dir-path ()
   "Get absolute path of log directory.
 Creates the directory if it doesn't exist."
-  (let ((log-dir (expand-file-name dx-log-dir-path (dx-find-root-dir))))
+  (let ((log-dir (expand-file-name dx-log-dir-path (dx-core--find-root-dir))))
     (dx--ensure-directory-exists log-dir)))
 
 (defmacro dx--find-backup-files (file-name &optional dir)
@@ -341,7 +366,7 @@ Creates the directory if it doesn't exist."
 
 (defun dx--get-lwc-directory ()
   "Get lwc directory."
-  (expand-file-name dx-default-lwc-path (dx-find-root-dir)))
+  (expand-file-name dx-default-lwc-path (dx-core--find-root-dir)))
 
 (defun dx--find-parents (file &optional depth)
   "Find parents of directory."
@@ -364,7 +389,7 @@ BODY contains the process handling code."
                                                (dx-parse-buffer-json (process-buffer proc))
                                              (process-buffer proc))))))
           (apply #'dx-start-process
-                 (and ,sync handle-callback)
+                 (unless ,sync handle-callback)
                  (cons ,alias ,cmd))))))
 
 ;; Generate all process macros using the factory
@@ -407,7 +432,8 @@ BODY contains the process handling code."
 ;; Async library
 (defun dx-start-process (&optional callback &rest params &allow-other-keys)
   "Start dx process."
-  (message "%s" params)
+  (when dx-debug
+    (message "%s" params))
   (apply #'async-start-process "dx-process"
          dx-lib-alias 
          callback
@@ -456,6 +482,29 @@ BODY contains the process handling code."
            :category 'error
            :severity 'urgent)
     show-message))
+
+(defun dx-core--projects (prefix)
+  "List projects."
+  (-filter (lambda (project)
+             (s-prefix-p prefix project))
+           (projectile-relevant-known-projects)))
+
+(defun dx-core--orgs (prefix)
+  "List orgs."
+  (let ((async-debug t))
+    (cl-reduce (lambda (result org)
+                 (when-let* ((alias (plist-get org :alias))
+                             (_ (s-prefix-p prefix alias)))
+                   (setq result (append result `(,alias))))
+                 (when (null prefix)
+                   (setq result (append result `(,(plist-get org :alias)))))
+                 result)
+               (cond ((assoc-default 'data dx-core--org-list-cache)
+                      (assoc-default 'data dx-core--org-list-cache))
+                     (t (or (dx-org--list nil :sync t) '())))
+               :initial-value '())))
+
+
 
 ;; Modify async package to handle signal process
 (defun dx--async-when-done (proc &optional _change)

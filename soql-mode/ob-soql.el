@@ -38,16 +38,19 @@
 (require 'ob-comint)
 (require 'ob-eval)
 (require 'dx-data)
+(require 'dx-org)
 
 (add-to-list 'org-babel-tangle-lang-exts '("soql" . "soql"))
 
 ;; optionally declare default header arguments for this language
 (defvar org-babel-default-header-args:soql `((:results . "output raw table replace")
                                              (:org . "")
+                                             (:workspace . "")
                                              (:limit . "2000")))
 
 (defvar org-babel-default-inline-header-args:soql `((:results . "output raw table replace")
                                                     (:org . "")
+                                                    (:workspace . "")
                                                     (:limit . "2000")))
 
 ;; This function expands the body of a source code block by doing things like
@@ -108,8 +111,38 @@
 (defun ob-soql--binding-declare-variable (soql pair)
   "Handle binding value of variable to execute content."
   (cl-loop for (key . value) in pair
-           do (setq soql (string-replace (format ":%s" key) (format "%s" value) soql))
+           as cast-value = (format "%s" value)
+           do (setq soql (string-replace (format ":%s" key)
+                                         (cond ((string-match-p "^'" cast-value)
+                                                (format "'%s'" cast-value))
+                                               ((string-match-p "^\(" cast-value)
+                                                (format "'%s'" cast-value))
+                                               (t (format "'%s'" cast-value)))
+                                         soql))
            finally return soql))
+
+;; Hints value base on value of header arguments 
+;; FIXME: trigger eglot in specfic workspace
+(when (require 'company-org-header nil 'noerror)
+  (defcustom ob-soql-header-completions `((:workspace . dx-core--projects)
+                                          (:org . dx-core--org))
+    "Handles completions for org headers."
+    :type 'alist
+    :group 'ob-soql)
+
+  (defcustom ob-soql-src-code-hook '(ob-soql-initialize-completion)
+    "List of hooks to run when editing SOQL source code blocks."
+    :type '(repeat function)
+    :group 'ob-soql)
+
+  (defun ob-soql-initialize-completion ()
+    "Initialize the SOQL completion hook."
+    (when-let ((default-directory (assoc-default :workspace company-header-args)))
+      ;; (call-interactively #'eglot)
+      ))
+
+  (add-to-list 'company-header-src-block-hooks `(soql-ts-mode . ,ob-soql-src-code-hook))
+  (add-to-list 'company-header-handles `(soql-ts . ,ob-soql-header-completions)))
 
 (defun org-babel-prep-session:soql (session params)
   "Prepare SESSION according to the header arguments specified in PARAMS.")
@@ -123,5 +156,12 @@ specifying a var of the same value."
   "If there is not a current inferior-process-buffer in SESSION then create.
 Return the initialized session."
   (unless (string= session "none")))
+
+(defun ob-soql-company ()
+  "Enable company for SOQL org babel."
+  (when (soql-ts-mode-p)
+    (soql-company-setup)))
+
+(add-hook 'org-src-mode-hook #'ob-soql-company)
 
 (provide 'ob-soql)

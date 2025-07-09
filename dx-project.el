@@ -444,19 +444,24 @@
 (defun dx-project--git-change-source-1 ()
   "Deploy changed sources on local to org."
   (require 'magit nil t)
-  (let ((target-branch (magit-read-local-branch "Branch" (magit-local-branch-at-point))))
+  (let ((start-point-branch (magit-read-local-branch "Start point" (magit-local-branch-at-point)))
+        (end-point-branch (magit-read-local-branch "End point" (magit-local-branch-at-point))))
     (async-start 
      `(lambda ()
         ;;,(async-inject-variables "\\`load-path\'")
         (setq default-directory ,(projectile-project-root))
-        (shell-command-to-string (format "git diff $(git reflog --date=local %s | tail -n 1 | cut -d' ' -f 1) %s --name-only" ,target-branch ,target-branch)))
-     (lambda (files-string)
-       (let ((files (split-string files-string "\n")))
-         (eval (dx-project--generate-files-menu "deploy-files-menu" files 
-                                                ["" 
-                                                 ("d" "Push sources" dx-project--push-multi-sources)
-                                                 ("r" "Sync sources" dx-project--retrieve-multi-sources)]))
-         (transient-setup 'dx-project--deploy-files-menu))))))
+        (shell-command-to-string (format "git diff $(git reflog --date=local %s | tail -n 1 | cut -d' ' -f 1) %s --stat" ,start-point-branch ,end-point-branch)))
+     (lambda (output)
+       (let ((buffer (get-buffer-create "*git diff*")))
+         ;;FIXME: show files changed on buffer
+         ;;feature: show change line and can view changed section also as deploy file or change section
+         (with-current-buffer buffer
+           (let ((inhibit-read-only t))
+             (replace-region-contents (point-min) (point-max)
+                                      (lambda ()
+                                        output))
+             (read-only-mode 1)))
+         (pop-to-buffer buffer))))))
 
 (defun dx-project-git-change-source ()
   "View all sources changed on version control."
@@ -580,5 +585,7 @@ Copies current file to temp folder with same path structure as project root."
                        (alert (format "%s" error)
                               :title "DX Alert"
                               :severity 'urgent)))))))
+
+;;IDEA
 
 (provide 'dx-project)
