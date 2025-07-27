@@ -99,10 +99,30 @@
                                                             :sync t))))
          (result (with-current-buffer (process-buffer process)
                    (unless (string-blank-p (buffer-string))
+                     (write-region (point-min) (point-max) (ob-soql--modify-csv (buffer-string)))
                      (org-table-convert-region (point-min) (point-max))
                      (buffer-string)))))
 
     (concat result)))
+
+(defun ob-soql--modify-csv (csv)
+  "Modifying CSV data."
+  (let* ((fields-string (substring csv 0 (string-match "\n" csv)))
+         (content-string (substring csv (string-match "\n" csv)))
+         (id-pos (cl-position "Id" (string-split fields-string ","))))
+
+    (cl-loop for item in (string-split content-string "\n")
+             concat (concat (cl-loop for s in (split-string item ",")
+                                     for index from 0
+                                     as content = (if (= index id-pos)
+                                                      (ob-soql--convert-id-to-hyperlink s)
+                                                    s)
+                                     concat content) "\n"))))
+
+
+(defun ob-soql--convert-id-to-hyperlink (id)
+  "Convert ID Salesforce to hyperlink."
+  (format "[[%s][%s]]" id id))
 
 (defun ob-soql--get-param (key param-list)
   "Extract param in list."

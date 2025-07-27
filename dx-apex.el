@@ -337,6 +337,13 @@
                         (dx-core--get-data-json "result.summary.testRunCoverage" json-instance))
                 :title "DX Alert"))))))
 
+;;;FIXME: get name
+(defun dx-apex--retrieve-functions ()
+  "Retrieve all fuctions in buffer."
+  (cl-loop for (_ . node) in (treesit-query-capture (treesit-buffer-root-node)
+                                                    '((method_declaration) @function))
+           collect (treesit-node-text (treesit-node-child-by-field-name node "name") t)))
+
 (defun dx-apex-execute-method-test (node)
   "Execute single unit test."
   (interactive

@@ -36,6 +36,7 @@
 (require 'cl-macs)
 (require 'apex-lsp)
 (require 'apex-ai)
+(require 'apex-fold)
 (when (require 'dape nil 'noerror)
   (require 'apex-dap))
 
@@ -132,7 +133,7 @@
 
 (defvar apex-ts-mode--apex-keywords
   '("break" "catch"
-    "class" "continue" "default" "do" "else"
+    "class" "continue" "do" "else"
     "enum" "extends" "final" "finally"
     "for" "if" "implements" "instanceof"
     "interface" "new" "private" "protected"
@@ -186,8 +187,8 @@ te available version of Tree-sitter for Apex."
    `([,@apex-ts-mode--apex-keywords          ;
       (this)
       (super)] @font-lock-keyword-face
-      (labeled_statement
-       (identifier) @font-lock-keyword-face)
+      ;; (labeled_statement
+      ;;  (identifier) @font-lock-keyword-face)
       (modifiers
        (modifier) @font-lock-keyword-face)
       (dml_expression
@@ -250,8 +251,9 @@ te available version of Tree-sitter for Apex."
      (formal_parameter
       name: (identifier) @font-lock-variable-name-face)
 
-     (catch_formal_parameter
-      name: (identifier) @font-lock-variable-name-face))
+     ;; (catch_formal_parameter
+     ;;  name: (identifier) @font-lock-variable-name-face)
+     )
 
    :language 'apex
    :override t
