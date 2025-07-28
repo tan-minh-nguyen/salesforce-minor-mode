@@ -14,10 +14,10 @@
 
 (defun lwc-ts-mode--lwc-file-p ()
   "Check file is LWC."
-  (require 'dx-project nil 'noerror)
-  (and (dx-project-p)
-       (string-prefix-p (dx-core--build-path dx-metadata-root-dir dx-lwc-dir)
-                        (buffer-file-name))))
+  (require 'salesforce-project nil 'noerror)
+  (and (salesforce-project-p)
+     (string-prefix-p (dx-core--build-path dx-metadata-root-dir dx-lwc-dir)
+                      (buffer-file-name))))
 
 (defun lwc-ts-mode-auto ()
   "Auto enable majore-mode for file in Salesforce project."

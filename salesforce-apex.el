@@ -1,55 +1,56 @@
 ;;; dx-apex.el --- Apex features -*- lexical-binding: t -*-
 
 ;;TODO: create a transient menu
-(require 'dx-core)
-(require 'dx-transient-menu)
+(require 'salesforce-core)
+(require 'alert)
+(require 'salesforce-transient-menu)
 
 ;;TODO set default output-directory
 
-(defvar-local dx-apex--transient:template ""
+(defvar-local salesforce-apex--transient:template ""
   "Default value for --template argument.")
 
-(defvar-local dx-apex--trigger-events '("before insert")
+(defvar-local salesforce-apex--trigger-events '("before insert")
   "Default value for trigger events.")
 
-(defvar-local dx-apex--trigger-sobject "SObject"
+(defvar-local salesforce-apex--trigger-sobject "SObject"
   "Default value for sobject on trigger.")
 
-(defvar-local dx-apex--lightning-organize "component"
+(defvar-local salesforce-apex--lightning-organize "component"
   "Default value for organize lightning.")
 
-(defvar-local dx-apex--lightning-type "lwc"
+(defvar-local salesforce-apex--lightning-type "lwc"
   "Default value for --type argument.")
 
-(transient-define-prefix dx-apex--transient:generate-resource ()
+(transient-define-prefix salesforce-apex--transient:generate-resource ()
   "Menu select resource to generate."
   ["Apex"
-   ("a" "Apex" dx-apex--create-apex-menu)
-   ("t" "Trigger" dx-apex--create-trigger-menu)]
+   ("a" "Apex" salesforce-apex--create-apex-menu)
+   ("t" "Trigger" salesforce-apex--create-trigger-menu)]
   ["Lightning"
-   ("l" "App" dx-apex--create-lightning-app-menu)
-   ("c" "Component" dx-apex--create-lightning-component-menu)])
+   ("l" "App" salesforce-apex--create-lightning-app-menu)
+   ("c" "Component" salesforce-apex--create-lightning-component-menu)])
 
-(transient-define-prefix dx-apex--transient:apex-resource ()
+(transient-define-prefix salesforce-apex--transient:apex-resource ()
   "Menu select apex resource to generate."
   ["Arguments"
-   (dx--transient-menu:-d)
-   (dx-apex--transient:-t)
-   (dx-apex--transient:-n)
-   (dx--transient-menu:--api-version)]
+   (salesforce--transient-menu:-d)
+   (salesforce-apex--transient:-t)
+   (salesforce-apex--transient:-n)
+   (salesforce--transient-menu:--api-version)]
   [""
-   ("RET" "Generate class" dx-apex--generate-class)])
+   ("RET" "Generate class" salesforce-apex--generate-class)])
 
-(transient-define-argument dx-apex--transient:-n ()
+(transient-define-argument salesforce-apex--transient:-n ()
   :class 'transient-option
   :always-read nil 
   :description "Name file"
   :key "-n"
   :shortarg "-n"
   :argument "--name="
-  :reader #'dx--transient-menu:read-string)
+  :reader #'salesforce--transient-menu:read-string)
 
-(transient-define-argument dx-apex--transient:-t ()
+(transient-define-argument salesforce-apex--transient:-t ()
   :class 'transient-switches
   :always-read nil 
   :description "Template file"
@@ -57,22 +58,22 @@
   :shortarg "-t"
   :argument-format "--template=%s"
   :argument-regexp "\\(ApexException\\|ApexUnitTest\\|BasicUnitTest\\|DefaultApexClass\\|InboundEmailService\\)"
-  :init-value #'dx-apex--transient:--template-handler
+  :init-value #'salesforce-apex--transient:--template-handler
   :choices '("ApexException" "ApexUnitTest" "BasicUnitTest" "DefaultApexClass" "InboundEmailService"))
 
-(transient-define-prefix dx-apex--transient:trigger-resource ()
+(transient-define-prefix salesforce-apex--transient:trigger-resource ()
   "Menu select apex trigger resource to generate."
   ["Arguments"
-   [(dx--transient-menu:-d)
-    (dx-apex--transient:-n)
-    (dx--transient-menu:--api-version)]
-   [(dx-apex--trigger-transient:-e)
-    (dx-apex--trigger-transient:-s)
-    (dx-apex--trigger-transient:-t)]]
+   [(salesforce--transient-menu:-d)
+    (salesforce-apex--transient:-n)
+    (salesforce--transient-menu:--api-version)]
+   [(salesforce-apex--trigger-transient:-e)
+    (salesforce-apex--trigger-transient:-s)
+    (salesforce-apex--trigger-transient:-t)]]
   [""
-   ("RET" "Generate trigger" dx-apex--generate-trigger)])
+   ("RET" "Generate trigger" salesforce-apex--generate-trigger)])
 
-(transient-define-argument dx-apex--trigger-transient:-e ()
+(transient-define-argument salesforce-apex--trigger-transient:-e ()
   :class 'transient-switches
   :always-read nil 
   :description "Trigger events"
@@ -80,20 +81,20 @@
   :shortarg "-e"
   :argument-format "--event=%s"
   :argument-regexp "\\(before insert\\|before update\\|before delete\\|after insert\\|after update\\|after delete\\)"
-  :init-value #'dx-apex--trigger-transient:--event-handler
+  :init-value #'salesforce-apex--trigger-transient:--event-handler
   :choices '("before insert" "before update" "before delete" "after insert" "after update" "after delete"))
 
-(transient-define-argument dx-apex--trigger-transient:-s ()
+(transient-define-argument salesforce-apex--trigger-transient:-s ()
   :class 'transient-option
   :always-read nil 
   :description "Trigger Sobject"
   :key "-s"
   :shortarg "-s"
   :argument "--sobject="
-  :init-value #'dx-apex--trigger-transient:--sobject-handler
-  :reader #'dx--transient-menu:read-string)
+  :init-value #'salesforce-apex--trigger-transient:--sobject-handler
+  :reader #'salesforce--transient-menu:read-string)
 
-(transient-define-argument dx-apex--trigger-transient:-t ()
+(transient-define-argument salesforce-apex--trigger-transient:-t ()
   :class 'transient-switches
   :always-read nil 
   :description "Template file"
@@ -101,22 +102,22 @@
   :shortarg "-t"
   :argument-format "--template=%s"
   :argument-regexp "\\(ApexException\\|ApexUnitTest\\|BasicUnitTest\\|DefaultApexClass\\|InboundEmailService\\)"
-  :init-value #'dx-apex--transient:--template-handler
+  :init-value #'salesforce-apex--transient:--template-handler
   :choices '("ApexException" "ApexUnitTest" "BasicUnitTest" "DefaultApexClass" "InboundEmailService"))
 
-(transient-define-prefix dx-apex--transient:lightning-resource ()
+(transient-define-prefix salesforce-apex--transient:lightning-resource ()
   "Menu select lightning resource to generate."
   ["Arguments"
-   (dx--transient-menu:-d)
-   (dx-apex--lightning-cmp-transient:-t)
-   (dx-apex--lightning-transient:--type)
-   (dx-apex--transient:-n)
-   (dx--transient-menu:--api-version)]
+   (salesforce--transient-menu:-d)
+   (salesforce-apex--lightning-cmp-transient:-t)
+   (salesforce-apex--lightning-transient:--type)
+   (salesforce-apex--transient:-n)
+   (salesforce--transient-menu:--api-version)]
   [""
-   ("RET" "Generate lightning component" dx-apex--generate-lightning-component)])
+   ("RET" "Generate lightning component" salesforce-apex--generate-lightning-component)])
 
-(transient-define-argument dx-apex--lightning-cmp-transient:-t ()
-  :if (lambda () (string= dx-apex--lightning-organize "component"))
+(transient-define-argument salesforce-apex--lightning-cmp-transient:-t ()
+  :if (lambda () (string= salesforce-apex--lightning-organize "component"))
   :class 'transient-switches
   :always-read nil 
   :description "Template file"
@@ -124,10 +125,10 @@
   :shortarg "-t"
   :argument-format "--template=%s"
   :argument-regexp "\\(default\\|analyticsDashboard\\|analyticsDashboardWithStep\\)"
-  :init-value #'dx-apex--transient:--template-handler
+  :init-value #'salesforce-apex--transient:--template-handler
   :choices '("default" "analyticsDashboard" "analyticsDashboardWithStep"))
 
-(transient-define-argument dx-apex--lightning-transient:--type ()
+(transient-define-argument salesforce-apex--lightning-transient:--type ()
   :class 'transient-switches
   :always-read nil 
   :description "Type component"
@@ -135,124 +136,124 @@
   :shortarg "--type"
   :argument-format "--type=%s"
   :argument-regexp "\\(aura\\|lwc\\)"
-  :init-value #'dx-apex--lightning-transient:--type-handler
+  :init-value #'salesforce-apex--lightning-transient:--type-handler
   :choices '("aura" "lwc"))
 
-(defun dx-apex--create-apex-menu ()
+(defun salesforce-apex--create-apex-menu ()
   "Open create Apex class transient menu."
   (interactive)
-  (let ((dx-apex--transient:template "DefaultApexClass")
-        (dx--transient-menu:output-dir (dx-core--metadata-path dx-apex-dir)))
-    (dx-apex--transient:apex-resource)))
+  (let ((salesforce-apex--transient:template "DefaultApexClass")
+        (salesforce--transient-menu:output-dir (salesforce-core--metadata-path salesforce-apex-dir)))
+    (salesforce-apex--transient:apex-resource)))
 
-(defun dx-apex--create-trigger-menu ()
+(defun salesforce-apex--create-trigger-menu ()
   "Open create Apex class transient menu."
   (interactive)
-  (let ((dx-apex--transient:template "ApexTrigger")
-        (dx--transient-menu:output-dir (dx-core--metadata-path dx-trigger-dir)))
-    (dx-apex--transient:trigger-resource)))
+  (let ((salesforce-apex--transient:template "ApexTrigger")
+        (salesforce--transient-menu:output-dir (salesforce-core--metadata-path salesforce-trigger-dir)))
+    (salesforce-apex--transient:trigger-resource)))
 
-(defun dx-apex--create-lightning-app-menu ()
+(defun salesforce-apex--create-lightning-app-menu ()
   "Generate lightning app transient menu."
   (interactive)
-  (let ((dx-apex--lightning-organize "app")
-        (dx--transient-menu:output-dir (dx-core--metadata-path dx-lwc-dir)))
-    (dx-apex--transient:lightning-resource)))
+  (let ((salesforce-apex--lightning-organize "app")
+        (salesforce--transient-menu:output-dir (salesforce-core--metadata-path salesforce-lwc-dir)))
+    (salesforce-apex--transient:lightning-resource)))
 
-(defun dx-apex--create-lightning-component-menu ()
+(defun salesforce-apex--create-lightning-component-menu ()
   "Generate lightning component transient menu."
   (interactive)
-  (let ((dx-apex--lightning-organize "component")
-        (dx-apex--transient:template "default")
-        (dx--transient-menu:output-dir (dx-core--build-path dx-lwc-dir)))
-    (dx-apex--transient:lightning-resource)))
+  (let ((salesforce-apex--lightning-organize "component")
+        (salesforce-apex--transient:template "default")
+        (salesforce--transient-menu:output-dir (salesforce-core--build-path salesforce-lwc-dir)))
+    (salesforce-apex--transient:lightning-resource)))
 
-(defun dx-apex-execute-code (content)
+(defun salesforce-apex-execute-code (content)
   "Execute apex code buffer/region."
   (interactive (list (if (eq (point) (mark)) (buffer-string) (buffer-substring-no-properties (mark) (point)))))
   (let ((temp-file (make-temp-file "temp_code")))
 
     (write-region content nil temp-file)
 
-    (dx-core--apex-process
-     :cmd `("run" "-f" ,temp-file "-o" ,dx-org-name "--json")
+    (salesforce-core--apex-process
+     :cmd `("run" "-f" ,temp-file "-o" ,salesforce-org-name "--json")
      (with-current-buffer (get-buffer-create "*apex log*")
        (let ((buffer-read-only t)
              (inhibit-read-only t))
-         (insert (dx-core--get-data-json "result.logs" json-instance))))
+         (insert (salesforce-core--get-data-json "result.logs" json-instance))))
      (switch-to-buffer (get-buffer-create "*apex log*"))
      (alert "Run apex code complete"
             :title "Salesforce Alert"))))
 
-(defun dx-visualforce-generate-page ()
+(defun salesforce-visualforce-generate-page ()
   "Generate visualforce page."
   (interactive)
   (let* ((page-name (read-string "page name: "))
          (page-label (read-string "page label: ")))
 
-    (dx-core--visualforce-process
-     :cmd `("generate" "page" "--json" "--name" ,page-name "--label" ,page-label "--output-dir" ,(dx-core--build-path dx-default-vf-path))
+    (salesforce-core--visualforce-process
+     :cmd `("generate" "page" "--json" "--name" ,page-name "--label" ,page-label "--output-dir" ,(salesforce-core--build-path salesforce-default-vf-path))
      ;; Swtich new page
-     (switch-to-buffer (find-file (concat (dx-core--build-path dx-default-vf-path) "/" page-name ".page")))
+     (switch-to-buffer (find-file (concat (salesforce-core--build-path salesforce-default-vf-path) "/" page-name ".page")))
 
      (alert (format "Create visualforce page" page-name)
             :title "Salesforce Alert"))))
 
-(defun dx-visualforce-generate-component ()
+(defun salesforce-visualforce-generate-component ()
   "Generate visualforce page."
   (interactive)
   (let* ((page-name (read-string "page name: "))
          (page-label (read-string "page label: "))
          (command ))
 
-    (dx-core--visualforce-process
-     :cmd `("generate" "component" "--json" "--name" ,page-name "--label" ,page-label "--output-dir" ,(dx-core--build-path dx-vf-component-dir))
+    (salesforce-core--visualforce-process
+     :cmd `("generate" "component" "--json" "--name" ,page-name "--label" ,page-label "--output-dir" ,(salesforce-core--build-path salesforce-vf-component-dir))
      (alert (format "Create visualforce page" page-name)
             :title "Salesforce Alert"))))
 
-(defun dx-apex--generate-trigger (args)
+(defun salesforce-apex--generate-trigger (args)
   "Generate apex class"
-  (interactive (list (transient-args 'dx-apex--transient:trigger-resource)))
-  (dx-core--apex-process
+  (interactive (list (transient-args 'salesforce-apex--transient:trigger-resource)))
+  (salesforce-core--apex-process
    `("generate" "trigger" ,@args  "--json")
-   (switch-to-buffer (find-file (dx-core--get-data-json "result.created.0" json-instance)))))
+   (switch-to-buffer (find-file (salesforce-core--get-data-json "result.created.0" json-instance)))))
 
 ;; TODO: add feature can custom content in created class
-(defun dx-apex--generate-class (args)
+(defun salesforce-apex--generate-class (args)
   "Generate apex class"
-  (interactive (list (transient-args 'dx-apex--transient:apex-resource)))
-  (dx-core--apex-process
+  (interactive (list (transient-args 'salesforce-apex--transient:apex-resource)))
+  (salesforce-core--apex-process
    :cmd `("generate" "class" ,@args "--json")
-   (switch-to-buffer (find-file (dx-core--get-data-json "result.created.0" json-instance)))))
+   (switch-to-buffer (find-file (salesforce-core--get-data-json "result.created.0" json-instance)))))
 
-(defun dx-apex--generate-lightning-component (args)
+(defun salesforce-apex--generate-lightning-component (args)
   "Generate lwc/aura component."
-  (interactive (list (transient-args 'dx-apex--transient:lightning-resource)))
-  (dx-core--lightning-process
+  (interactive (list (transient-args 'salesforce-apex--transient:lightning-resource)))
+  (salesforce-core--lightning-process
    :cmd `("generate" "component" ,@args "--json")
    (alert (format message-success component-name)
           :title "Salesforce Alert")))
 
-;;TODO: use dx-apex--generate-class instead
-(defun dx-apex-generate-test-class ()
+;;TODO: use salesforce-apex--generate-class instead
+(defun salesforce-apex-generate-test-class ()
   "Generate apex test class"
   (interactive)
   (let* ((class-name (read-string "class name: ")))
 
-    (dx-core--apex-process
+    (salesforce-core--apex-process
      :cmd `("generate"
             "class"
             "--name" ,class-name
-            "--output-dir" ,(dx-core--build-path dx-apex-dir)
+            "--output-dir" ,(salesforce-core--build-path salesforce-apex-dir)
             "--json")
-     (switch-to-buffer (find-file (dx-core--build-path dx-apex-dir
+     (switch-to-buffer (find-file (salesforce-core--build-path salesforce-apex-dir
                                                        (concat class-name ".cls")))
                        (beginning-of-buffer)
                        (insert "@isTest\n")
                        (save-buffer)
                        (current-buffer)))))
 
-(defun dx-apex-generate-test-method ()
+(defun salesforce-apex-generate-test-method ()
   "Generate apex test method"
   (interactive)
   (let ((method-name (read-string "method name: ")))
@@ -263,11 +264,11 @@
                     "@isTest"
                     method-name))))
 
-(defun dx-apex-get-all-log ()
+(defun salesforce-apex-get-all-log ()
   "Get log apex"
   (interactive)
 
-  (dx-core--apex-process
+  (salesforce-core--apex-process
    :cmd '("list" "log" "--json")
    (let* ((records-list (dx-core--get-data-json "result" json-instance))
           (header-columns '("No" "Id" "Browser" "Operation"))
@@ -288,15 +289,15 @@
 
 (cl-defun dx-apex--get-log (&key log-id number org post-log-handle)
   "Get log apex"
-  (dx-core--apex-process
+  (salesforce-core--apex-process
    :cmd `("get" "log" "--json"
           ,(and org ,@("-o" org))
           ,(unless (string-empty-p log-id) ,@("--log-id" ,log-id))
           ,(unless (null number) ,@("--number" ,number)))
 
-   (funcall post-log-handle (dx-core--get-data-json "result.0.log" json-instance))))
+   (funcall post-log-handle (salesforce-core--get-data-json "result.0.log" json-instance))))
 
-(defun dx-apex-log-track (buffer)
+(defun salesforce-apex-log-track (buffer)
   "Trace apex log on org."
   (interactive (list (generate-new-buffer "*dx-trace-log*")))
   (make-process :name "dx-trace-log"
@@ -307,44 +308,44 @@
   (with-current-buffer buffer)
   (pop-to-buffer buffer))
 
-(defun dx-apex--get-result-test-job (job-id &optional poll-id)
+(defun salesforce-apex--get-result-test-job (job-id &optional poll-id)
   "Get apex test result."
-  (dx-core--apex-process
-   :cmd `("get" "test" "-i" ,job-id "-o" ,dx-org-name "--code-coverage" "--json")
+  (salesforce-core--apex-process
+   :cmd `("get" "test" "-i" ,job-id "-o" ,salesforce-org-name "--code-coverage" "--json")
    (alert (format "Tests class run success with coverage"
-                  ;; (dx-core--get-data-json "result.summary.testRunCoverage" json-instance)
+                  ;; (salesforce-core--get-data-json "result.summary.testRunCoverage" json-instance)
                   )
           :title "DX Alert")
    (and poll-id (cancel-timer poll-id))))
 
-(cl-defun dx-apex--execute-unit-test (&key test-cases test-level)
+(cl-defun salesforce-apex--execute-unit-test (&key test-cases test-level)
   "Execute specific unit tests."
   (let ((file-name (file-name-base)))
-    (dx-core--apex-process
+    (salesforce-core--apex-process
      :cmd `("run" "test" "--tests" ,test-cases "--test-level" ,test-level "--detailed-coverage" "--code-coverage" "--json")
 
      (let* ((poll-id nil)
-            (job-id (dx-core--get-data-json "result.testRunId" json-instance))
+            (job-id (salesforce-core--get-data-json "result.testRunId" json-instance))
             ;; use closure function to reference poll-id and job-id when execute timer
             (callback (lambda (job)
-                        (dx-apex--get-result-test-job job poll-id))))
+                        (salesforce-apex--get-result-test-job job poll-id))))
 
        (if job-id
            (progn (alert (format "%s class is running." file-name)
                          :title "DX Alert")
                   (setq poll-id (run-at-time 60 nil callback job-id)))
          (alert (format "Tests class run success with coverage %s"
-                        (dx-core--get-data-json "result.summary.testRunCoverage" json-instance))
+                        (salesforce-core--get-data-json "result.summary.testRunCoverage" json-instance))
                 :title "DX Alert"))))))
 
 ;;;FIXME: get name
-(defun dx-apex--retrieve-functions ()
+(defun salesforce-apex--retrieve-functions ()
   "Retrieve all fuctions in buffer."
   (cl-loop for (_ . node) in (treesit-query-capture (treesit-buffer-root-node)
                                                     '((method_declaration) @function))
            collect (treesit-node-text (treesit-node-child-by-field-name node "name") t)))
 
-(defun dx-apex-execute-method-test (node)
+(defun salesforce-apex-execute-method-test (node)
   "Execute single unit test."
   (interactive
    (list (treesit-parent-until (treesit-node-at (point))
@@ -352,42 +353,42 @@
                                  (string= (treesit-node-type node) "method_declaration")))))
   (when-let* ((func-name (treesit-node-text (treesit-node-child-by-field-name node "name")))
               (test-cases (format "%s.%s" (file-name-base) func-name)))
-    (dx-apex--execute-unit-test :test-cases test-cases :test-level "RunSpecifiedTests")))
+    (salesforce-apex--execute-unit-test :test-cases test-cases :test-level "RunSpecifiedTests")))
 
-(defun dx-apex-execute-test-class (file)
+(defun salesforce-apex-execute-test-class (file)
   "Execute all unit tests on FILE."
   (interactive (list (file-name-base)))
-  (dx-apex--execute-unit-test :test-cases file :test-level "RunSpecifiedTests"))
+  (salesforce-apex--execute-unit-test :test-cases file :test-level "RunSpecifiedTests"))
 
-(defun dx-apex-execute-local-tests ()
+(defun salesforce-apex-execute-local-tests ()
   "Run all tests class expect tests class in org managed package"
   (interactive)
-  (dx-core--apex-process
+  (salesforce-core--apex-process
    :cmd '("run" "test" "--test-level" "RunLocalTests" "--json")
-   (dx-apex--get-result-test-job :job-id (dx-core--get-data-json "result.testRunId" json-instance))))
+   (salesforce-apex--get-result-test-job :job-id (salesforce-core--get-data-json "result.testRunId" json-instance))))
 
-(defun dx-lightning-local-lwc ()
+(defun salesforce-lightning-local-lwc ()
   "Start lwc server on local."
   (interactive)
-  (dx-make-async-process
-   :cmd (dx-generate-command (list dx-legacy-alias "lightning" "lwc" "start" "--json"))
+  (salesforce-make-async-process
+   :cmd (salesforce-generate-command (list salesforce-legacy-alias "lightning" "lwc" "start" "--json"))
    (alert "Start lwc local server success"
           :title "Salesforce Alert")))
 
-(defun dx-apex--transient:--template-handler (obj)
+(defun salesforce-apex--transient:--template-handler (obj)
   "Set default value for --template param."
-  (transient-infix-set obj (format "--template=%s" dx-apex--transient:template)))
+  (transient-infix-set obj (format "--template=%s" salesforce-apex--transient:template)))
 
-(defun dx-apex--lightning-transient:--type-handler (obj)
+(defun salesforce-apex--lightning-transient:--type-handler (obj)
+  "Set default value for --event param."
+  (transient-infix-set obj (format "%s" salesforce-apex--lightning-type)))
+
+(defun salesforce-apex--trigger-transient:--event-handler (obj)
   "Set default value for --type param."
-  (transient-infix-set obj (format "%s" dx-apex--lightning-type)))
+  (transient-infix-set obj (format "%s" (string-join salesforce-apex--trigger-events ","))))
 
-(defun dx-apex--trigger-transient:--event-handler (obj)
+(defun salesforce-apex--trigger-transient:--sobject-handler (obj)
   "Set default value for --type param."
-  (transient-infix-set obj (format "%s" (string-join dx-apex--trigger-events ","))))
+  (transient-infix-set obj (format "%s" salesforce-apex--trigger-sobject)))
 
-(defun dx-apex--trigger-transient:--sobject-handler (obj)
-  "Set default value for --type param."
-  (transient-infix-set obj (format "%s" dx-apex--trigger-sobject)))
-
-(provide 'dx-apex)
+(provide 'salesforce-apex)

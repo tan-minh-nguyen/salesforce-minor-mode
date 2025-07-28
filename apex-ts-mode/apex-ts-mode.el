@@ -61,9 +61,6 @@
 
 (defvar font-lock-apex-error-face 'font-lock-apex-error)
 
-(defvar apex-ts-mode--root-dir (file-name-directory load-file-name)
-  "Root directory.")
-
 (defvar apex-ts-mode--syntax-table
   (let ((table (make-syntax-table)))
     ;; Taken from the cc-langs version

@@ -37,8 +37,8 @@
 (require 'ob-ref)
 (require 'ob-comint)
 (require 'ob-eval)
-(require 'dx-data)
-(require 'dx-org)
+(require 'salesforce-data)
+(require 'salesforce-org)
 
 (add-to-list 'org-babel-tangle-lang-exts '("soql" . "soql"))
 
@@ -93,10 +93,10 @@
          (file-temp (make-temp-file "soql"))
          (async-debug t)
          (process (progn (write-region full-body nil file-temp)
-                         (async-get (dx-data--execute-query `("query" "-f" ,file-temp
-                                                              "-o" ,(ob-soql--get-param :org processed-params)
-                                                              "--result-format=csv")
-                                                            :sync t))))
+                         (async-get (salesforce-data--execute-query `("query" "-f" ,file-temp
+                                                                      "-o" ,(ob-soql--get-param :org processed-params)
+                                                                      "--result-format=csv")
+                                                                    :sync t))))
          (result (with-current-buffer (process-buffer process)
                    (unless (string-blank-p (buffer-string))
                      (write-region (point-min) (point-max) (ob-soql--modify-csv (buffer-string)))
@@ -144,8 +144,8 @@
 ;; Hints value base on value of header arguments 
 ;; FIXME: trigger eglot in specfic workspace
 (when (require 'company-org-header nil 'noerror)
-  (defcustom ob-soql-header-completions `((:workspace . dx-core--projects)
-                                          (:org . dx-core--org))
+  (defcustom ob-soql-header-completions `((:workspace . salesforce-core--projects)
+                                          (:org . salesforce-core--org))
     "Handles completions for org headers."
     :type 'alist
     :group 'ob-soql)

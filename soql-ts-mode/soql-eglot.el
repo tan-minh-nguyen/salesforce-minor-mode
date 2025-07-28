@@ -3,7 +3,8 @@
 ;;;###autoload
 (defun soql-ts-mode--generate-server-lsp-command ()
   "generate command run apex server."
-  `(,soql-ts-mode--lsp-path "--stdio"))
+  ;; `(,soql-ts-mode--lsp-path "--stdio")
+  )
 
 ;; Eglot config for soql
 (defcustom soql-ts-mode--eglot-config '()

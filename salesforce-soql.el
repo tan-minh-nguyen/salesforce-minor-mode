@@ -1,5 +1,5 @@
 ;; -*- no-byte-compile: t; no-native-compile: t; lexical-binding: t -*-
-(require 'dx-core)
+(require 'salesforce-core)
 
 ;;; Code:
 (defun dx-soql--read-content ()
@@ -72,4 +72,4 @@
    (alert "Start lwc local server success"
           :title "Salesforce Alert")))
 
-(provide 'dx-soql)
+(provide 'salesforce-soql)

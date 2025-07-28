@@ -85,4 +85,4 @@
   "Set default value for --output-api param."
   (transient-infix-set obj (format "%s" dx--transient-menu:output-dir)))
 
-(provide 'dx-transient-menu)
+(provide 'salesforce-transient-menu)

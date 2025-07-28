@@ -75,8 +75,8 @@
 (require 'ob-ref)
 (require 'ob-comint)
 (require 'ob-eval)
-(require 'dx-core)
-(require 'dx-core)
+(require 'salesforce-core)
+(require 'salesforce-core)
 (require 'apex-company)
 (require 'apex-ts-mode)
 
@@ -214,7 +214,7 @@
                       uuid
                       uuid)))
 
-    (dx-core--apex-process
+    (salesforce-core--apex-process
      :cmd `("run" "-f" ,tempfile "-o" ,(cdr (assq :org processed-params)) "--json")
      (unless (string-equal-ignore-case result-eval "none")
        (with-current-buffer buffer
@@ -224,7 +224,7 @@
            (re-search-forward uuid nil t 2)
            (delete-line)
 
-           (insert (ob-apex--filter-log (dx-core--get-data-json "result.logs" json-instance)
+           (insert (ob-apex--filter-log (salesforce-core--get-data-json "result.logs" json-instance)
                                         log-filter-type
                                         log-filter-value)))))
 

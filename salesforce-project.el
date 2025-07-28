@@ -17,7 +17,7 @@
 (require 'dx-core)
 (require 'transient)
 
-(defvar dx-project-ediff-help-message
+(defvar salesforce-project-ediff-help-message
   "\n=====================|===========================|=============================
     C-c C-p -push    |  C-c C-r -retrieve        |  C-c C-s -save changes
 "
@@ -28,42 +28,42 @@
   "Salesforce DX project management."
   :group 'tools)
 
-(defcustom dx-files-test-root '(".forceignore")
+(defcustom salesforce-files-test-root '(".forceignore")
   "Files/dirs to identify Salesforce projects."
   :type 'list
   :group 'salesforce-project)
 
-(defcustom dx-project-configuration '((nil . ((eval . (dx-minor-mode 1)))))
+(defcustom salesforce-project-configuration '((nil . ((eval . (dx-minor-mode 1)))))
   "Project configuration for Salesforce projects."
   :type 'list
   :group 'salesforce-project)
 
 ;;;###autoload
-(defun dx-project-p (&optional dir)
+(defun salesforce-project-p (&optional dir)
   "Check if DIR is a Salesforce project."
   (let ((default-directory (or dir (projectile-project-root))))
     (cl-some #'projectile-verify-file-wildcard dx-files-test-root)))
 
 ;;;###autoload 
-(defun dx-project-init ()
+(defun salesforce-project-init ()
   "Initialize Salesforce project configuration."
   (when (eq (projectile-project-type) 'dx)
     (let ((enable-local-variables :all))
       (dx-project--setup-metadata)
       (dx-project--apply-dir-locals))))
 
-(defun dx-project--setup-metadata ()
+(defun salesforce-project--setup-metadata ()
   "Find and set metadata directory."
   (when-let* ((root (projectile-project-root))
               (config (dx-project--get-root-config root)))
     (dx-project--update-config-with-metadata root config)))
 
-(defun dx-project--get-root-config (root)
+(defun salesforce-project--get-root-config (root)
   "Get project configuration for ROOT directory."
   (or (alist-get root dx-metadata-define-roots)
       (alist-get 'default dx-metadata-define-roots)))
 
-(defun dx-project--update-config-with-metadata (root config)
+(defun salesforce-project--update-config-with-metadata (root config)
   "Update project CONFIG with metadata path for ROOT."
   (when-let ((metadata-dir (locate-dominating-file root config)))
     (let ((metadata-path (expand-file-name config metadata-dir)))
@@ -74,7 +74,7 @@
         (add-to-list 'dx-project-configuration 
                     `(nil . ((dx-metadata-root-dir . ,metadata-path))))))))
 
-(defun dx-project--apply-dir-locals ()
+(defun salesforce-project--apply-dir-locals ()
   "Apply directory local variables for project."
   (dir-locals-set-class-variables 'project-configuration dx-project-configuration)
   (dir-locals-set-directory-class (projectile-project-root) 'project-configuration)
@@ -87,10 +87,10 @@
                                     :compile "npm install")
 
   ;; Add initialize salesforce for projectile
-  (add-hook 'projectile-after-switch-project-hook #'dx-project-init))
+  (add-hook 'projectile-after-switch-project-hook #'salesforce-project-init))
 
 
-(defun dx-project-create ()
+(defun salesforce-project-create ()
   "Create dx project"
   (interactive)
   (let* ((project-dir (read-directory-name "Directory: "))
@@ -105,7 +105,7 @@
      (alert "Create Project Success"
             :title "DX Alert"))))
 
-(defun dx-project-source-push (buffer &optional target-org)
+(defun salesforce-project-source-push (buffer &optional target-org)
   "Push file to salesforce org."
   (interactive (list (buffer-file-name)))
   (dx-core--project-process 
@@ -113,7 +113,7 @@
    (alert (format "Deploy %s success" buffer)
           :title "DX Alert")))
 
-(defun dx-project-source-retrieve (buffer &optional target-org)
+(defun salesforce-project-source-retrieve (buffer &optional target-org)
   "Retrieve source salesforce form org"
   (interactive (list (buffer-file-name)))
   (dx-core--project-process 
@@ -121,7 +121,7 @@
    (alert (format "Retrieve %s success" buffer)
           :title "DX Alert")))
 
-(cl-defun dx-project--clone-cloud-metadata (&key metadata-file target-path target-org finish-func)
+(cl-defun salesforce-project--clone-cloud-metadata (&key metadata-file target-path target-org finish-func)
   "Backup the current buffer to the source directory."
   (let* ((file-name (file-name-base metadata-file)))
 
@@ -142,7 +142,7 @@
        (copy-file (concat temporary-file-directory file-name) target-path) t)
      (funcall finish-func (or target-path (concat temporary-file-directory file-name))))))
 
-(cl-defmacro dx-source-backup (&rest body &key target-org &allow-other-keys)
+(cl-defmacro salesforce-source-backup (&rest body &key target-org &allow-other-keys)
   "Backup the current buffer to the source directory."
   `(let* ((buffer (buffer-file-name))
           (file-name (file-name-base buffer))
@@ -176,7 +176,7 @@
                      new-dir-name)
         ,@body))))
 
-(defun dx-project--ediff-startup-hook ()
+(defun salesforce-project--ediff-startup-hook ()
   "Ediff hook on startup with additional actions."
   (let* ((coding-system (with-current-buffer ediff-buffer-B
                           buffer-file-coding-system)))
@@ -197,7 +197,7 @@
     ;; Add custom ediff actions
     (dx-project--ediff-add-actions)))
 
-(defun dx-project--ediff-help-menu ()
+(defun salesforce-project--ediff-help-menu ()
   "Add hints to ediff help menu."
   ;; Add our help message to ediff's help system
   (concat ediff-long-help-message-head
@@ -205,14 +205,14 @@
           dx-project-ediff-help-message
           ediff-long-help-message-tail))
 
-(defun dx-project--ediff-add-actions ()
+(defun salesforce-project--ediff-add-actions ()
   "Add custom actions to ediff control panel."
   ;; TODO: add logic handle help menu for compare 3 files
   (define-key ediff-mode-map (kbd "C-c C-p") #'(lambda () (interactive) (dx-project--ediff-push-changes dx-org-name)))
   (define-key ediff-mode-map (kbd "C-c C-r") #'(lambda () (interactive) (dx-project--ediff-retrieve-changes dx-org-name)))
   (define-key ediff-mode-map (kbd "C-c C-s") #'(lambda () (interactive) (dx-project--ediff-save-changes ediff-buffer-A))))
 
-(defun dx-project--ediff-push-changes (target-org)
+(defun salesforce-project--ediff-push-changes (target-org)
   "Push changes from ediff buffer to TARGET-ORG."
   (interactive)
   (let ((file (buffer-file-name ediff-buffer-A)))
@@ -220,7 +220,7 @@
     (when (yes-or-no-p "Push changes to %s org?" target-org)
       (dx-project-source-push file target-org))))
 
-(defun dx-project--ediff-retrieve-changes (target-org)
+(defun salesforce-project--ediff-retrieve-changes (target-org)
   "Retrieve changes from TARGET-ORG to ediff buffer."
   (interactive)
   (let ((file (buffer-file-name ediff-buffer-A)))
@@ -228,7 +228,7 @@
       (dx-project-source-retrieve file target-org)
       (dx-project--ediff-save-changes ediff-buffer-A))))
 
-(defun dx-project--ediff-save-changes (buffer)
+(defun salesforce-project--ediff-save-changes (buffer)
   "Save changes from ediff buffer to local file."
   (interactive)
   (let ((file (buffer-file-name buffer)))
@@ -237,7 +237,7 @@
           (save-buffer file))
       (save-buffer file))))
 
-(defun dx-project--ediff-quit-hook ()
+(defun salesforce-project--ediff-quit-hook ()
   "Hook on quit."
   (with-current-buffer ediff-buffer-A
     (kill-buffer-and-window))
@@ -250,7 +250,7 @@
   (remove-hook 'ediff-quit-hook #'dx-project--ediff-quit-hook)
   (remove-hook 'ediff-mode-hook #'dx-project--ediff-add-actions))
 
-(defun dx-project-preview-metadata-multi-org ()
+(defun salesforce-project-preview-metadata-multi-org ()
   "Diff metadata between current file and two different orgs using ediff."
   (interactive)
   (dx-org--list (lambda (org-list)
@@ -288,7 +288,7 @@
                      :finish-func (lambda (path)
                                     (setq file2 (car (directory-files-recursively path file-name)))))))))
 
-(defun dx-project--setup-ediff3 (file-a file-b file-c)
+(defun salesforce-project--setup-ediff3 (file-a file-b file-c)
   "Setup ediff session for three files with proper hooks."
   (ediff-files3 file-a file-b file-c
                 `((lambda ()
@@ -301,7 +301,7 @@
   ;; (dx-project--ediff-add-actions)
   )
 
-(defun dx-source-tracker ()
+(defun salesforce-source-tracker ()
   (interactive)
   (let* ((folder-name (file-name-base buffer-file-name))
          (file-name (file-name-nondirectory buffer-file-name))
@@ -344,7 +344,7 @@
 
     (pop-to-buffer (ctbl:cp-get-buffer component))))
 
-(defun dx-project--push-multi-sources (files)
+(defun salesforce-project--push-multi-sources (files)
   "Push multi metadata files to org."
   (interactive (list (transient-args 'dx-project--deploy-files-menu)))
   (async-start `(lambda ()
@@ -369,7 +369,7 @@
                                   (string-join files "\n"))
                           :title "DX Alert")))))
 
-(defun dx-project--retrieve-multi-sources (files)
+(defun salesforce-project--retrieve-multi-sources (files)
   "Push multi metadata files to org."
   (interactive (list (transient-args 'dx-project--deploy-files-menu)))
   (async-start `(lambda ()
@@ -393,7 +393,7 @@
                                   (string-join files "\n"))
                           :title "DX Alert")))))
 
-(defun dx-project--group-files-menu (files)
+(defun salesforce-project--group-files-menu (files)
   "Group files on transient menu."
   (cl-loop for file in files
            if (and (string-match-p (regexp-quote dx-default-apex-class-path) file)
@@ -415,11 +415,11 @@
                         ;; (cons "Misc" other)
                         )))
 
-(defun dx-project--remove-xml-suffix (original-name)
+(defun salesforce-project--remove-xml-suffix (original-name)
   "Format name of item display on transient menu."
   (string-replace "-meta.xml" "" original-name))
 
-(defun dx-project--generate-files-menu (prefix-name files &rest sections)
+(defun salesforce-project--generate-files-menu (prefix-name files &rest sections)
   "Configuration deploy files change menu."
   `(transient-define-prefix ,(intern (concat "dx-project--" prefix-name)) ()
      "Files deploy menu."
@@ -431,7 +431,7 @@
                 collect section)
      ,@sections))
 
-(defun dx-project--generate-files-section (files prefix &optional max-row)
+(defun salesforce-project--generate-files-section (files prefix &optional max-row)
   "Generate column dilay files."
   (seq-split (cl-loop for index from 1
                       for file in files
@@ -441,7 +441,7 @@
                       collect (list (format "%s%s" prefix index) file-name file :transient t)) 
              (or max-row 5)))
 
-(defun dx-project--git-change-source-1 ()
+(defun salesforce-project--git-change-source-1 ()
   "Deploy changed sources on local to org."
   (require 'magit nil t)
   (let ((start-point-branch (magit-read-local-branch "Start point" (magit-local-branch-at-point)))
@@ -463,12 +463,12 @@
              (read-only-mode 1)))
          (pop-to-buffer buffer))))))
 
-(defun dx-project-git-change-source ()
+(defun salesforce-project-git-change-source ()
   "View all sources changed on version control."
   (interactive)
   (dx-project--git-change-source-1))
 
-(defun dx-project-open-note ()
+(defun salesforce-project-open-note ()
   "Open note for current project."
   (interactive)
   (if-let ((note-file (plist-get (cl-find-if (lambda (el)
@@ -482,20 +482,20 @@
                                        (window-width . 0.4)))
     (error "note file not found.")))
 
-(defun dx-project--prepare-ediff-session (local-file cloud-file)
+(defun salesforce-project--prepare-ediff-session (local-file cloud-file)
   "Prepare ediff session with proper hooks and settings."
-  (setq ediff-long-help-message-function #'dx-project--ediff-help-menu)
+  (setq ediff-long-help-message-function #'salesforce-project--ediff-help-menu)
 
   (ediff local-file cloud-file
          `((lambda ()
              (add-hook 'ediff-quit-hook #'dx-project--ediff-quit-hook)
              (add-hook 'ediff-startup-hook #'dx-project--ediff-startup-hook)))))
 
-(defun dx-project--get-relative-path (file-name)
+(defun salesforce-project--get-relative-path (file-name)
   "Get relative path of file within project."
   (file-name-directory (file-relative-name file-name (projectile-project-root))))
 
-(defun dx-project-selection-deploy (file-name)
+(defun salesforce-project-selection-deploy (file-name)
   "Backup metadata and select section to deploy.
 FILE-NAME is the path to the file being deployed.
 
@@ -522,7 +522,7 @@ This function:
                     
                     (dx-project--prepare-ediff-session cloud-file-path file-name)))))
 
-(defun dx-project--create-temp-project-folder (temp-dir relative-path)
+(defun salesforce-project--create-temp-project-folder (temp-dir relative-path)
   "Create temporary folder structure matching project layout."
   (let ((dest-dir (file-name-directory (expand-file-name relative-path temp-dir)))
         (temp-dir (dx--ensure-directory-exists temp-dir)))
@@ -538,7 +538,7 @@ This function:
     
     dest-dir))
 
-(defun dx-project--copy-file-to-temp (file dest-path)
+(defun salesforce-project--copy-file-to-temp (file dest-path)
   "Copy file and metadata to temporary directory."
   (let* ((file-directory (file-name-directory file))
          (copy-files `(,file ,(expand-file-name (concat file "-meta.xml") file-directory)))
@@ -550,7 +550,7 @@ This function:
     ;; Return the destination path
     dest-path))
 
-(defun dx-project--initialize-file-temp (current-file relative-path)
+(defun salesforce-project--initialize-file-temp (current-file relative-path)
   "Initialize temporary project for section deploy.
 Copies current file to temp folder with same path structure as project root."
   (when current-file
@@ -563,13 +563,13 @@ Copies current file to temp folder with same path structure as project root."
       ;; Copy files
       (dx-project--copy-file-to-temp current-file (expand-file-name relative-path temp-dir)))))
 
-(defun dx-project-preview-metadata-change-other-org ()
+(defun salesforce-project-preview-metadata-change-other-org ()
   "diff source between local project and specific salesforce platform."
   (interactive)
   (dx-org--list (lambda (org-list)
                   (dx-project-preview-metadata-change (completing-read "Org: " org-list)))))
 
-(defun dx-project-preview-metadata-change (&optional target-org)
+(defun salesforce-project-preview-metadata-change (&optional target-org)
   "diff source between local project and salesforce platform."
   (interactive)
   (let ((full-file-name (buffer-file-name)))

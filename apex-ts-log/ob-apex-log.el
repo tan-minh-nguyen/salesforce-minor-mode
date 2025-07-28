@@ -183,7 +183,7 @@ This function is called by `org-babel-execute-src-block'"
     (newline)
     (insert uuid)
 
-    (sfmm--helper:make-async-process
+    (salesforce-
      :command command
      :handle-success-lambda
      `(lambda (process json-instance buffer)
@@ -193,48 +193,48 @@ This function is called by `org-babel-execute-src-block'"
          :post-log-handle
          ,`(lambda (log-content)
 
-              (let ((filter-type ,(cdr (assq :filter-type processed-params))))
-                (unless (or (equal filter-type "none")
-                            (null filter-type))
-                  (let ((debug-keywords '("DEBUG"))
-                        (executable-keywords '("VARIABLE_ASSIGNMENT"
-                                               "STATEMENT_EXECUTE"
-                                               "METHOD_ENTRY"
-                                               "CONSTRUCTOR_EXIT"
-                                               "CODE_UNIT_STARTED"))
-                        (system-keywords '("VARIABLE_SCOPE_BEGIN"
-                                           "USER_INFO"
-                                           "EXECUTION_STARTED"
-                                           "CODE_UNIT_STARTED"
-                                           "HEAP_ALLOCATE"
-                                           "STATEMENT_EXECUTE"
-                                           "METHOD_ENTRY"))
-                        (groverment-keywords '("LIMIT_USAGE_FOR_NS"
-                                               "Number of"
-                                               "Maximum CPU"
-                                               "Maximum heap")))
+             (let ((filter-type ,(cdr (assq :filter-type processed-params))))
+               (unless (or (equal filter-type "none")
+                          (null filter-type))
+                 (let ((debug-keywords '("DEBUG"))
+                       (executable-keywords '("VARIABLE_ASSIGNMENT"
+                                              "STATEMENT_EXECUTE"
+                                              "METHOD_ENTRY"
+                                              "CONSTRUCTOR_EXIT"
+                                              "CODE_UNIT_STARTED"))
+                       (system-keywords '("VARIABLE_SCOPE_BEGIN"
+                                          "USER_INFO"
+                                          "EXECUTION_STARTED"
+                                          "CODE_UNIT_STARTED"
+                                          "HEAP_ALLOCATE"
+                                          "STATEMENT_EXECUTE"
+                                          "METHOD_ENTRY"))
+                       (groverment-keywords '("LIMIT_USAGE_FOR_NS"
+                                              "Number of"
+                                              "Maximum CPU"
+                                              "Maximum heap")))
 
                    (setq log-content
                          (mapconcat (lambda (line)
                                       (cond ((and (equal filter-type "DEBUG")
-                                                  (string-match (regexp-opt debug-keywords) line))
+                                                (string-match (regexp-opt debug-keywords) line))
 
                                              (concat line "\n"))
                                             ((and (equal filter-type "FILTER")
-                                                  (search ,(cdr (assq :filter-value processed-params)) line))
+                                                (search ,(cdr (assq :filter-value processed-params)) line))
                                              (concat line "\n"))
                                             ((and (equal filter-type "EXECUTABLE")
-                                                  (string-match (regexp-opt executable-keywords) line))
+                                                (string-match (regexp-opt executable-keywords) line))
                                              (concat line "\n"))
                                             ((and (equal filter-type "SYSTEM")
-                                                  (string-match (regexp-opt system-keywords) line))
+                                                (string-match (regexp-opt system-keywords) line))
 
                                              (concat line "\n"))
                                             ((and (eq filter-type "GOVERNMENT")
-                                                  (match-string (regexp-opt groverment-keywords) line))
+                                                (match-string (regexp-opt groverment-keywords) line))
                                              (concat line "\n"))))
-                                  (split-string log-content "\n"
-                                    "")))))
+                                    (split-string log-content "\n"
+                                                  "")))))
 
                (with-current-buffer (find-file ,(buffer-file-name))
                  (beginning-of-buffer)
@@ -242,7 +242,7 @@ This function is called by `org-babel-execute-src-block'"
                  (forward-line -1)
                  (newline)
                  (insert (concat "|-------------------LOG--------------------------|"
-                                  "\n" log-content))
+                                 "\n" log-content))
                  (next-line)
                  (delete-line)
 

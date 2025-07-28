@@ -33,14 +33,14 @@
   "Get metadata file of SOBJECT-NAME."
   (let* ((file-name (concat sobject-name ".json"))
          (sobject-dir (if (string-match-p "__c$" sobject-name)
-                          dx-custom-objects-dir
-                        dx-stardard-objects-dir))
-         (search-folder (cond ((dx-project-p)
-                               (dx-core--build-path (dx-core--tools-folder)
-                                                    "/" dx-soql-metadata-dir "/"
+                          salesforce-custom-objects-dir
+                        salesforce-stardard-objects-dir))
+         (search-folder (cond ((salesforce-project-p)
+                               (salesforce-core--build-path (salesforce-core--tools-folder)
+                                                    "/" salesforce-soql-metadata-dir "/"
                                                     sobject-dir))
-                              (t (expand-file-name (concat (dx-core--tools-folder)
-                                                           "/" dx-soql-metadata-dir "/"
+                              (t (expand-file-name (concat (salesforce-core--tools-folder)
+                                                           "/" salesforce-soql-metadata-dir "/"
                                                            sobject-dir)
                                                    soql-company-workspace))))
          (file-path (expand-file-name file-name search-folder)))
@@ -48,8 +48,8 @@
 
 (defun soql-company--picklist-values (field)
   "Get all available options in FIELD."
-  (cl-loop for option across (dx-core--get-data-json "picklistValues" field)
-           collect (dx-core--get-data-json "value" option)))
+  (cl-loop for option across (salesforce-core--get-data-json "picklistValues" field)
+           collect (salesforce-core--get-data-json "value" option)))
 
 (defmacro soql-company--type-field (type)
   "Convert TYPE field to expected type."
@@ -60,7 +60,7 @@
   "Build annotation for auto completion.
 
 FIELD: contains all data about that field."
-  (soql-company--type-field (dx-core--get-data-json "type" field)))
+  (soql-company--type-field (salesforce-core--get-data-json "type" field)))
 
 (defun soql-company--meta-1 (field)
   "Build meta for auto completion.
@@ -71,11 +71,11 @@ FIELD: contains all data about that field."
 (defun soql-company--match-fields (prefix sobject)
   "Find fields match to PREFIX in SOBJECT."
   (when-let* ((metadata-file (soql-company--sobject-metadata sobject))
-              (fields (dx-core--get-data-json "fields" (with-current-buffer (find-file-noselect metadata-file)
+              (fields (salesforce-core--get-data-json "fields" (with-current-buffer (find-file-noselect metadata-file)
                                                          (beginning-of-buffer)
                                                          (json-parse-buffer)))))
     (cl-loop for field across fields
-             as name = (dx-core--get-data-json "name" field)
+             as name = (salesforce-core--get-data-json "name" field)
              as options = (soql-company--picklist-values field)
              when (if prefix (string-prefix-p prefix name)
                     (string-match-p ".+" name))

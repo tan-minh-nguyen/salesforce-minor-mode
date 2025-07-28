@@ -2,7 +2,7 @@
 
 (require 'ctable)
 
-(cl-defun dx-table--create-table (&key model buffer open)
+(cl-defun salesforce-table--create-table (&key model buffer open)
   "use ctable to build table data"
   (let ((component (ctbl:create-table-component-buffer
                     :model model
@@ -11,17 +11,17 @@
       (ctbl:cp-get-buffer component)
      component)))
 
-(cl-defun dx-table--make-table-mode (&key column-header data)
+(cl-defun salesforce-table--make-table-mode (&key column-header data)
   "use ctable to build table data"
   (let ((column-model
-         (mapcar 'dx-table--make-header-model column-header))
+         (mapcar 'salesforce-table--make-header-model column-header))
         (async-model
          (ctbl:async-model-wrapper data)))
 
    (make-ctbl:model
     :column-model column-model :data async-model)))
 
-(defun dx-table--make-header-model (header-config)
+(defun salesforce-table--make-header-model (header-config)
   "build header ctable"
   (let* ((title
           (plist-get header-config :title))
@@ -39,7 +39,7 @@
      :max-width max-width
      :align align)))
 
-(cl-defun dx-table--make-data-table-from-vector
+(cl-defun salesforce-table--make-data-table-from-vector
     (&key header-columns data (enable-count-rows t))
   "build data from input hash table and header-columns"
   (let ((data-table ()))
@@ -67,4 +67,4 @@
                                              nil))))
     data-table))
 
-(provide 'dx-ctable)
+(provide 'salesforce-ctable)

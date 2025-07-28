@@ -5,7 +5,7 @@
 (require 'dx-core)
 (require 'dx-apex)
 (require 'dx-org)
-(require 'dx-project)
+(require 'salesforce-project)
 ;; load core packages
 (require 'dx-data)
 (require 'apex-ts-mode)
@@ -16,12 +16,12 @@
 (defvar dx-org-keymap (let ((map (make-sparse-keymap)))
                         (keymap-set map "TAB" (cons "Switch Org" #'dx-org-change-connection))
 
-                        (keymap-set map "r" (cons "Retrieve Metadata" #'dx-project-source-retrieve))
-                        (keymap-set map "d" (cons "Push Metadata" #'dx-project-source-push))
+                        (keymap-set map "r" (cons "Retrieve Metadata" #'salesforce-project-source-retrieve))
+                        (keymap-set map "d" (cons "Push Metadata" #'salesforce-project-source-push))
 
                         (keymap-set map "n" (cons "List All Orgs" #'dx-org-display-all-orgs))
                         (keymap-set map "m" (cons "List All Devhubs" #'dx-org-display-all-devhubs))
-                        (keymap-set map "p" (cons "Diff File" #'dx-project-preview-metadata-change))
+                        (keymap-set map "p" (cons "Diff File" #'salesforce-project-preview-metadata-change))
                         (keymap-set map ";" (cons "Execute Apex Code" #'dx-apex-execute-code))
                         (keymap-set map "." (cons "Open Org" #'dx-org-open-current))
                         map)
@@ -39,7 +39,7 @@
                       ;; leader map
                       (keymap-set map "M-o o" (cons "Org Features" dx-org-keymap))
                       (keymap-set map "M-o r" (cons "Resource Features" resource-feature-keymap))
-                      (keymap-set map "M-o N" (cons "Notes" #'dx-project-open-note))
+                      (keymap-set map "M-o N" (cons "Notes" #'salesforce-project-open-note))
                       (keymap-set map "M-o A" (cons "Authorize Org" #'dx-org-authorize))
                       ;; (keymap-set map "M-c t" (cons "Create Trigger" #'dx-apex-generate-trigger))
                       ;; (keymap-set map "M-c c" (cons "Create Apex Class" #'dx-apex-generate-class))
@@ -72,7 +72,7 @@
                             (propertize dx-mode-line-disconnect-icon 'face 'error))))))
 
 ;;;###autoload
-(easy-mmode-define-minor-mode dx-minor-mode
+(easy-mmode-define-minor-mode salesforce-mode
   "Toggles salesforce minor mode."
   :init-value nil
   :group 'dx
@@ -80,4 +80,4 @@
 
 (add-hook 'dx-minor-mode-hook #'dx-minor-mode--init)
 
-(provide 'dx-minor-mode) ;;; dx-minor-mode end here.
+(provide 'salesforce-mode) ;;; dx-minor-mode end here.
