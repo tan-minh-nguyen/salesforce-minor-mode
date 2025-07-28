@@ -1,0 +1,15 @@
+{
+    "name": "visualforce",
+    "languageId": "visualforce",
+    "command": [
+      "visualforce-lsp",
+      "--stdio"
+    ],
+    "initializationOptions": {
+        "embeddedLanguages": {
+            "css": true,
+            "javascript": true
+        }
+    },
+    "settings": {}
+}
