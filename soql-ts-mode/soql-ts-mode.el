@@ -4,9 +4,7 @@
 (require 'cl)
 (require 'treesit)
 (require 'soql-company)
-(require 'soql-eglot)
-(when (require 'lsp-bridge nil t)
-  (require 'soql-bridge))
+(require 'soql-lsp)
 
 (defvar apex-ts-mode--soql-keywords
   '("SELECT" "FROM" "LIMIT" "ORDER_BY"
@@ -119,6 +117,8 @@
   (add-hook 'soql-ts-mode-hook #'soql-company-setup)
 
   (soql-ts-mode--setup))
+
+(add-to-list 'org-src-lang-modes '("soql" . soql-ts))
 
 (when (treesit-ready-p 'soql)
   (add-to-list 'auto-mode-alist '("\\.soql\\'" . soql-ts-mode)))

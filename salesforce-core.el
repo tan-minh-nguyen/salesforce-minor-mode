@@ -10,7 +10,7 @@
 (defconst salesforce-tools-dir "tools"
   "Tools folder name.")
 
-(defconst salesforce-state-dir ".sfdx"
+(defconst salesforce-state-dir ".sfsalesforce"
   "Folder contains information of project.")
 
 (defconst salesforce-custom-objects-dir "customObjects"
@@ -28,68 +28,68 @@
 (defcustom salesforce-tangle-on-save t
   "When t, automatically tangle Org files on save."
   :type 'boolean
-  :group 'dx-minor-mode)
+  :group 'salesforce-minor-mode)
 
-(defcustom salesforce-api-version "53.0"
+(defcustom salesforce-api-version "61.0"
   "Custom define api version for command."
   :type 'string
-  :group 'dx-minor-mode)
+  :group 'salesforce-minor-mode)
 
 (defcustom salesforce-org-list-header-display
   '("username" "instanceUrl" "orgId" "isDevHub" "instanceApiVersion" "alias" "lastUsed" "connectedStatus")
   "Custom define header display on table non scratch orgs"
   :type 'list
-  :group 'dx-minor-mode)
+  :group 'salesforce-minor-mode)
 
-(defcustom salesforce-lib-alias "sf"
-  "The command alias for the Salesforce CLI."
+(defcustom salesforce-program-bin "sf"
+  "Path to Salesforce CLI."
   :type 'string
-  :group 'dx-minor-mode)
+  :group 'salesforce-minor-mode)
 
 (defcustom salesforce-legacy-alias "force"
-  "The legacy command alias for Salesforce CLI (sfdx)."
+  "The legacy command alias for Salesforce CLI (sfsalesforce)."
   :type 'string
-  :group 'dx-minor-mode)
+  :group 'salesforce-minor-mode)
 
 (defcustom salesforce-project-command-alias "project"
   "The command alias for project-related Salesforce CLI commands."
   :type 'string
-  :group 'dx-minor-mode)
+  :group 'salesforce-minor-mode)
 
 (defcustom salesforce-data-command-alias "data"
   "The command alias for data-related Salesforce CLI commands."
   :type 'string
-  :group 'dx-minor-mode)
+  :group 'salesforce-minor-mode)
 
 (defcustom salesforce-visualforce-command-alias "visualforce"
   "The command alias for Visualforce-related Salesforce CLI commands."
   :type 'string
-  :group 'dx-minor-mode)
+  :group 'salesforce-minor-mode)
 
 (defcustom salesforce-apex-command-alias "apex"
   "The command alias for Apex-related Salesforce CLI commands."
   :type 'string
-  :group 'dx-minor-mode)
+  :group 'salesforce-minor-mode)
 
 (defcustom salesforce-org-command-alias "org"
   "The command alias for org-related Salesforce CLI commands."
   :type 'string
-  :group 'dx-minor-mode)
+  :group 'salesforce-minor-mode)
 
 (defcustom salesforce-lightning-command-alias "lightning"
   "The command alias for Lightning-related Salesforce CLI commands."
   :type 'string
-  :group 'dx-minor-mode)
+  :group 'salesforce-minor-mode)
 
 (defcustom salesforce-config-command-alias "config"
   "The command alias for configuration-related Salesforce CLI commands."
   :type 'string
-  :group 'dx-minor-mode)
+  :group 'salesforce-minor-mode)
 
 (defcustom salesforce-whatsnew-command-alias "whatsnew"
   "The command alias for configuration-related Salesforce CLI commands."
   :type 'string
-  :group 'dx-minor-mode)
+  :group 'salesforce-minor-mode)
 
 (defvar salesforce-core--org-list-cache nil
   "Cache for org list data. Format: ((timestamp . org-list-data))")
@@ -97,17 +97,17 @@
 (defcustom salesforce-core--org-list-cache-ttl 300000
   "Time-to-live for org list cache in seconds."
   :type 'integer
-  :group 'dx-minor-mode)
+  :group 'salesforce-minor-mode)
 
 (defcustom salesforce-default-browser "qutebrowser"
   "The default browser to use for opening Salesforce URLs."
   :type 'string
-  :group 'dx-minor-mode)
+  :group 'salesforce-minor-mode)
 
 (defcustom salesforce-metadata-define-roots '((default . "force-app/main/default"))
   "List Root Salesforce directories."
   :type 'alist
-  :group 'dx-minor-mode)
+  :group 'salesforce-minor-mode)
 
 (defvar salesforce-metadata-root-dir "force-app/main/default"
   "Root Salesforce directory.")
@@ -142,57 +142,50 @@
 (defcustom salesforce-org-cache-dir ".cache/"
   "Directory to store cache files relative to the project root."
   :type 'string
-  :group 'dx-minor-mode)
+  :group 'salesforce-minor-mode)
 
 (defcustom salesforce-dedicated-window-right "*List View*"
   "Name of the dedicated window buffer displayed on the right side."
   :type 'string
-  :group 'dx-minor-mode)
+  :group 'salesforce-minor-mode)
 
 (defcustom salesforce-tracking-time-format "%Y-%m-%d %H:%M:%S"
   "Format string for displaying timestamps in the metadata tracking buffer."
   :type 'string
-  :group 'dx-minor-mode)
+  :group 'salesforce-minor-mode)
 
-(defcustom salesforce-process-buffer "*DX Process*"
+(defcustom salesforce-process-buffer "*SALESFORCE Process*"
   "Name of the buffer used for displaying Salesforce CLI process output."
   :type 'string
-  :group 'dx-minor-mode)
+  :group 'salesforce-minor-mode)
 
-(defcustom salesforce-process-success-buffer "DX Success"
+(defcustom salesforce-process-success-buffer "SALESFORCE Success"
   "Name of the buffer used for displaying successful process results."
   :type 'string
-  :group 'dx-minor-mode)
+  :group 'salesforce-minor-mode)
 
-(defcustom salesforce-process-error-buffer "DX Error"
+(defcustom salesforce-process-error-buffer "SALESFORCE Error"
   "Name of the buffer used for displaying process error messages."
   :type 'string
-  :group 'dx-minor-mode)
+  :group 'salesforce-minor-mode)
 
 (defcustom salesforce-project-config '()
   "List of project configurations.
 Each element should be a plist with :project and :note-file keys.
 Example: ((:project \"test\" :note-file \"org\"))"
   :type 'list
-  :group 'dx-minor-mode)
+  :group 'salesforce-minor-mode)
 
 (defvar salesforce-org-name nil
   "The name of the currently active Salesforce org, displayed in the mode line.")
 
 (defcustom salesforce-prefix-keymap "M"
-  "The prefix key for Salesforce DX commands in the keymap."
+  "The prefix key for Salesforce SALESFORCE commands in the keymap."
   :type 'string
-  :group 'dx-config)
+  :group 'salesforce-config)
 
 (defvar-local salesforce-project-root-dir ""
   "Full path project root.")
-
-(defvar salesforce-mode-line `(:eval (when (bound-and-true-p dx-minor-mode)
-                               (if (string-blank-p dx-org-name) ""
-                                 (concat (propertize (concat dx-mode-line-icon " " dx-org-name)
-                                                     'face 'dx-mode-line-face)
-                                         dx-mode-line-current-org-status))))
-  "Salesfoce mode line.")
 
 (defcustom salesforce-mode-line-active-connect-icon "\xf444"
   "Icon display on mode-line when current org is active.")
@@ -203,10 +196,12 @@ Example: ((:project \"test\" :note-file \"org\"))"
 (defcustom salesforce-mode-line-current-org-status nil
   "Icon display on mode-line when current org is active.")
 
-(defvar salesforce-mode-line-icon "\xf0c2"
-  "`dx-minor-mode' icon.")
+(defcustom salesforce-mode-line-icon "\xf0c2"
+  "`salesforce-minor-mode' icon."
+  :type 'string
+  :group 'salesforce-config)
 
-(defface dx-mode-line-face
+(defface salesforce-mode-line-face
   '((((type praphic) (class color) (background dark))
      :foreground "DodgerBlue1" :slant oblique :weight bold)
     (((type praphic) (class color) (background light))
@@ -217,11 +212,11 @@ Example: ((:project \"test\" :note-file \"org\"))"
   "Font lock for salesfoce minor mode on mode line."
   :group 'font-lock-rules)
 
-;; dx-log.el configurations
-(defcustom dx-log-dir-path ".sfdx/tools/debug/logs/"
+;; salesforce-log.el configurations
+(defcustom salesforce-log-dir-path ".sfsalesforce/tools/debug/logs/"
   "Path to the directory where Salesforce debug logs are stored."
   :type 'string
-  :group 'dx-config)
+  :group 'salesforce-config)
 
 (defun salesforce-build-sf-command (&rest args)
   `(,@args))
@@ -263,7 +258,7 @@ Example: ((:project \"test\" :note-file \"org\"))"
     (when (length> new-list 0)
       (setq remap-list
             (append remap-list
-                    (dx-recursive-list new-list lambda-function))))
+                    (salesforce-recursive-list new-list lambda-function))))
 
     (add-to-list 'remap-list (funcall lambda-function first-item))))
 
@@ -279,10 +274,10 @@ Example: ((:project \"test\" :note-file \"org\"))"
 
 (defun salesforce-core--get-data-json (path table)
   "Get nested data from TABLE following the dot-separated PATH.
-Example: (dx-core--get-data-json \"result.data.0.name\" table)"
+Example: (salesforce-core--get-data-json \"result.data.0.name\" table)"
   (let ((path-parts (split-string path "\\.")))
     (cl-reduce (lambda (acc key)
-                 (dx-core--get-json-value acc key))
+                 (salesforce-core--get-json-value acc key))
                path-parts
                :initial-value table)))
 
@@ -291,25 +286,25 @@ Example: (dx-core--get-data-json \"result.data.0.name\" table)"
 
 (defun salesforce-core--tools-folder ()
   "Get tools folder path in project."
-  (concat dx-state-dir "/" dx-tools-dir))
+  (concat salesforce-state-dir "/" salesforce-tools-dir))
 
 (defun salesforce-core--build-path (&rest args)
   "Build a full path from root directory and additional path components."
-  (mapconcat 'identity `(,(dx-core--find-root-dir) ,@args)))
+  (mapconcat 'identity `(,(salesforce-core--find-root-dir) ,@args)))
 
 (defun salesforce-core--metadata-path (&optional path)
   "Get full path for metadata directory.
 If PATH is provided, append it to the metadata root directory."
-  (let ((base-path (expand-file-name dx-metadata-root-dir (dx-core--find-root-dir))))
+  (let ((base-path (expand-file-name salesforce-metadata-root-dir (salesforce-core--find-root-dir))))
     (if path
         (expand-file-name path base-path)
       base-path)))
 
 ;;;###autoload
 (cl-defun salesforce-internal-current-org ()
-  (let* ((root-dir (dx-core--find-root-dir))
+  (let* ((root-dir (salesforce-core--find-root-dir))
          (config-path (concat root-dir ".sf/config.json"))
-         (old-config-path (concat root-dir ".sfdx/sfdx-config.json")))
+         (old-config-path (concat root-dir ".sfsalesforce/sfsalesforce-config.json")))
 
     (cond
      ;; Return empty string if config files not exist
@@ -317,9 +312,9 @@ If PATH is provided, append it to the metadata root directory."
              (file-exists-p old-config-path)))
       "")
      ;; Return org name var if root dir not change
-     ((and (string= root-dir dx-project-root-dir)
-         dx-org-name)
-      dx-org-name)
+     ((and (string= root-dir salesforce-project-root-dir)
+         salesforce-org-name)
+      salesforce-org-name)
      ;; Find org alias in root dir
      (t
       (condition-case org-name
@@ -327,13 +322,13 @@ If PATH is provided, append it to the metadata root directory."
                           (shell-command-to-string (concat "[ -f " config-path " ] && grep -Po '(?<=\"target-org\": )\"[^\"]+\"' " config-path " | sed -E 's/\"([^\"]+)\"/\\1/' || grep -Po '(?<=\"defaultusername\": )\"[^\"]+\"' " old-config-path " | sed -E 's/\"([^\"]+)\"/\\1/'")))
         (:success org-name)
         (error
-         (dx-core--get-data-json "result.0.value"
-                                 (dx-core--config-process
+         (salesforce-core--get-data-json "result.0.value"
+                                 (salesforce-core--config-process
                                   :cmd '("get" "target-org" "--json")))))))))
 
 (defun salesforce--get-cache-folder-path ()
   "Get absolute path of cache directory."
-  (let ((cache-dir (expand-file-name (concat dx-org-cache-dir dx-org-name "/") (dx-core--find-root-dir))))
+  (let ((cache-dir (expand-file-name (concat salesforce-org-cache-dir salesforce-org-name "/") (salesforce-core--find-root-dir))))
 
     (unless (file-exists-p cache-dir)
       (make-directory cache-dir 'parents))
@@ -349,36 +344,36 @@ If PATH is provided, append it to the metadata root directory."
 (defun salesforce--get-log-dir-path ()
   "Get absolute path of log directory.
 Creates the directory if it doesn't exist."
-  (let ((log-dir (expand-file-name dx-log-dir-path (dx-core--find-root-dir))))
-    (dx--ensure-directory-exists log-dir)))
+  (let ((log-dir (expand-file-name salesforce-log-dir-path (salesforce-core--find-root-dir))))
+    (salesforce--ensure-directory-exists log-dir)))
 
 (defmacro salesforce--find-backup-files (file-name &optional dir)
   "Find backup files."
-  `(when-let* ((org-name dx-org-name)
-               (default-directory (or ,dir (dx--get-cache-folder-path))))
+  `(when-let* ((org-name salesforce-org-name)
+               (default-directory (or ,dir (salesforce--get-cache-folder-path))))
 
      (directory-files-recursively default-directory
                                   ,file-name)))
 
 (defmacro salesforce--find-backup-file (file-name &optional dir)
   "Find backup file."
-  `(car (dx--find-backup-files ,file-name ,dir)))
+  `(car (salesforce--find-backup-files ,file-name ,dir)))
 
 (defun salesforce--get-lwc-directory ()
   "Get lwc directory."
-  (expand-file-name dx-default-lwc-path (dx-core--find-root-dir)))
+  (expand-file-name salesforce-default-lwc-path (salesforce-core--find-root-dir)))
 
 (defun salesforce--find-parents (file &optional depth)
   "Find parents of directory."
   (if (< depth 1)
       (file-name-directory (directory-file-name file))
-    (dx--find-parents (file-name-directory (directory-file-name file)) (- depth 1))))
+    (salesforce--find-parents (file-name-directory (directory-file-name file)) (- depth 1))))
 
 (defmacro salesforce-core--make-process (command-alias)
   "Create a process macro for a specific command type.
-COMMAND-ALIAS is the command prefix (e.g. dx-project-command-alias).
+COMMAND-ALIAS is the command prefix (e.g. salesforce-project-command-alias).
 BODY contains the process handling code."
-  `(cl-defmacro ,(intern (format "dx-core--%s-process" (symbol-value command-alias)))
+  `(cl-defmacro ,(intern (format "salesforce-core--%s-process" (symbol-value command-alias)))
        (&rest body &key cmd sync &allow-other-keys)
      (let ((alias ,(symbol-value command-alias)))
        `(let* ((callback (lambda (json-instance)
@@ -386,9 +381,9 @@ BODY contains the process handling code."
                (handle-callback (lambda (proc)
                                   (funcall callback 
                                            (if (member "--json" ,cmd)
-                                               (dx-parse-buffer-json (process-buffer proc))
+                                               (salesforce-parse-buffer-json (process-buffer proc))
                                              (process-buffer proc))))))
-          (apply #'dx-start-process
+          (apply #'salesforce-start-process
                  (unless ,sync handle-callback)
                  (cons ,alias ,cmd))))))
 
@@ -405,37 +400,37 @@ BODY contains the process handling code."
 (defun salesforce-make-chain-process (&rest process-list &key params &allow-other-keys)
   "Chain all processes."
   (let ((proc (pop process-list)))
-    (dx-make-process
+    (salesforce-make-process
      :cmd (plist-get proc :cmd)
      :type 'async
      :callback (lambda (content)
                  (let ((result-proc (condition-case error
                                         (funcall (plist-get proc :callback) content params)
                                       (error (alert (format "%s" error)
-                                                    :title "DX Alert"
+                                                    :title "SALESFORCE Alert"
                                                     :severity 'urgent)))))
-                   (dx-make-chain-process (car process-list) :params result-proc))))))
+                   (salesforce-make-chain-process (car process-list) :params result-proc))))))
 
 (cl-defmacro salesforce-make-process-json-sync (&key cmd)
-  "Execute sync dx cli command and return json result."
+  "Execute sync salesforce cli command and return json result."
   `(condition-case json-instance
-       (json-parse-string (dx-make-process :cmd ,cmd :type 'sync) :object-type 'plist)
+       (json-parse-string (salesforce-make-process :cmd ,cmd :type 'sync) :object-type 'plist)
      (:success json-instance)
      (error (cond ((string-match-p "json-parse-error" (symbol-name (car json-instance)))
                    (alert "something wrong with JSON result."
-                          :title "DX Alert"
+                          :title "SALESFORCE Alert"
                           :severity 'urgent))
                   (t (alert json-instance
-                            :title "DX Alert"
+                            :title "SALESFORCE Alert"
                             :severity 'urgent))))))
 
 ;; Async library
 (defun salesforce-start-process (&optional callback &rest params &allow-other-keys)
-  "Start dx process."
-  (when dx-debug
+  "Start salesforce process."
+  (when salesforce-debug
     (message "%s" params))
-  (apply #'async-start-process "dx-process"
-         dx-lib-alias 
+  (apply #'async-start-process "salesforce-process"
+         salesforce-program-bin 
          callback
          params))
 
@@ -458,7 +453,7 @@ BODY contains the process handling code."
                        (plist-get component-error :lineNumber)
                        (plist-get component-error :problem)))
              ;; List of error messages
-             (dx-core--get-data-json "result.details.componentFailures" json-instance)
+             (salesforce-core--get-data-json "result.details.componentFailures" json-instance)
              ;; Separator for each failed components
              "\n=======================\n"))
 
@@ -470,15 +465,15 @@ BODY contains the process handling code."
           (plist-get json-instance :message)))
 
 (defun salesforce-handle-process-error--json (json-instance)
-  "Handle error response by dx process."
+  "Handle error response by salesforce process."
   (let ((show-message (cond 
                        ;; TODO: handle error base on type of action instead of status prop
                        ((not (plist-member json-instance :context)) 
-                        (dx-process--handle-error-metadata-action json-instance))
-                       (t (dx-process--handle-common-error json-instance)))))
+                        (salesforce-process--handle-error-metadata-action json-instance))
+                       (t (salesforce-process--handle-common-error json-instance)))))
 
     (alert show-message
-           :title "DX Alert"
+           :title "SALESFORCE Alert"
            :category 'error
            :severity 'urgent)
     show-message))
@@ -499,9 +494,9 @@ BODY contains the process handling code."
                  (when (null prefix)
                    (setq result (append result `(,(plist-get org :alias)))))
                  result)
-               (cond ((assoc-default 'data dx-core--org-list-cache)
-                      (assoc-default 'data dx-core--org-list-cache))
-                     (t (or (dx-org--list nil :sync t) '())))
+               (cond ((assoc-default 'data salesforce-core--org-list-cache)
+                      (assoc-default 'data salesforce-core--org-list-cache))
+                     (t (or (salesforce-org--list nil :sync t) '())))
                :initial-value '())))
 
 
@@ -510,9 +505,9 @@ BODY contains the process handling code."
 (defun salesforce--async-when-done (proc &optional _change)
   "Handle signal process return from sf package."
   (when-let ((_ (eq (process-exit-status proc) 1))
-             (_ (string= "dx-process" (process-name proc))))
+             (_ (string= "salesforce-process" (process-name proc))))
     (condition-case error
-        (dx-handle-process-error--json (dx-parse-buffer-json (process-buffer proc))))))
+        (salesforce-handle-process-error--json (salesforce-parse-buffer-json (process-buffer proc))))))
 
 (advice-add 'async-when-done :after #'salesforce--async-when-done)
 

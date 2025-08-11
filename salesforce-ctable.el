@@ -1,7 +1,7 @@
 ;; -*- no-byte-compile: t; no-native-compile: t; lexical-binding: t -*-
 
 (require 'ctable)
-
+;;FIXME: change file name from salesforce-ctable to salesforce-datatable
 (cl-defun salesforce-table--create-table (&key model buffer open)
   "use ctable to build table data"
   (let ((component (ctbl:create-table-component-buffer

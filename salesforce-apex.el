@@ -1,4 +1,4 @@
-;;; dx-apex.el --- Apex features -*- lexical-binding: t -*-
+;;; salesforce-apex.el --- Apex features -*- lexical-binding: t -*-
 
 ;;TODO: create a transient menu
 (require 'salesforce-core)
@@ -270,24 +270,24 @@
 
   (salesforce-core--apex-process
    :cmd '("list" "log" "--json")
-   (let* ((records-list (dx-core--get-data-json "result" json-instance))
+   (let* ((records-list (salesforce-core--get-data-json "result" json-instance))
           (header-columns '("No" "Id" "Browser" "Operation"))
-          (data (dx-table--make-data-table-from-vector
+          (data (salesforce-table--make-data-table-from-vector
                  :header-columns header-columns
                  :data records-list)))
 
      (pop-to-buffer
-      (dx-table--create-table
+      (salesforce-table--create-table
        :model
-       (dx-table--make-table-mode
+       (salesforce-table--make-table-mode
         :column-header
         (cl-loop for key in header-columns
                  collect `(:align ,'left :title ,key `:max-width ,'50))
         :data data)
-       :buffer dx-dedicated-window-right
+       :buffer salesforce-dedicated-window-right
        :open t)))))
 
-(cl-defun dx-apex--get-log (&key log-id number org post-log-handle)
+(cl-defun salesforce-apex--get-log (&key log-id number org post-log-handle)
   "Get log apex"
   (salesforce-core--apex-process
    :cmd `("get" "log" "--json"
@@ -299,10 +299,10 @@
 
 (defun salesforce-apex-log-track (buffer)
   "Trace apex log on org."
-  (interactive (list (generate-new-buffer "*dx-trace-log*")))
-  (make-process :name "dx-trace-log"
+  (interactive (list (generate-new-buffer "*salesforce-trace-log*")))
+  (make-process :name "salesforce-trace-log"
                 :buffer buffer
-                :stderr "*dx-trace-log:error*"
+                :stderr "*salesforce-trace-log:error*"
                 :command '("sf" "apex" "log" "tail"))
   ;;TODO: enable apex log major mode
   (with-current-buffer buffer)
@@ -315,7 +315,7 @@
    (alert (format "Tests class run success with coverage"
                   ;; (salesforce-core--get-data-json "result.summary.testRunCoverage" json-instance)
                   )
-          :title "DX Alert")
+          :title "SALESFORCE Alert")
    (and poll-id (cancel-timer poll-id))))
 
 (cl-defun salesforce-apex--execute-unit-test (&key test-cases test-level)
@@ -332,11 +332,11 @@
 
        (if job-id
            (progn (alert (format "%s class is running." file-name)
-                         :title "DX Alert")
+                         :title "SALESFORCE Alert")
                   (setq poll-id (run-at-time 60 nil callback job-id)))
          (alert (format "Tests class run success with coverage %s"
                         (salesforce-core--get-data-json "result.summary.testRunCoverage" json-instance))
-                :title "DX Alert"))))))
+                :title "SALESFORCE Alert"))))))
 
 ;;;FIXME: get name
 (defun salesforce-apex--retrieve-functions ()

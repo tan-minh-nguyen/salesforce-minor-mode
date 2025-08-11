@@ -109,7 +109,7 @@
   "Modifying CSV data."
   (let* ((fields-string (substring csv 0 (string-match "\n" csv)))
          (content-string (substring csv (string-match "\n" csv)))
-         (id-pos (cl-position "Id" (string-split fields-string ","))))
+         (id-pos (or (cl-position "Id" (string-split fields-string ",")) -1)))
 
     (cl-loop for item in (string-split content-string "\n")
              concat (concat (cl-loop for s in (split-string item ",")

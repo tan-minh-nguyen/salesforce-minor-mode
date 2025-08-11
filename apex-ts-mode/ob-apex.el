@@ -1,4 +1,4 @@
-;;; ob-apex.el --- org-babel functions for Apexq evaluation -*- no-byte-compile: t; no-native-compile: t; lexical-binding: t -*-
+;;; ob-apex.el --- org-babel functions for Apex evaluation -*- lexical-binding: t -*-
 
 ;; Copyright (C) your name here
 
@@ -41,28 +41,11 @@
 
 ;; After that continue by creating a simple code block that looks like e.g.
 ;;
-;; #+begin_src template
+;; #+begin_src apex
 
 ;; test
 
 ;; #+end_src
-
-;; Finally you can use `edebug' to instrumentalize
-;; `org-babel-expand-body:template' and continue to evaluate the code block. You
-;; try to add header keywords and change the body of the code block and
-;; reevaluate the code block to observe how things get handled.
-
-;;
-;; If you have questions as to any of the portions of the file defined
-;; below please look to existing language support for guidance.
-;;
-;; If you are planning on adding a language to org-babel we would ask
-;; that if possible you fill out the FSF copyright assignment form
-;; available at https://orgmode.org/request-assign-future.txt as this
-;; will make it possible to include your language support in the core
-;; of Org-mode, otherwise unassigned language support files can still
-;; be included in the contrib/ directory of the Org-mode repository.
-
 
 ;;; Requirements:
 
@@ -267,8 +250,8 @@ specifying a var of the same value."
 ;; Hints value base on value of header arguments 
 ;; FIXME: trigger eglot in specfic workspace
 (when (require 'company-org-header nil 'noerror)
-  (defcustom ob-apex-header-completions `((:workspace . dx-core--projects)
-                                          (:org . dx-core--orgs))
+  (defcustom ob-apex-header-completions `((:workspace . salesforce-core--projects)
+                                          (:org . salesforce-core--orgs))
     "Handles completions for org headers."
     :type 'alist
     :group 'ob-apex)
@@ -280,9 +263,9 @@ specifying a var of the same value."
 
   (defun ob-apex-initialize-completion ()
     "Initialize the SOQL completion hook."
-    (when-let ((default-directory (assoc-default :workspace company-header-args)))
+    (when-let ((default-directory (assoc-default :workspace company-header-args)))))
       ;; (call-interactively #'eglot)
-      ))
+      
 
   (add-to-list 'company-header-src-block-hooks `(apex-ts-mode . ,ob-apex-src-code-hook))
   (add-to-list 'company-header-handles `(apex-ts . ,ob-apex-header-completions)))

@@ -48,9 +48,9 @@
                      "https://login.salesforce.com")
                     (_ (read-from-minibuffer "URL: ")))))
 
-    (dx-org--list 
+    (salesforce-org--list 
      (lambda (org-list)
-       (dx-core--org-process
+       (salesforce-core--org-process
         :cmd (list "login" "web" "-a" (completing-read "Alias: " org-list nil nil) "--instance-url" org-url "--set-default" "--json")
         (alert (format "Authorize to %s success" (salesforce-core--get-data-json "result.username" json-instance)) :title "Salesforce Alert"))))))
 
@@ -66,11 +66,11 @@
   "Change default connection org."
   (interactive)
   (salesforce-org--list (lambda (org-list)
-                  (let ((org (completing-read "Org name: " org-list)))
-                    (salesforce-core--config-process
-                     :cmd `("set" "target-org" ,org "--json")
-                     (let ((org-name (salesforce-core--get-data-json "result.successes.0.value" json-instance)))
-                       (alert (format "Change to %s success" (setq salesforce-org-name org-name)) :title "DX Alert")))))))
+                         (let ((org (completing-read "Org name: " org-list)))
+                           (salesforce-core--config-process
+                            :cmd `("set" "target-org" ,org "--json")
+                            (let ((org-name (salesforce-core--get-data-json "result.successes.0.value" json-instance)))
+                              (alert (format "Change to %s success" (setq salesforce-org-name org-name)) :title "DX Alert")))))))
 
 (defun salesforce-org--get-status ()
   "Checking connect status on current org"

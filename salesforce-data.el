@@ -1,4 +1,4 @@
-;;; dx-data.el --- Import/export data on org -*- lexical-binding: t -*-
+;;; salesforce-data.el --- Import/export data on org -*- lexical-binding: t -*-
 
 (require 'salesforce-soql)
 (require 'salesforce-core)
@@ -7,12 +7,12 @@
 (defcustom salesforce-data-wait-value 10
   "Default value for --await argument."
   :type 'number
-  :group 'dx-data)
+  :group 'salesforce-data)
 
 (defcustom salesforce-data-export-file-default ""
   "Default file use in -f argument."
   :type 'string
-  :group 'dx-data)
+  :group 'salesforce-data)
 
 (defvar-local salesforce-data--sobject-value ""
   "Default value use in --sobject argument.")
@@ -51,7 +51,7 @@
   ["Arguments"
    [""
     (salesforce--transient-menu:-o)
-    (salesforce--transient-menu:--api-version)
+    (salesforce-core--transient-menu:--api-version)
     (salesforce-data--transient:--sobject)
     ;;(salesforce-data--transient:--async)
     (salesforce-data--transient:-f)]
@@ -163,7 +163,7 @@
   :key "-i"
   :shortarg "-i"
   :argument "--job-id="
-  :reader #'dx--transient-menu:read-file)
+  :reader #'salesforce--transient-menu:read-file)
 
 (transient-define-argument salesforce-data--transient:--use-most-recent ()
   :description "Use job id that was most recently run"
@@ -217,7 +217,7 @@
   :key "-F"
   :shortarg "--output-file"
   :argument "--output-file="
-  :reader #'dx--transient-menu:read-file)
+  :reader #'salesforce--transient-menu:read-file)
 
 (transient-define-argument salesforce-data--transient:-r ()
   :class 'transient-switches
@@ -330,7 +330,7 @@
                     (require 'request nil t)
 
                     ;; Create temporary file for the imported data
-                    (let* ((file (make-temp-file "dx-import-data"))
+                    (let* ((file (make-temp-file "salesforce-import-data"))
                            (request-done nil)
                            (response-error nil))
 
@@ -352,7 +352,7 @@
                         (error "Request failed with error: %s" response-error))
 
                       ;; Execute the import command
-                      (let ((proc (apply #'dx-start-process nil
+                      (let ((proc (apply #'salesforce-start-process nil
                                          `(
                                            ,salesforce-data-command-alias
                                            "import"
@@ -364,8 +364,8 @@
                                            "--json"))))
                         (async-wait proc)
                         (if (eq (process-exit-status proc) 1)
-                            (list :status 1 :error (dx--async-when-done proc))
-                          (list :status 0 :json-instance (dx-parse-buffer-json (process-buffer proc))))))))
+                            (list :status 1 :error (salesforce--async-when-done proc))
+                          (list :status 0 :json-instance (salesforce-parse-buffer-json (process-buffer proc))))))))
                (lambda (result)
                  (if (eq (plist-get result :status) 0)
                      ;; Schedule periodic resume processing
@@ -375,12 +375,12 @@
                                                     :cmd `("export" "resume" "--json"
                                                            "-i" ,(salesforce-core--get-data-json "result.jobId" result))
                                                     (alert "Import process resumed successfully."
-                                                           :title "DX Alert")
+                                                           :title "SALESFORCE Alert")
                                                     ;; clear poll event
                                                     (cancel-timer poll-id))))))
-                       (alert "Import data is running." :title "DX Alert"))
+                       (alert "Import data is running." :title "SALESFORCE Alert"))
                    ;; Handle import error
-                   (alert (format "Data import failed: %s" (plist-get result :error)) :title "DX Alert")))))
+                   (alert (format "Data import failed: %s" (plist-get result :error)) :title "SALESFORCE Alert")))))
 
 (cl-defun salesforce-data--execute-query (args &key callback sync)
   "Execute SOQL string/file in specific org."
@@ -400,7 +400,7 @@
 (defun salesforce-data-execute-query (query-string)
   "Execute SOQL statement."
   (interactive (list (or (transient-args 'salesforce-data--transient:data-query)
-                     (salesforce-soql--read-content))))
+                      (salesforce-soql--read-content))))
   (let ((stream-query (replace-regexp-in-string "\/\/.+\n" "" query-string)))
     (salesforce-data--execute-query stream-query)))
 
@@ -410,8 +410,8 @@
   (interactive)
   (unless (org-at-table-p) (error "No table at point")) 
   (let ((salesforce-data-export-file-default (make-temp-file "export"))
-        (salesforce-data--sobject-value (org-entry-get (point) "DX_SOBJECT_NAME" t))
-        (salesforce-org-name (org-entry-get (point) "DX_ORG_NAME" t)))
+        (salesforce-data--sobject-value (org-entry-get (point) "SALESFORCE_SOBJECT_NAME" t))
+        (salesforce-org-name (org-entry-get (point) "SALESFORCE_ORG_NAME" t)))
     (org-table-export salesforce-data-export-file-default "orgtbl-to-csv")
     (salesforce-data--transient:import-bulk)))
 

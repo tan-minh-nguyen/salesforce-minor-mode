@@ -16,7 +16,7 @@
   "Check file is LWC."
   (require 'salesforce-project nil 'noerror)
   (and (salesforce-project-p)
-     (string-prefix-p (dx-core--build-path dx-metadata-root-dir dx-lwc-dir)
+     (string-prefix-p (salesforce-core--build-path salesforce-metadata-root-dir salesforce-lwc-dir)
                       (buffer-file-name))))
 
 (defun lwc-ts-mode-auto ()

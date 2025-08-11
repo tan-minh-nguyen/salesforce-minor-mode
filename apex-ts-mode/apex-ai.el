@@ -68,6 +68,4 @@ output JSON format follow below contructs: [{\"name\": \"{replace as class name 
   "Remove break lines in text."
   (s-replace-regexp "\n" "" text))
 
-(add-to-list '+chatgpt-shell-comment-instructions `(apex-ts-mode . ,apex-ai-comment-instruction))
-
 (provide 'apex-ai)

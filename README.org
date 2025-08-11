@@ -1,30 +1,33 @@
 #+title: Salesforce Development Tools for Emacs
 
-* Table Of Contents :toc_1:
-- [[#overview][Overview]]
-- [[#dependencies][Dependencies]]
-- [[#installation][Installation]]
-- [[#features][Features]]
-- [[#key-bindings][Key Bindings]]
-- [[#configuration][Configuration]]
-- [[#contributing][Contributing]]
-- [[#apex-mode][Apex Mode]]
-- [[#soql-mode][SOQL Mode]]
-- [[#visualforce-mode][Visualforce Mode]]
-- [[#lwc-mode][LWC Mode]]
+* Table Of Contents                                                   :toc_2:
+- [[Overview][Overview]]
+- [[Dependencies][Dependencies]]
+- [[Installation][Installation]]
+  - [[Doom Emacs][Doom Emacs]]
+  - [[Vanilla Emacs][Vanilla Emacs]]
+- [[Key Bindings][Key Bindings]]
+  - [[Org Features][Org Features]]
+  - [[Resource Features][Resource Features]]
+- [[Features][Features]]
+  - [[Apex Mode][Apex Mode]]
+  - [[Visualforce Mode][Visualforce Mode]]
+  - [[LWC Mode][LWC Mode]]
+  - [[SOQL Mode][SOQL Mode]]
 
 * Overview
 This Emacs package, "Salesforce Development Tools for Emacs," provides a comprehensive suite of tools to enhance Salesforce development within the Emacs environment. It is designed to streamline the development process by integrating various Salesforce functionalities directly into Emacs, making it easier for developers to work with Salesforce technologies.
 
 Key features include:
 
-- Apex development support
-- SOQL query execution
-- Salesforce DX integration
-- Lightning Web Components (LWC) support
-- Metadata deployment and retrieval
-- Test execution and debugging
-- Data import/export tools
+- **Apex Mode**: Provides a comprehensive environment for developing Salesforce Apex code with syntax highlighting, code completion, and integration with Salesforce DX.
+- **SOQL Mode**: Provides a dedicated environment for writing and executing Salesforce Object Query Language (SOQL) queries. It includes syntax highlighting, auto-completion, and result visualization. The mode integrates with Eglot and LSP-bridge for enhanced code intelligence and navigation, and supports company-mode for intelligent code completion.
+- **Visualforce Mode**: Provides a specialized environment for Visualforce page development with tree-sitter-based syntax highlighting for HTML, JavaScript, and CSS. It includes LSP integration for enhanced code intelligence and navigation, and supports auto-completion and code folding.
+- **LWC Mode**: Offers support for Lightning Web Components (LWC) development with tree-sitter-based syntax highlighting for JavaScript and HTML files. It includes LSP integration for enhanced code intelligence, auto-completion, and navigation. The mode supports both Eglot and LSP-bridge for language server features.
+- **LSP Support**: Integrates with Language Server Protocol (LSP) for enhanced code intelligence and navigation.
+- **Debugging Tools**: Includes support for the Debug Adapter Protocol (DAP) to debug Apex code.
+- **AI Integration**: Offers AI-assisted code commenting and documentation generation.
+- **Folding Support**: Allows code folding for better code organization and readability.
 * Dependencies
 + [[https://developer.salesforce.com/docs/atlas.en-us.sfdx_setup.meta/sfdx_setup/sfdx_setup_install_cli.htm#sfdx_setup_install_cli_npm][Salesforce CLI]]
 + Emacs 27.1 or later
@@ -42,17 +45,27 @@ Clone the repository and add to your load path:
 (add-to-list 'load-path "/path/to/salesforce-minor-mode")
 (require 'salesforce-minor-mode)
 #+end_src
+* Key Bindings
+The following key bindings are available in the Salesforce minor mode:
+
+** Org Features
+- `TAB`: Switch Org
+- `r`: Retrieve Metadata
+- `d`: Push Metadata
+- `n`: List All Orgs
+- `m`: List All Devhubs
+- `p`: Diff File
+- `;`: Execute Apex Code
+- `.`: Open Org
+
+** Resource Features
+- `M-o o`: Org Features
+- `M-o r`: Resource Features
+- `M-o N`: Notes
+- `M-o A`: Authorize Org
+  
 * Features
 The "Salesforce Development Tools for Emacs" package offers a range of features to enhance Salesforce development, including:
-
-- **Apex Mode**: Provides a comprehensive environment for developing Salesforce Apex code with syntax highlighting, code completion, and integration with Salesforce DX.
-- **SOQL Mode**: Provides a dedicated environment for writing and executing Salesforce Object Query Language (SOQL) queries. It includes syntax highlighting, auto-completion, and result visualization. The mode integrates with Eglot and LSP-bridge for enhanced code intelligence and navigation, and supports company-mode for intelligent code completion.
-- **Visualforce Mode**: Provides a specialized environment for Visualforce page development with tree-sitter-based syntax highlighting for HTML, JavaScript, and CSS. It includes LSP integration for enhanced code intelligence and navigation, and supports auto-completion and code folding.
-- **LWC Mode**: Offers support for Lightning Web Components (LWC) development with tree-sitter-based syntax highlighting for JavaScript and HTML files. It includes LSP integration for enhanced code intelligence, auto-completion, and navigation. The mode supports both Eglot and LSP-bridge for language server features.
-- **LSP Support**: Integrates with Language Server Protocol (LSP) for enhanced code intelligence and navigation.
-- **Debugging Tools**: Includes support for the Debug Adapter Protocol (DAP) to debug Apex code.
-- **AI Integration**: Offers AI-assisted code commenting and documentation generation.
-- **Folding Support**: Allows code folding for better code organization and readability.
 
 ** Apex Mode
 Apex mode is a specialized environment within the "Salesforce Development Tools for Emacs" package, designed to facilitate the development of Salesforce Apex code. It includes:

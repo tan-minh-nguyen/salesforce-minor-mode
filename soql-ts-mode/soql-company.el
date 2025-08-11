@@ -2,8 +2,7 @@
 
 ;; Code
 (require 'treesit)
-(require 'dx-core)
-(require 'cl)
+(require 'salesforce-core)
 
 (defcustom soql-company-type-table `(("string" "S")
                                      ("picklist" "P") 

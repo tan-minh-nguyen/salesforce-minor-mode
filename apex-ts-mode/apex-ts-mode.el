@@ -246,11 +246,11 @@ te available version of Tree-sitter for Apex."
       name: (identifier) @font-lock-variable-name-face)
 
      (formal_parameter
-      name: (identifier) @font-lock-variable-name-face)
+      name: (identifier) @font-lock-variable-name-face))
 
      ;; (catch_formal_parameter
      ;;  name: (identifier) @font-lock-variable-name-face)
-     )
+     
 
    :language 'apex
    :override t
@@ -441,13 +441,6 @@ Return nil if there is no name or if NODE is not a defun node."
 
   (apex-ts-mode-setup))
 
-(when (treesit-ready-p 'apex)
-  (add-to-list 'auto-mode-alist '("\\.apex\\'" . apex-ts-mode))
-  (add-to-list 'auto-mode-alist '("\\.cls\\'" . apex-ts-mode))
-  (add-to-list 'auto-mode-alist '("\\.trigger\\'" . apex-ts-mode)))
-
-(add-hook 'apex-ts-mode-hook #'apex-ts-mode--soql-embeded)
-
 ;; Imenu
 (defmacro apex-ts-mode--define-source-annotate (&optional text)
   "Define annotate for consult source."
@@ -582,6 +575,19 @@ Return nil if there is no name or if NODE is not a defun node."
 (with-eval-after-load 'yasnippet
   (require 'apex-ts-mode-yasnippet)
   (apex-ts-mode-yasnippet-initialize))
+
+(add-to-list 'org-src-lang-modes '("apex" . apex-ts))
+(add-to-list 'org-babel-load-languages '("apex" . apex-ts))
+
+(when (treesit-ready-p 'apex)
+  (add-to-list 'auto-mode-alist '("\\.apex\\'" . apex-ts-mode))
+  (add-to-list 'auto-mode-alist '("\\.cls\\'" . apex-ts-mode))
+  (add-to-list 'auto-mode-alist '("\\.trigger\\'" . apex-ts-mode)))
+
+(add-hook 'apex-ts-mode-hook #'apex-ts-mode--soql-embeded)
+
+(when (functionp 'derived-mode-add-parents)
+  (derived-mode-add-parents 'apex-ts-mode '(apex-mode)))
 
 (provide 'apex-ts-mode)
 ;;; apex-ts-mode.el ends here
