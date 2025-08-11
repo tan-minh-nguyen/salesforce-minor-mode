@@ -421,7 +421,7 @@ Return nil if there is no name or if NODE is not a defun node."
                 ("Interface" "\\`interface_declaration\\'" nil apex-ts-mode--declaration-name)
                 ("Enum" "\\`enum_declaration\\'" nil apex-ts-mode--declaration-name)
                 ("Method" "\\`method_declaration\\'" nil nil)
-                ("Field Variable" "\\`field_declaration\\'" nil apex-ts-mode--variable-name)
+                ("Field" "\\`field_declaration\\'" nil apex-ts-mode--variable-name)
                 ("Local Variable" "\\`local_variable_declaration\\'" nil apex-ts-mode--variable-name)
 
                 ("Sobject" "\\`storage_identifier\\'" nil (lambda (NODE)
@@ -455,121 +455,6 @@ Return nil if there is no name or if NODE is not a defun node."
   "Define action for consult source."
   `(lambda (cand) 
      (goto-char (plist-get cand :marker))))
-
-
-;; Consult sources
-(defvar apex-ts-mode--consult-source-field 
-  `(:name "Field"
-          :narrow ?f
-          :category Field
-          :face font-lock-variable-name-face
-          :state ,#'apex-ts-mode--consult-preview
-          :annotate ,(apex-ts-mode--define-source-annotate)
-          :action ,(apex-ts-mode--define-source-action)))
-                   
-                     
-
-(defvar apex-ts-mode--consult-source-method 
-  `(:name "Method"
-          :narrow ?m
-          :category Method
-          :face font-lock-function-name-face
-          :state ,#'apex-ts-mode--consult-preview
-          :annotate ,(apex-ts-mode--define-source-annotate)
-          :action ,(apex-ts-mode--define-source-action)))
-
-(defvar apex-ts-mode--consult-source-class 
-  `(:name "Class"
-          :narrow ?c
-          :category Class 
-          :face font-lock-type-face
-          :state ,#'apex-ts-mode--consult-preview
-          :annotate ,(apex-ts-mode--define-source-annotate)
-          :action ,(apex-ts-mode--define-source-action)))
-
-(defvar apex-ts-mode--consult-source-property
-  `(:name "Property"
-           :narrow ?p
-           :category Property
-           :face font-lock-variable-name-face
-           :state ,#'apex-ts-mode--consult-preview
-           :annotate ,(apex-ts-mode--define-source-annotate)
-           :action ,(apex-ts-mode--define-source-action)))
-
-(defvar apex-ts-mode--consult-source-constructor
-  `(:name "Constructor"
-           :narrow ?s
-           :category Constructor
-           :face font-lock-type-face
-           :state ,#'apex-ts-mode--consult-preview
-           :annotate ,(apex-ts-mode--define-source-annotate)
-           :action ,(apex-ts-mode--define-source-action)))
-
-(defvar apex-ts-mode--consult-source-enum
-  `(:name "Enum"
-           :narrow ?e
-           :category Enum
-           :face font-lock-type-face
-           :state ,#'apex-ts-mode--consult-preview
-           :annotate ,(apex-ts-mode--define-source-annotate)
-           :action ,(apex-ts-mode--define-source-action)))
-
-(defcustom apex-ts-mode--consult-sources '(apex-ts-mode--consult-source-field apex-ts-mode--consult-source-method apex-ts-mode--consult-source-class
-                                                                              apex-ts-mode--consult-source-property apex-ts-mode--consult-source-constructor apex-ts-mode--consult-source-enum)
-  "Imenu sources for `apex-ts-mode'"
-  :group 'apex-ts-mode-consult
-  :type 'list
-  :safe 'listp)
-
-;;;###autoload
-;; (defun apex-ts-mode--eglot-imenu ()
-;;   "Overriding eglot imenu default with `consult-muilti'."
-;;   (interactive)
-;;   (require 'consult-imenu nil t)
-;;   (let* ((imenu-items (eglot-imenu)))
-;; 
-;;     ;; Add candidates to sources
-;;     (dolist (source apex-ts-mode--consult-sources)
-;;       (let* ((category-name (format "%s" (plist-get (symbol-value source) :category)))
-;;              (item (assoc category-name imenu-items))
-;;              (candidates (apex-ts-mode--filter-candidate (cdr item))))
-;; 
-;;         (plist-put (symbol-value source) :items candidates)))
-;;                                                 
-;; 
-;;     (consult--multi apex-ts-mode--consult-sources)))
-;; 
-;; (cl-defun apex-ts-mode--filter-candidate (candidates)
-;;  "Filter candidate according category."
-;;  (cl-loop for candidate in candidates
-;;           collect (apex-ts-mode--rebuild-eglot-candidate candidate)))
-;; 
-;; (defun apex-ts-mode--rebuild-eglot-candidate (candidate)
-;;   "Rebuild items return from `eglot-imenu'.
-;;    
-;;    Eglot construct item: (text . pos)"
-;;   (let* ((text-split (split-string (car candidate) ":"))
-;;          (display-text (car text-split))
-;;          (type (and (cadr text-split) (replace-regexp-in-string "[() ]" "" (cadr text-split))))
-;;          (marker (cdr candidate)))
-;; 
-;;     (cons (propertize display-text)
-;;           (list :type type
-;;              :marker marker))))
-;; 
-;; (defun apex-ts-mode--candidate-type (candidate)
-;;  "Get candidate type."
-;;  (get-text-property 0 'breadcrumb-kind candidate))
-;; 
-;; (defun apex-ts-mode--candidate-region (candidate)
-;;  "Get candidate region."
-;;  (get-text-property 0 'breadcrumb-region candidate))
-;; 
-;; (defun apex-ts-mode--consult-preview ()
-;;   "Handle imenu preview."
-;;   (let ((preview (consult--jump-preview)))
-;;     (lambda (action cand) 
-;;       (funcall preview action (and (markerp (plist-get cand :marker)) (plist-get cand :marker))))))
 
 ;;; Yasnippet
 (with-eval-after-load 'yasnippet
