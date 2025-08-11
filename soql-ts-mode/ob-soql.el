@@ -5,7 +5,7 @@
 ;; Author: tan.nguyen@furucrm.com
 ;; Keywords: literate programming, reproducible research
 ;; Homepage: https://orgmode.org
-;; Version: 0.01
+;; Version: 1.0
 
 ;;; License:
 
@@ -106,19 +106,22 @@
     (concat result)))
 
 (defun ob-soql--modify-csv (csv)
-  "Modifying CSV data."
-  (let* ((fields-string (substring csv 0 (string-match "\n" csv)))
-         (content-string (substring csv (string-match "\n" csv)))
-         (id-pos (or (cl-position "Id" (string-split fields-string ",")) -1)))
+  "Return CSV after converting 'Id' field values into hyperlinks."
+  (let* ((lines (string-split csv "\n" t)) ; split into lines, remove empty
+         (headers (car lines))
+         (rows (cdr lines))
+         (header-fields (string-split headers ","))
+         (id-pos (cl-position "Id" header-fields :test #'string=)))
 
-    (cl-loop for item in (string-split content-string "\n")
-             concat (concat (cl-loop for s in (split-string item ",")
-                                     for index from 0
-                                     as content = (if (= index id-pos)
-                                                      (ob-soql--convert-id-to-hyperlink s)
-                                                    s)
-                                     concat content) "\n"))))
-
+    (string-join (cons headers
+                       (mapcar (lambda (line)
+                                 (let ((cols (string-split line ",")))
+                                   (when (and id-pos (< id-pos (length cols)))
+                                     (setf (nth id-pos cols)
+                                           (ob-soql--convert-id-to-hyperlink (nth id-pos cols))))
+                                   (string-join cols ",")))
+                               rows))
+                 "\n")))
 
 (defun ob-soql--convert-id-to-hyperlink (id)
   "Convert ID Salesforce to hyperlink."
@@ -157,9 +160,9 @@
 
   (defun ob-soql-initialize-completion ()
     "Initialize the SOQL completion hook."
-    (when-let ((default-directory (assoc-default :workspace company-header-args)))
+    (when-let ((default-directory (assoc-default :workspace company-header-args)))))
       ;; (call-interactively #'eglot)
-      ))
+      
 
   (add-to-list 'company-header-src-block-hooks `(soql-ts-mode . ,ob-soql-src-code-hook))
   (add-to-list 'company-header-handles `(soql-ts . ,ob-soql-header-completions)))

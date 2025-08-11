@@ -1,0 +1,11 @@
+{
+  "name": "soql",
+  "languageId": "apex",
+  "command": [
+    "soql-lsp",
+    "--stdio"
+  ],
+  "settings": {
+
+  }
+}
