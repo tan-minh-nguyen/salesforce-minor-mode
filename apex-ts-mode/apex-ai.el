@@ -7,7 +7,7 @@
 * Apex Class Name    : {class name}.cls
 * Created Date       : {replace with today}
 * @description       : {short description}
-* @author            : tan.nguyen@furucrm.com
+* @author            : {author name}
 * @group             : 
 * @group-content	   : 
 * Modification Log:
@@ -19,7 +19,7 @@ instruction for method:
 /*
 *********************************************************
 * @Method Name    : {method name}
-* @author         : tan.nguyen@furucrm.com
+* @author         : {author name}
 * @description    : {short description}
 * @param          : {all parameters of method}
 * @return         : {return value}

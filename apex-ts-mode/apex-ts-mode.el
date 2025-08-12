@@ -37,8 +37,11 @@
 (require 'apex-lsp)
 (require 'apex-ai)
 (require 'apex-fold)
-(when (require 'dape nil 'noerror)
+(when (require 'dape nil :noerror)
   (require 'apex-dap))
+
+(when (require 'consult nil :noerror)
+  (require 'apex-consult))
 
 (declare-function treesit-parser-create "treesit.c")
 (declare-function treesit-induce-sparse-tree "treesit.c")
@@ -422,8 +425,6 @@ Return nil if there is no name or if NODE is not a defun node."
                 ("Enum" "\\`enum_declaration\\'" nil apex-ts-mode--declaration-name)
                 ("Method" "\\`method_declaration\\'" nil nil)
                 ("Field" "\\`field_declaration\\'" nil apex-ts-mode--variable-name)
-                ("Local Variable" "\\`local_variable_declaration\\'" nil apex-ts-mode--variable-name)
-
                 ("Sobject" "\\`storage_identifier\\'" nil (lambda (NODE)
                                                             (treesit-node-text NODE)))))
   (treesit-major-mode-setup))
