@@ -40,9 +40,6 @@
 (when (require 'dape nil :noerror)
   (require 'apex-dap))
 
-(when (require 'consult nil :noerror)
-  (require 'apex-consult))
-
 (declare-function treesit-parser-create "treesit.c")
 (declare-function treesit-induce-sparse-tree "treesit.c")
 (declare-function treesit-node-start "treesit.c")
@@ -462,13 +459,12 @@ Return nil if there is no name or if NODE is not a defun node."
   (require 'apex-ts-mode-yasnippet)
   (apex-ts-mode-yasnippet-initialize))
 
-(add-to-list 'org-src-lang-modes '("apex" . apex-ts))
-(add-to-list 'org-babel-load-languages '("apex" . apex-ts))
+(with-eval-after-load 'org
+  (add-to-list 'org-src-lang-modes '("apex" . apex-ts))
+  (add-to-list 'org-babel-load-languages '("apex" . t)))
 
 (when (treesit-ready-p 'apex)
-  (add-to-list 'auto-mode-alist '("\\.apex\\'" . apex-ts-mode))
-  (add-to-list 'auto-mode-alist '("\\.cls\\'" . apex-ts-mode))
-  (add-to-list 'auto-mode-alist '("\\.trigger\\'" . apex-ts-mode)))
+  (add-to-list 'auto-mode-alist '("\\.\\(apex\\|cls\\|trigger\\)\\'" . apex-ts-mode)))
 
 (add-hook 'apex-ts-mode-hook #'apex-ts-mode--soql-embeded)
 

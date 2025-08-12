@@ -1,9 +1,10 @@
-;;; Visualforce ts mode -- tree-sitter support for Visualforce -*- lexical-binding: t; -*-
+;;; Visualforce-ts-mode.el -- tree-sitter support for Visualforce -*- lexical-binding: t; -*-
 
 ;;; Code
 
 (require 'treesit)
 (require 'sgml-mode)
+(require 'visualforce-lsp)
 
 (defcustom visualforce-ts-mode--indent-offset 4
   "Visualforce indent offset."
@@ -572,39 +573,6 @@
 
   (visualforce-ts-mode--html-setup))
 
-;; configuration lsp bridge
-(defvar visualforce-lsp-mode--root-dir (file-name-directory load-file-name)
-  "Root directory.")
-
-(with-eval-after-load 'lsp-bridge
-  (add-to-list 'lsp-bridge-single-lang-server-mode-list '(visualforce-ts-mode . "visualforce"))
-  (add-to-list 'lsp-bridge-formatting-indent-alist '(visualforce-ts-mode . visualforce-ts-mode--indent-offset)))
-
-;; Enable lsp-bridge
-(defun lsp-bridge-visualforce-mode ()
-  (interactive)
-  (let ((langserver-dir (concat visualforce-lsp-mode--root-dir "/language-server/")))
-
-    (setq-local lsp-bridge-user-langserver-dir langserver-dir)
-
-    (lsp-bridge-mode)))
-
-;; config eglot
-(defcustom visualforce-ts-mode--lsp-path "visualforce-lsp"
-  "Path of LSP bin."
-  :type 'string
-  :group 'visualforce)
-
-(defcustom visualforce-ts-mode--eglot-config '(:initializationOptions (:embeddedLanguages (:css t :javascript t)))
-  "JSON use for LSP initialization config."
-  :type 'list
-  :group 'visualforce)
-
-(with-eval-after-load 'eglot
-  (add-to-list 'eglot-server-programs
-               `(visualforce-ts-mode . (,visualforce-ts-mode--lsp-path "--stdio" ,@visualforce-ts-mode--eglot-config))))
-
-(add-to-list 'auto-mode-alist '("\\.page\\'" . visualforce-ts-mode))
-(add-to-list 'auto-mode-alist '("\\.component\\'" . visualforce-ts-mode))
+(add-to-list 'auto-mode-alist '("\\.\\(page|component\\)\\'" . visualforce-ts-mode))
 
 (provide 'visualforce-ts-mode)

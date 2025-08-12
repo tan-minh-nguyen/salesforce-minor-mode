@@ -1,4 +1,4 @@
-;;; ob-apex.el --- org-babel functions for Apex evaluation -*- lexical-binding: t -*-
+;;; ob-apex.el --- Org-babel functions for Apex evaluation -*- lexical-binding: t -*-
 
 ;; Copyright (C) your name here
 
@@ -26,50 +26,33 @@
 
 ;;; Commentary:
 
-;; This file is not intended to ever be loaded by org-babel, rather it is a
-;; template for use in adding new language support to Org-babel. Good first
-;; steps are to copy this file to a file named by the language you are adding,
-;; and then use `query-replace' to replace all strings of "template" in this
-;; file with the name of your new language.
-
-;; After the `query-replace' step, it is recommended to load the file and
-;; register it to org-babel either via the customize menu, or by evaluating the
-;; line: (add-to-list 'org-babel-load-languages '(template . t)) where
-;; `template' should have been replaced by the name of the language you are
-;; implementing (note that this applies to all occurrences of 'template' in this
-;; file).
-
-;; After that continue by creating a simple code block that looks like e.g.
-;;
-;; #+begin_src apex
-
-;; test
-
-;; #+end_src
+;; This file provides support for executing Apex code blocks within Org-mode
+;; using org-babel. It includes functions for expanding, executing, and
+;; filtering Apex code, as well as handling variable declarations and results.
 
 ;;; Requirements:
 
-;; Use this section to list the requirements of this language.  Most
-;; languages will require that at least the language be installed on
-;; the user's system, and the Emacs major mode relevant to the
-;; language be installed as well.
+;; Requirements:
+;; - Salesforce CLI must be installed and configured.
+;; - Emacs major mode for Apex should be installed.
+
+;;TODO: support org session for Apex
 
 (require 'ob)
 (require 'ob-ref)
 (require 'ob-comint)
 (require 'ob-eval)
 (require 'salesforce-core)
-(require 'salesforce-core)
 (require 'apex-company)
 (require 'apex-ts-mode)
 
 (add-to-list 'org-babel-tangle-lang-exts '("apex" . "cls"))
 
-;; optionally declare default header arguments for this language
+;; Declare default header arguments for Apex code blocks.
 (defvar org-babel-default-header-args:apex (list '(:results . "none")
-                                                 '(:org . "")
-                                                 '(:filter-type . "DEBUG")
-                                                 '(:filter-value . nil)))
+                                              '(:org . "")
+                                              '(:filter-type . "DEBUG")
+                                              '(:filter-value . nil)))
 
 (defvar org-babel-default-inline-header-args:apex (list '(:results . "none")
                                                      '(:org . "")
@@ -103,15 +86,10 @@
                                       "Maximum heap")
   "Keywords use for filter with Government type.")
 
-;; This function expands the body of a source code block by doing things like
-;; prepending argument definitions to the body, it should be called by the
-;; `org-babel-execute:template' function below. Variables get concatenated in
-;; the `mapconcat' form, therefore to change the formatting you can edit the
-;; `format' form.
-
 (defun org-babel-expand-body:apex (body params &optional processed-params)
-  "Expand BODY according to PARAMS, return the expanded body."
-  (require 'inf-template nil t)
+  "Expand BODY according to PARAMS, return the expanded body.
+This function prepares the Apex code by adding variable declarations
+based on the provided parameters."
   (let ((vars
          (org-babel--get-vars
           (or processed-params
@@ -121,63 +99,49 @@
      (mapconcat #'ob-apex--binding-declare-variable vars "\n")
      "\n" body "\n")))
 
-;; This is the main function which is called to evaluate a code
-;; block.
-
-;; This function will evaluate the body of the source code and
-;; return the results as emacs-lisp depending on the value of the
-;; :results header argument
-;; output means that the output to STDOUT will be captured and returned
-;; value means that the value of the last statement in the source code block will be returned
-
-;; The most common first step in this function is the expansion of the
-;; PARAMS argument using `org-babel-process-params'.
-
-;; Please feel free to not implement options which aren't appropriate
-;; for your language (e.g. not all languages support interactive "session" evaluation).  Also you are free to define any new header
-;; arguments which you feel may be useful -- all header arguments
-;; specified by the user will be available in the PARAMS variable.
-
+;;;###autoload
 (defun org-babel-execute:apex (body params)
-  ""
+  "Execute a block of Apex code with org-babel.
+BODY is the content of the code block, and PARAMS are the header arguments."
   (let* ((processed-params (org-babel-process-params params))
-         (filter-type (assq :filter-type processed-params))
          (full-body (org-babel-expand-body:apex
                         body params processed-params)))
 
     (ob-apex--execute-apex-code processed-params full-body)))
 
 (defun ob-apex--get-param (key param-list)
-  "Extract param in list."
+  "Extract the parameter value associated with KEY from PARAM-LIST."
   (cdr (assq key param-list)))
 
-
 (defun ob-apex--filter-log (content type value)
-  "Filter content of the log file."
-  (mapconcat (lambda (line)
-               (cond ((and (string-equal-ignore-case type "DEBUG")
-                           ;;(string-match (regexp-opt org-babel-debug-keywords) line)
-                           (search "DEBUG" line))
+  "Filter CONTENT of the log file based on TYPE and VALUE."
+  (let ((filter-fn (ob-apex--get-filter-fn type value)))
+    (mapconcat (lambda (line)
+                 (when (funcall filter-fn line)
+                   (concat line "\n")))
+               (split-string content "\n")
+               "")))
 
-                      (concat line "\n"))
-                     ((and (string-equal-ignore-case type "STRING")
-                           (search value line))
-                      (concat line "\n"))
-                     ((and (string-equal-ignore-case type "EXECUTABLE")
-                           (string-match (regexp-opt org-babel-executable-keywords) line))
-                      (concat line "\n"))
-                     ((and (string-equal-ignore-case type "SYSTEM")
-                           (string-match (regexp-opt org-babel-system-keywords) line))
-
-                      (concat line "\n"))
-                     ((and (string-equal-ignore-case type "GOVERNOR")
-                           (match-string (regexp-opt org-babel-goverment-keywords) line))
-                      (concat line "\n"))))
-             (split-string content "\n")
-             ""))
+(defun ob-apex--get-filter-fn (type value)
+  "Return the appropriate filter function based on TYPE and VALUE.
+The filter function checks if a line matches the specified TYPE and contains VALUE."
+  (let ((base-filter-fn
+         (cond ((string-equal-ignore-case type "DEBUG")
+                (lambda (line) (search "DEBUG" line)))
+               ((string-equal-ignore-case type "EXECUTABLE")
+                (lambda (line) (string-match (regexp-opt org-babel-executable-keywords) line)))
+               ((string-equal-ignore-case type "SYSTEM")
+                (lambda (line) (string-match (regexp-opt org-babel-system-keywords) line)))
+               ((string-equal-ignore-case type "GOVERNOR")
+                (lambda (line) (match-string (regexp-opt org-babel-governor-keywords) line)))
+               (t (lambda (_) nil)))))
+    (if (and value (not (string-equal value "")))
+        (lambda (line) (and (funcall base-filter-fn line) (search value line)))
+      base-filter-fn)))
 
 (defun ob-apex--execute-apex-code (processed-params content)
-  "Execute apex code in org source."
+  "Execute Apex code in Org source.
+PROCESSED-PARAMS are the parameters for execution, and CONTENT is the code to execute."
   (let* ((uuid (org-id-uuid))
          (buffer (current-buffer))
          (tempfile (make-temp-file "temp-code"))
@@ -215,40 +179,53 @@
             :title "Salesforce Alert"))))
 
 (defun ob-apex--binding-declare-variable (pair)
-  "Handle binding value of variable to execute content."
+  "Handle binding value of variable to execute content.
+PAIR is a cons cell of variable name and value."
   (cl-loop for (key . value) in pair
            as cast-value = (format "%s" value)
            concat (ob-apex--build-var-code key cast-value)))
 
 (defun ob-apex--build-var-code (key value)
-  "Building variables for apex code."
-  (let ((type (cond ((string-match-p "^'" value) "string")
-                    ((string-match-p "^[1-9]+$" value) "number")
-                    ((string-match-p "^([Tt]rue|[Ff]alse)$" value) "boolean")
-                    (t "object"))))
-    (format "%s %s = %s;"
-            (pcase type
-              ("string" "String")
-              ("number" "Decimal")
-              ("boolean" "Boolean")
-              (_ value))
-            key
-            (pcase type
-              ("string" (format "'%s'" value))
-              ("number" value)
-              ("boolean" value)
-              (_ (format "new %s" value))))))
+  "Build variable declaration code for Apex.
+KEY is the variable name, and VALUE is the variable value."
+  (let* ((type (ob-apex--determine-type value))
+         (apex-type (ob-apex--get-apex-type type))
+         (formatted-value (ob-apex--format-value type value)))
+    (format "%s %s = %s;" apex-type key formatted-value)))
+
+(defun ob-apex--determine-type (value)
+  "Determine the type of VALUE for Apex variable declaration."
+  (cond ((string-match-p "^'" value) "string")
+        ((string-match-p "^[1-9]+$" value) "number")
+        ((string-match-p "^([Tt]rue|[Ff]alse)$" value) "boolean")
+        (t "object")))
+
+(defun ob-apex--get-apex-type (type)
+  "Get the Apex type corresponding to TYPE for variable declaration."
+  (pcase type
+    ("string" "String")
+    ("number" "Decimal")
+    ("boolean" "Boolean")
+    (_ "Object")))
+
+(defun ob-apex--format-value (type value)
+  "Format VALUE based on its TYPE for Apex variable declaration."
+  (pcase type
+    ("string" (format "'%s'" value))
+    ("number" value)
+    ("boolean" value)
+    (_ (format "new %s" value))))
 
 (defun org-babel-prep-session:apex (session params)
-  "Prepare SESSION according to the header arguments specified in PARAMS.")
+  "Prepare SESSION according to the header arguments specified in PARAMS.
+This function is currently a placeholder and does not perform any actions.")
 
 (defun org-babel-elisp-var-to-apex (var)
-  "Convert an elisp var into a string of template source code
-specifying a var of the same value."
-  (format "%s" value))
+  "Convert an elisp VAR into a string of Apex source code specifying a var of the same value."
+  (format "%s" var))
 
-;; Hints value base on value of header arguments 
-;; FIXME: trigger eglot in specfic workspace
+;; Hints value based on value of header arguments
+;; FIXME: Trigger eglot in specific workspace
 (when (require 'company-org-header nil 'noerror)
   (defcustom ob-apex-header-completions `((:workspace . salesforce-core--projects)
                                           (:org . salesforce-core--orgs))
@@ -266,22 +243,17 @@ specifying a var of the same value."
     (when-let ((default-directory (assoc-default :workspace company-header-args)))))
       ;; (call-interactively #'eglot)
       
-
   (add-to-list 'company-header-src-block-hooks `(apex-ts-mode . ,ob-apex-src-code-hook))
   (add-to-list 'company-header-handles `(apex-ts . ,ob-apex-header-completions)))
 
 (defun org-babel-template-table-or-string (results)
-  "If the results look like a table, then convert them into an
-Emacs-lisp table, otherwise return the results as a string.")
-
+  "Convert RESULTS into an Emacs-lisp table if they look like a table, otherwise return as a string.")
 
 (defun org-babel-template-initiate-session (&optional session)
-  "If there is not a current inferior-process-buffer in SESSION then create.
-Return the initialized session."
-  (unless (string= session "none")))
+  "Create and return an initialized SESSION if there is not a current inferior-process-buffer.")
 
 (defun ob-apex-company ()
-  "Enable company for apex org babel."
+  "Enable company mode for Apex org-babel integration."
   (when (apex-ts-mode-p)
     (apex-company-setup)))
 

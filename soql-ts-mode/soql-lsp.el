@@ -23,8 +23,12 @@
 
 
 ;; LSP-BRIDGE
-(defvar soql-lsp-bridge-language-dir (expand-file-name "language-sever" (file-name-base load-file-name))
+(defvar soql-lsp-bridge-language-dir (expand-file-name "language-sever" (file-name-directory load-file-name))
   "Language server configuration for LSP bridge.")
+
+(defun soql-lsp-setup-bridge ()
+  "Setup LSP bridge for project."
+  (setq-local lsp-bridge-user-langserver-dir soql-lsp-bridge-language-dir))
 
 (with-eval-after-load 'lsp-bridge
   (add-to-list 'lsp-bridge-single-lang-server-mode-list '(soql-ts-mode . "soql")))
