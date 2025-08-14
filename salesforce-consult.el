@@ -60,7 +60,7 @@
 (defmacro salesforce-make-consult-multi-imenu (language &rest consult-sources)
   "Create a consult Imenu for a major mode specified by LANGUAGE.
 CONSULT-SOURCES are the sources to be used in the consult multi command."
-  (let ((function-name (intern (format "%s-consult--multi-imenu" language))))
+  (let ((function-name (intern (format "%s-consult-multi-imenu" language))))
     `(defun ,function-name ()
        (interactive)
        (consult--multi ',consult-sources))))

@@ -34,9 +34,12 @@
 (eval-when-compile (require 'rx))
 (require 'c-ts-common) ; For comment indent and filling.
 (require 'cl-macs)
-(require 'apex-lsp)
 (require 'apex-ai)
-(require 'apex-fold)
+(require 'apex-eglot)
+(when (require 'lsp-bridge nil :noerror)
+ (require 'apex-lsp-bridge))
+(when (require 'treesit-fold nil :noerror)
+  (require 'apex-fold))
 (when (require 'dape nil :noerror)
   (require 'apex-dap))
 

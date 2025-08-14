@@ -204,7 +204,7 @@
   (interactive)
   (let* ((page-name (read-string "page name: "))
          (page-label (read-string "page label: "))
-         (command ))
+         (command))
 
     (salesforce-core--visualforce-process
      :cmd `("generate" "component" "--json" "--name" ,page-name "--label" ,page-label "--output-dir" ,(salesforce-core--build-path salesforce-vf-component-dir))
@@ -219,6 +219,7 @@
    (switch-to-buffer (find-file (salesforce-core--get-data-json "result.created.0" json-instance)))))
 
 ;; TODO: add feature can custom content in created class
+;; Note: use yasnippet
 (defun salesforce-apex--generate-class (args)
   "Generate apex class"
   (interactive (list (transient-args 'salesforce-apex--transient:apex-resource)))
@@ -312,9 +313,9 @@
   "Get apex test result."
   (salesforce-core--apex-process
    :cmd `("get" "test" "-i" ,job-id "-o" ,salesforce-org-name "--code-coverage" "--json")
-   (alert (format "Tests class run success with coverage"
+   (alert (format "Tests class run success with coverage")
                   ;; (salesforce-core--get-data-json "result.summary.testRunCoverage" json-instance)
-                  )
+                  
           :title "SALESFORCE Alert")
    (and poll-id (cancel-timer poll-id))))
 

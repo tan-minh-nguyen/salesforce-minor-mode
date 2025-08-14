@@ -4,18 +4,14 @@
 
 ;;TODO: create transient menu
 
-(defun salesforce-org-specific-open ()
+(defun salesforce-org-specific-open (org)
   "Use a specific user name to open org"
-  (interactive)
-  (let ((user-name (or (ctbl:cp-get-selected-data-cell (ctbl:cp-get-component))
-                       (read-string "user name:"))))
-
-    (salesforce-core--org-process
-     :cmd (list "org" "open" "--json" "-o" user-name "-r")
-     (shell-command (format "%s --target %s %S"
-                            salesforce-default-browser
-                            "tab"
-                            (salesforce-core--get-data-json "result.url" json-instance))))))
+  (interactive (list (ctbl:cp-get-selected-data-cell (ctbl:cp-get-component))))
+  (salesforce-core--org-process
+   :cmd `("org" "open" "--json" "-o" ,(or org (read-string "Org: ")) "-r")
+   (shell-command (string-join `(,salesforce-default-browser
+                                 ,(salesforce-core--get-data-json "result.url" json-instance))
+                               " "))))
 
 (defun salesforce-org-open-current ()
   "Open current default org."
@@ -23,9 +19,9 @@
   (salesforce-core--org-process
    :cmd '("org" "open" "--json" "-r")
    (async-start (lambda ()
-                  (shell-command (format "%s %S" 
-                                         salesforce-default-browser 
-                                         (salesforce-core--get-data-json "result.url" json-instance))))
+                  (shell-command (string-join `(,salesforce-default-browser
+                                                ,(salesforce-core--get-data-json "result.url" json-instance))
+                                              " ")))
                 'ignore)))
 
 (defun salesforce-org-display-all-orgs ()

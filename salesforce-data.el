@@ -405,6 +405,14 @@
     (salesforce-data--execute-query stream-query)))
 
 ;;;###autoload
+(defun salesforce-data-org-table-export (file type)
+  "Import data from org table."
+  (interactive (list (read-file-name "File: ")
+                  (completing-read "Export type: " '("orgtbl-to-csv"))))
+  (unless (org-at-table-p) (error "No table at point")) 
+  (org-table-export file type))
+
+;;;###autoload
 (defun salesforce-data-org-table-import ()
   "Import data from org table."
   (interactive)
@@ -412,7 +420,7 @@
   (let ((salesforce-data-export-file-default (make-temp-file "export"))
         (salesforce-data--sobject-value (org-entry-get (point) "SALESFORCE_SOBJECT_NAME" t))
         (salesforce-org-name (org-entry-get (point) "SALESFORCE_ORG_NAME" t)))
-    (org-table-export salesforce-data-export-file-default "orgtbl-to-csv")
+    (salesforce-data-org-table-export salesforce-data-export-file-default "orgtbl-to-csv")
     (salesforce-data--transient:import-bulk)))
 
 (provide 'salesforce-data)

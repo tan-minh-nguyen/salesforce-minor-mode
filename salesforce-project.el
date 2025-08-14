@@ -560,7 +560,7 @@ Copies current file to temp folder with same path structure as project root."
     (let* ((project-name (projectile-project-name))
            (temp-dir (expand-file-name project-name temporary-file-directory)))
       
-      ;; Create folder structure
+      ;; Create folder
       (salesforce-project--create-temp-project-folder temp-dir relative-path)
       
       ;; Copy files
@@ -574,16 +574,16 @@ Copies current file to temp folder with same path structure as project root."
 
 (defun salesforce-project-preview-metadata-change (&optional target-org)
   "diff source between local project and salesforce platform."
-  (interactive)
+  (interactive (list salesforce-org-name))
   (let ((full-file-name (buffer-file-name)))
     (salesforce-project--clone-cloud-metadata
      :metadata-file full-file-name
-     :target-org (or target-org salesforce-org-name)
+     :target-org target-org
      :finish-func (lambda (new-dir-name)
                     (condition-case error
                         (salesforce-project--prepare-ediff-session (salesforce--find-backup-file (file-name-nondirectory full-file-name)
-                                                                                 new-dir-name)
-                                                           full-file-name)
+                                                                                                 new-dir-name)
+                                                                   full-file-name)
                       (error
                        (alert (format "%s" error)
                               :title "SALESFORCE Alert"
@@ -592,7 +592,7 @@ Copies current file to temp folder with same path structure as project root."
 
 (defun salesforce-project--mode-line-format ()
   "Compose the Salesforce-mode's mode-line."
-  (when (bound-and-true-p salesforce-minor-mode)
+  (when (bound-and-true-p salesforce-mode)
     (if (string-blank-p salesforce-org-name) ""
       (concat (propertize (concat salesforce-mode-line-icon " " salesforce-org-name)
                           'face 'salesforce-mode-line-face)
