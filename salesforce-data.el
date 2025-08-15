@@ -303,20 +303,18 @@
   (interactive (list (transient-args 'salesforce-data--transient:import-bulk)))
   (salesforce-core--data-process
    :cmd `("import" "bulk" ,@args "--json")
-   (alert (format "Import status:\nSuccessful Records:%s\nFailed Records:"
-                  (or (salesforce-core--get-data-json "result.successfulRecords" json-instance) 0)
-                  (or (salesforce-core--get-data-json "result.failedRecords" json-instance)) 0)
-          :title "Salesforce alert")))
+   (salesforce-core--alert (format "Import status:\nSuccessful Records:%s\nFailed Records:"
+                                   (or (salesforce-core--get-data-json "result.successfulRecords" json-instance) 0)
+                                   (or (salesforce-core--get-data-json "result.failedRecords" json-instance)) 0))))
 
 (defun salesforce-data--import-bulk (args)
   "Import tree data to org."
   (interactive (list (transient-args 'salesforce-data--transient:import-bulk)))
   (salesforce-core--data-process
    :cmd `("import" "bulk" ,@args "--json")
-   (alert (format "Import status:\nSuccessful Records:%s\nFailed Records:"
-                  (or (salesforce-core--get-data-json "result.successfulRecords" json-instance) 0)
-                  (or (salesforce-core--get-data-json "result.failedRecords" json-instance)) 0)
-          :title "Salesforce alert")))
+   (salesforce-core--alert (format "Import status:\nSuccessful Records:%s\nFailed Records:"
+                                   (or (salesforce-core--get-data-json "result.successfulRecords" json-instance) 0)
+                                   (or (salesforce-core--get-data-json "result.failedRecords" json-instance)) 0))))
 
 (defun salesforce-data-link-import (url)
   "Import data from the specified URL."
@@ -374,13 +372,12 @@
                                                    (salesforce-core--data-process
                                                     :cmd `("export" "resume" "--json"
                                                            "-i" ,(salesforce-core--get-data-json "result.jobId" result))
-                                                    (alert "Import process resumed successfully."
-                                                           :title "SALESFORCE Alert")
+                                                    (salesforce-core-alert "Import process resumed successfully.")
                                                     ;; clear poll event
                                                     (cancel-timer poll-id))))))
-                       (alert "Import data is running." :title "SALESFORCE Alert"))
+                       (salesforce-core--alert "Import data is running."))
                    ;; Handle import error
-                   (alert (format "Data import failed: %s" (plist-get result :error)) :title "SALESFORCE Alert")))))
+                   (salesforce-core--alert (format "Data import failed: %s" (plist-get result :error)))))))
 
 (cl-defun salesforce-data--execute-query (args &key callback sync)
   "Execute SOQL string/file in specific org."

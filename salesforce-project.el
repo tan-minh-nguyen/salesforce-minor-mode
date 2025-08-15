@@ -4,7 +4,7 @@
 
 ;; Author: Your Name <your@email.com>
 ;; Version: 0.1
-;; Package-Requires: ((emacs "27.1") (projectile "0.14.0") (transient "0.1.0"))
+;; Package-Requires: ((emacs "27.1") (projectile "0.14.0") (transient "0.1.0") (taxy "0.10.2"))
 ;; Keywords: salesforce, salesforce, project
 ;; URL: https://github.com/your/repo
 
@@ -43,31 +43,33 @@
 
 ;;;###autoload
 (defun salesforce-project-p (&optional dir)
-  "Check if DIR is a Salesforce project."
+  "Determine if the given DIR is a Salesforce project.
+If DIR is not provided, use the current projectile project root."
   (let ((default-directory (or dir (projectile-project-root))))
     (cl-some #'projectile-verify-file-wildcard salesforce-files-test-root)))
 
 ;;;###autoload 
 (defun salesforce-project-init ()
-  "Initialize Salesforce project configuration."
+  "Initialize the configuration for a Salesforce project.
+This includes setting up metadata and applying directory locals."
   (when (eq (projectile-project-type) 'salesforce)
     (let ((enable-local-variables :all))
       (salesforce-project--setup-metadata)
       (salesforce-project--apply-dir-locals))))
 
 (defun salesforce-project--setup-metadata ()
-  "Find and set metadata directory."
+  "Locate and configure the metadata directory for the current project."
   (when-let* ((root (projectile-project-root))
               (config (salesforce-project--get-root-config root)))
     (salesforce-project--update-config-with-metadata root config)))
 
 (defun salesforce-project--get-root-config (root)
-  "Get project configuration for ROOT directory."
+  "Retrieve the project configuration for the given ROOT directory."
   (or (alist-get root salesforce-metadata-define-roots)
       (alist-get 'default salesforce-metadata-define-roots)))
 
 (defun salesforce-project--update-config-with-metadata (root config)
-  "Update project CONFIG with metadata path for ROOT."
+  "Update the project CONFIG with the metadata path for the given ROOT."
   (when-let ((metadata-dir (locate-dominating-file root config)))
     (let ((metadata-path (expand-file-name config metadata-dir)))
       (if (assoc nil salesforce-project-configuration)
@@ -78,7 +80,7 @@
                     `(nil . ((salesforce-metadata-root-dir . ,metadata-path))))))))
 
 (defun salesforce-project--apply-dir-locals ()
-  "Apply directory local variables for project."
+  "Apply directory local variables for the current project."
   (dir-locals-set-class-variables 'project-configuration salesforce-project-configuration)
   (dir-locals-set-directory-class (projectile-project-root) 'project-configuration)
   (hack-dir-local-variables-non-file-buffer))
@@ -94,7 +96,7 @@
 
 
 (defun salesforce-project-create ()
-  "Create salesforce project"
+  "Create a new Salesforce project in a specified directory."
   (interactive)
   (let* ((project-dir (read-directory-name "Directory: "))
          (project-name (read-string "Project name: "))
@@ -105,27 +107,31 @@
 
     (salesforce-core--project-process 
      :cmd (list "generate" "--name" project-name "--template" project-template "--json")
-     (alert "Create Project Success"
-            :title "SALESFORCE Alert"))))
+     (salesforce-core--alert "Create Project Success"))))
 
 (defun salesforce-project-source-push (buffer &optional target-org)
-  "Push file to salesforce org."
+  "Push the specified BUFFER to a Salesforce org.
+Optionally specify a TARGET-ORG."
   (interactive (list (buffer-file-name)))
   (salesforce-core--project-process 
    :cmd `("deploy" "start" "-d" ,buffer ,@(when target-org (list "-o" target-org)) "--json")
-   (alert (format "Deploy %s success" buffer)
-          :title "SALESFORCE Alert")))
+   (salesforce-core--alert (format "Deploy %s success" buffer))))
 
 (defun salesforce-project-source-retrieve (buffer &optional target-org)
-  "Retrieve source salesforce form org"
+  "Retrieve source from a Salesforce org into the specified BUFFER.
+Optionally specify a TARGET-ORG."
   (interactive (list (buffer-file-name)))
   (salesforce-core--project-process 
    :cmd `("retrieve" "start" "-d" ,buffer ,@(when target-org (list "-o" target-org)) "--json")
-   (alert (format "Retrieve %s success" buffer)
-          :title "SALESFORCE Alert")))
+   (salesforce-core--alert (format "Retrieve %s success" buffer))))
 
-(cl-defun salesforce-project--clone-cloud-metadata (&key metadata-file target-path target-org finish-func)
-  "Backup the current buffer to the source directory."
+(cl-defun salesforce-project--clone-cloud-metadata
+    (&key metadata-file target-path target-org finish-func)
+  "Clone cloud metadata from a Salesforce org.
+METADATA-FILE specifies the file to retrieve.
+TARGET-PATH is the local path to store the metadata.
+TARGET-ORG specifies the Salesforce org.
+FINISH-FUNC is a function to call upon completion."
   (let* ((file-name (file-name-base metadata-file)))
 
     (salesforce-core--project-process 
@@ -135,7 +141,8 @@
             "-z"
             "-t" ,temporary-file-directory
             "--zip-file-name" ,file-name
-            ,@(when (and target-org (not (string-blank-p target-org))) (list "-o" target-org))
+            ,@(when (and target-org (not (string-blank-p target-org)))
+                (list "-o" target-org))
             "--json")
      ;; rename backup directory to new directory containing the last modified id
      ;; and the last modified date
@@ -143,44 +150,11 @@
        (unless (file-exists-p target-path)
          (error "Path not exist"))
        (copy-file (concat temporary-file-directory file-name) target-path) t)
-     (funcall finish-func (or target-path (concat temporary-file-directory file-name))))))
-
-(cl-defmacro salesforce-source-backup (&rest body &key target-org &allow-other-keys)
-  "Backup the current buffer to the source directory."
-  `(let* ((buffer (buffer-file-name))
-          (file-name (file-name-base buffer))
-          (cache-dir (salesforce--get-cache-folder-path))
-          (backup-file-name (concat file-name "_" (format "%s" (time-convert (current-time) 'integer)))))
-
-     (unless (file-exists-p cache-dir)
-       (make-directory cache-dir 'parents))
-
-     (salesforce-core--project-process 
-      :cmd (list "retrieve"
-              "start"
-              "-d" buffer
-              "-z"
-              "-t" cache-dir
-              "--zip-file-name" backup-file-name
-              "-o" (or ,target-org salesforce-org-name)
-              "--json")
-      (unless json-instance
-        (error (concat "Backup " file-name " Failure")))
-      ;; rename backup directory to new directory containing the last modified id
-      ;; and the last modified date
-
-      (when-let ((new-dir-name (concat cache-dir "/" backup-file-name "_"
-                                       (salesforce-core--get-data-json "result.fileProperties.0.lastModifiedById"
-                                                               json-instance)
-                                       "_"
-                                       (format "%s" (time-convert (date-to-time (salesforce-core--get-data-json "result.fileProperties.0.lastModifiedDate" json-instance))
-                                                                  'integer)))))
-        (rename-file (concat cache-dir "/" backup-file-name)
-                     new-dir-name)
-        ,@body))))
+     (funcall finish-func (or target-path
+                             (expand-file-name file-name temporary-file-directory))))))
 
 (defun salesforce-project--ediff-startup-hook ()
-  "Ediff hook on startup with additional actions."
+  "Hook to run on Ediff startup, setting up additional actions."
   (let* ((coding-system (with-current-buffer ediff-buffer-B
                           buffer-file-coding-system)))
 
@@ -201,7 +175,7 @@
     (salesforce-project--ediff-add-actions)))
 
 (defun salesforce-project--ediff-help-menu ()
-  "Add hints to ediff help menu."
+  "Add custom hints to the Ediff help menu."
   ;; Add our help message to ediff's help system
   (concat ediff-long-help-message-head
           ediff-long-help-message-compare2 
@@ -209,14 +183,14 @@
           ediff-long-help-message-tail))
 
 (defun salesforce-project--ediff-add-actions ()
-  "Add custom actions to ediff control panel."
+  "Add custom actions to the Ediff control panel."
   ;; TODO: add logic handle help menu for compare 3 files
   (define-key ediff-mode-map (kbd "C-c C-p") #'(lambda () (interactive) (salesforce-project--ediff-push-changes salesforce-org-name)))
   (define-key ediff-mode-map (kbd "C-c C-r") #'(lambda () (interactive) (salesforce-project--ediff-retrieve-changes salesforce-org-name)))
   (define-key ediff-mode-map (kbd "C-c C-s") #'(lambda () (interactive) (salesforce-project--ediff-save-changes ediff-buffer-A))))
 
 (defun salesforce-project--ediff-push-changes (target-org)
-  "Push changes from ediff buffer to TARGET-ORG."
+  "Push changes from the Ediff buffer to the specified TARGET-ORG."
   (interactive)
   (let ((file (buffer-file-name ediff-buffer-A)))
     (salesforce-project--ediff-save-changes)
@@ -224,7 +198,7 @@
       (salesforce-project-source-push file target-org))))
 
 (defun salesforce-project--ediff-retrieve-changes (target-org)
-  "Retrieve changes from TARGET-ORG to ediff buffer."
+  "Retrieve changes from the specified TARGET-ORG to the Ediff buffer."
   (interactive)
   (let ((file (buffer-file-name ediff-buffer-A)))
     (when (yes-or-no-p "Retrieve changes from %s org?" target-org)
@@ -232,7 +206,7 @@
       (salesforce-project--ediff-save-changes ediff-buffer-A))))
 
 (defun salesforce-project--ediff-save-changes (buffer)
-  "Save changes from ediff buffer to local file."
+  "Save changes from the Ediff buffer to a local file."
   (interactive)
   (let ((file (buffer-file-name buffer)))
     (if (interactive-p)
@@ -241,7 +215,7 @@
       (save-buffer file))))
 
 (defun salesforce-project--ediff-quit-hook ()
-  "Hook on quit."
+  "Hook to run on Ediff quit, cleaning up buffers and hooks."
   (with-current-buffer ediff-buffer-A
     (kill-buffer-and-window))
   (when ediff-buffer-C
@@ -254,7 +228,7 @@
   (remove-hook 'ediff-mode-hook #'salesforce-project--ediff-add-actions))
 
 (defun salesforce-project-preview-metadata-multi-org ()
-  "Diff metadata between current file and two different orgs using ediff."
+  "Diff metadata between the current file and two different orgs using Ediff."
   (interactive)
   (salesforce-org--list (lambda (org-list)
                          (let* ((current-file (buffer-file-name))
@@ -292,7 +266,7 @@
                                            (setq file2 (car (directory-files-recursively path file-name)))))))))
 
 (defun salesforce-project--setup-ediff3 (file-a file-b file-c)
-  "Setup ediff session for three files with proper hooks."
+  "Set up an Ediff session for three files with appropriate hooks."
   (ediff-files3 file-a file-b file-c
                 `((lambda ()
                     (add-hook 'ediff-startup-hook #'salesforce-project--ediff-startup-hook)
@@ -305,6 +279,7 @@
   
 
 (defun salesforce-source-tracker ()
+  "Track changes in Salesforce source files."
   (interactive)
   (let* ((folder-name (file-name-base buffer-file-name))
          (file-name (file-name-nondirectory buffer-file-name))
@@ -347,57 +322,47 @@
 
     (pop-to-buffer (ctbl:cp-get-buffer component))))
 
-(defun salesforce-project--push-multi-sources (files)
-  "Push multi metadata files to org."
-  (interactive (list (transient-args 'salesforce-project--deploy-files-menu)))
+(defun salesforce-project--process-multi-sources (files command)
+  "Process multiple metadata FILES with the specified COMMAND."
   (async-start `(lambda ()
-                  ;; set default directory run command
                   (setq default-directory ,(projectile-project-root))
-                  ;; loading library
                   ,(async-inject-variables "\\`load-path\\'")
                   (require 'async nil t)
                   (require 'salesforce-project nil t)
+                  (require 'salesforce-core nil t)
                   (require 'cl-macs nil t)
                   (setq async-debug t)
-                  (let ((proc (apply #'salesforce-start-process nil 
-                                     (append '(,salesforce-project-command-alias "deploy" "start" "--json") 
-                                             (cons "-d" ',files)))))
+                  (let ((proc (apply #'salesforce-core--project-process
+                                     :cmd ,(apply #'append (list command "start" "--json")
+                                                  (cl-loop for file in files
+                                                           collect `("-d" ,file)))
+                                     :sync t)))
                     (async-wait proc)
                     (if (eq (process-exit-status proc) 1)
-                        (list :status 1 :error (salesforce--async-when-done proc))
-                      (list :status 0 :json-instance (salesforce-parse-buffer-json (process-buffer proc))))))
+                        `(
+                          :status 1
+                          :error ,(salesforce--async-when-done proc))
+                      `(
+                        :status 0
+                        :json-instance ,(salesforce-parse-buffer-json (process-buffer proc))))))
                (lambda (result)
                  (when (eq (plist-get result :status) 0)
-                   (alert (concat "Success deploy files:\n"
-                                  (string-join files "\n"))
-                          :title "SALESFORCE Alert")))))
+                   (salesforce-core--alert (concat "Success " command " files"))))))
+
+(defun salesforce-project--push-multi-sources (files)
+  "Push multiple metadata FILES to a Salesforce org."
+  (interactive (list (transient-args 'salesforce-project--deploy-files-menu)))
+  (salesforce-project--process-multi-sources files "deploy"))
 
 (defun salesforce-project--retrieve-multi-sources (files)
-  "Push multi metadata files to org."
+  "Retrieve multiple metadata FILES from a Salesforce org."
   (interactive (list (transient-args 'salesforce-project--deploy-files-menu)))
-  (async-start `(lambda ()
-                  ;; set default directory run command
-                  (setq default-directory ,(projectile-project-root))
-                  ;; loading library
-                  ,(async-inject-variables "\\`load-path\\'")
-                  (require 'async nil t)
-                  (require 'salesforce-project nil t)
-                  (require 'cl-macs nil t)
-                  (let ((proc (apply #'salesforce-start-process nil 
-                                     (append '(,salesforce-project-command-alias "retrieve" "start" "--json") 
-                                             (cons "-d" ',files)))))
-                    (async-wait proc)
-                    (if (eq (process-exit-status proc) 1)
-                        (list :status 1 :error (salesforce--async-when-done proc))
-                      (list :status 0 :json-instance (salesforce-parse-buffer-json (process-buffer proc))))))
-               (lambda (result)
-                 (when (eq (plist-get result :status) 0)
-                   (alert (concat "Success retrieve files:\n"
-                                  (string-join files "\n"))
-                          :title "SALESFORCE Alert")))))
+  (salesforce-project--process-multi-sources files "retrieve"))
+
+;;FIXME: use taxy package
 
 (defun salesforce-project--group-files-menu (files)
-  "Group files on transient menu."
+  "Group FILES for display on the transient menu."
   (cl-loop for file in files
            if (and (string-match-p (regexp-quote salesforce-default-apex-class-path) file)
                  (not (member (salesforce-project--remove-xml-suffix file) classes)))
@@ -412,18 +377,19 @@
            ;; else 
            ;; collect file into other
            finally return (list (cons "classes" classes) 
-                           (cons "pages" pages)
-                           (cons "objects" objects)
-                           (cons "fields" fields))))
+                        (cons "pages" pages)
+                        (cons "objects" objects)
+                        (cons "fields" fields))))
                         ;; (cons "Misc" other)
                         
 
 (defun salesforce-project--remove-xml-suffix (original-name)
-  "Format name of item display on transient menu."
+  "Remove the '-meta.xml' suffix from ORIGINAL-NAME for display."
   (string-replace "-meta.xml" "" original-name))
 
 (defun salesforce-project--generate-files-menu (prefix-name files &rest sections)
-  "Configuration deploy files change menu."
+  "Configure the deploy files change menu with PREFIX-NAME and FILES.
+Additional SECTIONS can be specified."
   `(transient-define-prefix ,(intern (concat "salesforce-project--" prefix-name)) ()
      "Files deploy menu."
      ,@(cl-loop for (name . items) in (salesforce-project--group-files-menu files)
@@ -435,7 +401,8 @@
      ,@sections))
 
 (defun salesforce-project--generate-files-section (files prefix &optional max-row)
-  "Generate column dilay files."
+  "Generate a column display for FILES with PREFIX.
+Optionally limit the number of rows with MAX-ROW."
   (seq-split (cl-loop for index from 1
                       for file in files
                       as file-name = (file-name-base file)
@@ -445,7 +412,7 @@
              (or max-row 5)))
 
 (defun salesforce-project--git-change-source-1 ()
-  "Deploy changed sources on local to org."
+  "Deploy changed sources from local to a Salesforce org."
   (require 'magit nil t)
   (let ((start-point-branch (magit-read-local-branch "Start point" (magit-local-branch-at-point)))
         (end-point-branch (magit-read-local-branch "End point" (magit-local-branch-at-point))))
@@ -467,12 +434,12 @@
          (pop-to-buffer buffer))))))
 
 (defun salesforce-project-git-change-source ()
-  "View all sources changed on version control."
+  "View all sources changed in version control."
   (interactive)
   (salesforce-project--git-change-source-1))
 
 (defun salesforce-project-open-note ()
-  "Open note for current project."
+  "Open the note associated with the current project."
   (interactive)
   (if-let ((note-file (plist-get (cl-find-if (lambda (el)
                                                (string= (expand-file-name (plist-get el :project)) salesforce-project-root-dir))
@@ -486,7 +453,7 @@
     (error "note file not found.")))
 
 (defun salesforce-project--prepare-ediff-session (local-file cloud-file)
-  "Prepare ediff session with proper hooks and settings."
+  "Prepare an Ediff session between LOCAL-FILE and CLOUD-FILE with proper hooks."
   (setq ediff-long-help-message-function #'salesforce-project--ediff-help-menu)
 
   (ediff local-file cloud-file
@@ -495,7 +462,7 @@
              (add-hook 'ediff-startup-hook #'salesforce-project--ediff-startup-hook)))))
 
 (defun salesforce-project--get-relative-path (file-name)
-  "Get relative path of file within project."
+  "Get the relative path of FILE-NAME within the project."
   (file-name-directory (file-relative-name file-name (projectile-project-root))))
 
 (defun salesforce-project-selection-deploy (file-name)
@@ -503,9 +470,9 @@
 FILE-NAME is the path to the file being deployed.
 
 This function:
-1. Clones the metadata from Salesforce org
-2. Creates a temporary project structure
-3. Sets up an ediff session to compare local and cloud versions"
+1. Clones the metadata from a Salesforce org.
+2. Creates a temporary project structure.
+3. Sets up an Ediff session to compare local and cloud versions."
   (interactive (list (buffer-file-name)))
   
   (salesforce-project--clone-cloud-metadata
@@ -526,7 +493,9 @@ This function:
                     (salesforce-project--prepare-ediff-session cloud-file-path file-name)))))
 
 (defun salesforce-project--create-temp-project-folder (temp-dir relative-path)
-  "Create temporary folder structure matching project layout."
+  "Create a temporary folder structure matching the project layout.
+TEMP-DIR is the base directory for the temporary structure.
+RELATIVE-PATH is the path within the project to replicate."
   (let ((dest-dir (file-name-directory (expand-file-name relative-path temp-dir)))
         (temp-dir (salesforce--ensure-directory-exists temp-dir)))
     
@@ -542,7 +511,7 @@ This function:
     dest-dir))
 
 (defun salesforce-project--copy-file-to-temp (file dest-path)
-  "Copy file and metadata to temporary directory."
+  "Copy FILE and its metadata to the temporary directory DEST-PATH."
   (let* ((file-directory (file-name-directory file))
          (copy-files `(,file ,(expand-file-name (concat file "-meta.xml") file-directory)))
          (file-name (concat (file-name-base file) "." (file-name-extension file))))
@@ -554,8 +523,8 @@ This function:
     dest-path))
 
 (defun salesforce-project--initialize-file-temp (current-file relative-path)
-  "Initialize temporary project for section deploy.
-Copies current file to temp folder with same path structure as project root."
+  "Initialize a temporary project for section deployment.
+Copy CURRENT-FILE to a temp folder with the same path structure as the project root."
   (when current-file
     (let* ((project-name (projectile-project-name))
            (temp-dir (expand-file-name project-name temporary-file-directory)))
@@ -567,13 +536,14 @@ Copies current file to temp folder with same path structure as project root."
       (salesforce-project--copy-file-to-temp current-file (expand-file-name relative-path temp-dir)))))
 
 (defun salesforce-project-preview-metadata-change-other-org ()
-  "diff source between local project and specific salesforce platform."
+  "Diff source between the local project and a specific Salesforce platform."
   (interactive)
   (salesforce-org--list (lambda (org-list)
                          (salesforce-project-preview-metadata-change (completing-read "Org: " org-list)))))
 
 (defun salesforce-project-preview-metadata-change (&optional target-org)
-  "diff source between local project and salesforce platform."
+  "Diff source between the local project and a Salesforce platform.
+Optionally specify a TARGET-ORG."
   (interactive (list salesforce-org-name))
   (let ((full-file-name (buffer-file-name)))
     (salesforce-project--clone-cloud-metadata
@@ -585,19 +555,15 @@ Copies current file to temp folder with same path structure as project root."
                                                                                                  new-dir-name)
                                                                    full-file-name)
                       (error
-                       (alert (format "%s" error)
-                              :title "SALESFORCE Alert"
-                              :severity 'urgent)))))))
-
+                       (salesforce-core--alert (format "%s" error)
+                                               :severity 'urgent)))))))
 
 (defun salesforce-project--mode-line-format ()
-  "Compose the Salesforce-mode's mode-line."
+  "Compose the mode-line for Salesforce mode."
   (when (bound-and-true-p salesforce-mode)
     (if (string-blank-p salesforce-org-name) ""
       (concat (propertize (concat salesforce-mode-line-icon " " salesforce-org-name)
                           'face 'salesforce-mode-line-face)
               salesforce-mode-line-current-org-status))))
-
-(add-to-list 'mode-line-misc-info '(salesforce-mode ("" salesforce-project--mode-line-format "")))
 
 (provide 'salesforce-project)

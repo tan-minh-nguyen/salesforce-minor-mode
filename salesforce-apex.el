@@ -140,28 +140,28 @@
   :choices '("aura" "lwc"))
 
 (defun salesforce-apex--create-apex-menu ()
-  "Open create Apex class transient menu."
+  "Open the transient menu for creating an Apex class."
   (interactive)
   (let ((salesforce-apex--transient:template "DefaultApexClass")
         (salesforce--transient-menu:output-dir (salesforce-core--metadata-path salesforce-apex-dir)))
     (salesforce-apex--transient:apex-resource)))
 
 (defun salesforce-apex--create-trigger-menu ()
-  "Open create Apex class transient menu."
+  "Open the transient menu for creating an Apex trigger."
   (interactive)
   (let ((salesforce-apex--transient:template "ApexTrigger")
         (salesforce--transient-menu:output-dir (salesforce-core--metadata-path salesforce-trigger-dir)))
     (salesforce-apex--transient:trigger-resource)))
 
 (defun salesforce-apex--create-lightning-app-menu ()
-  "Generate lightning app transient menu."
+  "Open the transient menu for generating a Lightning app."
   (interactive)
   (let ((salesforce-apex--lightning-organize "app")
         (salesforce--transient-menu:output-dir (salesforce-core--metadata-path salesforce-lwc-dir)))
     (salesforce-apex--transient:lightning-resource)))
 
 (defun salesforce-apex--create-lightning-component-menu ()
-  "Generate lightning component transient menu."
+  "Open the transient menu for generating a Lightning component."
   (interactive)
   (let ((salesforce-apex--lightning-organize "component")
         (salesforce-apex--transient:template "default")
@@ -169,7 +169,7 @@
     (salesforce-apex--transient:lightning-resource)))
 
 (defun salesforce-apex-execute-code (content)
-  "Execute apex code buffer/region."
+  "Execute the given Apex code from the buffer or region."
   (interactive (list (if (eq (point) (mark)) (buffer-string) (buffer-substring-no-properties (mark) (point)))))
   (let ((temp-file (make-temp-file "temp_code")))
 
@@ -182,37 +182,36 @@
              (inhibit-read-only t))
          (insert (salesforce-core--get-data-json "result.logs" json-instance))))
      (switch-to-buffer (get-buffer-create "*apex log*"))
-     (alert "Run apex code complete"
-            :title "Salesforce Alert"))))
+     (salesforce-core--alert "Run apex code complete"))))
 
 (defun salesforce-visualforce-generate-page ()
-  "Generate visualforce page."
+  "Generate a new Visualforce page."
   (interactive)
-  (let* ((page-name (read-string "page name: "))
-         (page-label (read-string "page label: ")))
+  (let* ((page-name (read-string "Visualforce page name: "))
+         (page-label (read-string "Visualforce page label: "))
+         (output-dir (salesforce-core--build-path salesforce-default-vf-path))
+         (page-path (concat output-dir "/" page-name ".page")))
 
     (salesforce-core--visualforce-process
-     :cmd `("generate" "page" "--json" "--name" ,page-name "--label" ,page-label "--output-dir" ,(salesforce-core--build-path salesforce-default-vf-path))
-     ;; Swtich new page
-     (switch-to-buffer (find-file (concat (salesforce-core--build-path salesforce-default-vf-path) "/" page-name ".page")))
-
-     (alert (format "Create visualforce page" page-name)
-            :title "Salesforce Alert"))))
+     :cmd `("generate" "page" "--json" "--name" ,page-name "--label" ,page-label "--output-dir" ,output-dir)
+     (switch-to-buffer (find-file page-path))
+     (salesforce-core--alert (format "Successfully created Visualforce page: %s" page-name)))))
 
 (defun salesforce-visualforce-generate-component ()
-  "Generate visualforce page."
+  "Generate a new Visualforce component."
   (interactive)
-  (let* ((page-name (read-string "page name: "))
-         (page-label (read-string "page label: "))
-         (command))
+  (let* ((component-name (read-string "Visualforce component name: "))
+         (component-label (read-string "Visualforce component label: "))
+         (output-dir (salesforce-core--build-path salesforce-vf-component-dir))
+         (component-path (concat output-dir "/" component-name ".component")))
 
     (salesforce-core--visualforce-process
-     :cmd `("generate" "component" "--json" "--name" ,page-name "--label" ,page-label "--output-dir" ,(salesforce-core--build-path salesforce-vf-component-dir))
-     (alert (format "Create visualforce page" page-name)
-            :title "Salesforce Alert"))))
+     :cmd `("generate" "component" "--json" "--name" ,component-name "--label" ,component-label "--output-dir" ,output-dir)
+     (switch-to-buffer (find-file component-path))
+     (salesforce-core--alert (format "Successfully created Visualforce component: %s" component-name)))))
 
 (defun salesforce-apex--generate-trigger (args)
-  "Generate apex class"
+  "Generate an Apex trigger with the specified arguments."
   (interactive (list (transient-args 'salesforce-apex--transient:trigger-resource)))
   (salesforce-core--apex-process
    `("generate" "trigger" ,@args  "--json")
@@ -221,41 +220,39 @@
 ;; TODO: add feature can custom content in created class
 ;; Note: use yasnippet
 (defun salesforce-apex--generate-class (args)
-  "Generate apex class"
+  "Generate an Apex class with the specified arguments."
   (interactive (list (transient-args 'salesforce-apex--transient:apex-resource)))
   (salesforce-core--apex-process
    :cmd `("generate" "class" ,@args "--json")
    (switch-to-buffer (find-file (salesforce-core--get-data-json "result.created.0" json-instance)))))
 
 (defun salesforce-apex--generate-lightning-component (args)
-  "Generate lwc/aura component."
+  "Generate a Lightning Web Component (LWC) or Aura component with the specified arguments."
   (interactive (list (transient-args 'salesforce-apex--transient:lightning-resource)))
   (salesforce-core--lightning-process
    :cmd `("generate" "component" ,@args "--json")
-   (alert (format message-success component-name)
-          :title "Salesforce Alert")))
+   (salesforce-core--alert (format message-success component-name))))
 
 ;;TODO: use salesforce-apex--generate-class instead
 (defun salesforce-apex-generate-test-class ()
-  "Generate apex test class"
+  "Generate an Apex test class."
   (interactive)
-  (let* ((class-name (read-string "class name: ")))
+  (let* ((class-name (read-string "Class name: "))
+         (output-dir (salesforce-core--build-path salesforce-apex-dir))
+         (class-path (concat output-dir "/" class-name ".cls")))
 
     (salesforce-core--apex-process
-     :cmd `("generate"
-            "class"
-            "--name" ,class-name
-            "--output-dir" ,(salesforce-core--build-path salesforce-apex-dir)
-            "--json")
-     (switch-to-buffer (find-file (salesforce-core--build-path salesforce-apex-dir
-                                                       (concat class-name ".cls")))
-                       (beginning-of-buffer)
-                       (insert "@isTest\n")
-                       (save-buffer)
-                       (current-buffer)))))
+     :cmd `("generate" "class" "--name" ,class-name "--output-dir" ,output-dir "--json")
+     (let ((buffer (find-file class-path)))
+       (with-current-buffer buffer
+         (goto-char (point-min))
+         (insert "@isTest\n")
+         (save-buffer))
+       (switch-to-buffer buffer)
+       (salesforce-core--alert (format "Successfully created test class: %s" class-name))))))
 
 (defun salesforce-apex-generate-test-method ()
-  "Generate apex test method"
+  "Generate an Apex test method."
   (interactive)
   (let ((method-name (read-string "method name: ")))
 
@@ -266,7 +263,7 @@
                     method-name))))
 
 (defun salesforce-apex-get-all-log ()
-  "Get log apex"
+  "Retrieve all Apex logs."
   (interactive)
 
   (salesforce-core--apex-process
@@ -289,7 +286,7 @@
        :open t)))))
 
 (cl-defun salesforce-apex--get-log (&key log-id number org post-log-handle)
-  "Get log apex"
+  "Retrieve a specific Apex log by log ID or number."
   (salesforce-core--apex-process
    :cmd `("get" "log" "--json"
           ,(and org ,@("-o" org))
@@ -299,7 +296,7 @@
    (funcall post-log-handle (salesforce-core--get-data-json "result.0.log" json-instance))))
 
 (defun salesforce-apex-log-track (buffer)
-  "Trace apex log on org."
+  "Trace Apex logs in the specified buffer."
   (interactive (list (generate-new-buffer "*salesforce-trace-log*")))
   (make-process :name "salesforce-trace-log"
                 :buffer buffer
@@ -310,17 +307,15 @@
   (pop-to-buffer buffer))
 
 (defun salesforce-apex--get-result-test-job (job-id &optional poll-id)
-  "Get apex test result."
+  "Retrieve the result of an Apex test job by job ID."
   (salesforce-core--apex-process
    :cmd `("get" "test" "-i" ,job-id "-o" ,salesforce-org-name "--code-coverage" "--json")
-   (alert (format "Tests class run success with coverage")
+   (salesforce-core--alert (format "Tests class run success with coverage"))
                   ;; (salesforce-core--get-data-json "result.summary.testRunCoverage" json-instance)
-                  
-          :title "SALESFORCE Alert")
    (and poll-id (cancel-timer poll-id))))
 
 (cl-defun salesforce-apex--execute-unit-test (&key test-cases test-level)
-  "Execute specific unit tests."
+  "Execute specific unit tests with the given test cases and test level."
   (let ((file-name (file-name-base)))
     (salesforce-core--apex-process
      :cmd `("run" "test" "--tests" ,test-cases "--test-level" ,test-level "--detailed-coverage" "--code-coverage" "--json")
@@ -332,22 +327,20 @@
                         (salesforce-apex--get-result-test-job job poll-id))))
 
        (if job-id
-           (progn (alert (format "%s class is running." file-name)
-                         :title "SALESFORCE Alert")
+           (progn (salesforce-core--alert (format "%s class is running." file-name))
                   (setq poll-id (run-at-time 60 nil callback job-id)))
-         (alert (format "Tests class run success with coverage %s"
-                        (salesforce-core--get-data-json "result.summary.testRunCoverage" json-instance))
-                :title "SALESFORCE Alert"))))))
+         (salesforce-core--alert (format "Tests class run success with coverage %s"
+                        (salesforce-core--get-data-json "result.summary.testRunCoverage" json-instance))))))))
 
 ;;;FIXME: get name
 (defun salesforce-apex--retrieve-functions ()
-  "Retrieve all fuctions in buffer."
+  "Retrieve all function names in the current buffer."
   (cl-loop for (_ . node) in (treesit-query-capture (treesit-buffer-root-node)
                                                     '((method_declaration) @function))
            collect (treesit-node-text (treesit-node-child-by-field-name node "name") t)))
 
 (defun salesforce-apex-execute-method-test (node)
-  "Execute single unit test."
+  "Execute a single unit test for the method at the given node."
   (interactive
    (list (treesit-parent-until (treesit-node-at (point))
                                (lambda (node)
@@ -357,39 +350,38 @@
     (salesforce-apex--execute-unit-test :test-cases test-cases :test-level "RunSpecifiedTests")))
 
 (defun salesforce-apex-execute-test-class (file)
-  "Execute all unit tests on FILE."
+  "Execute all unit tests in the specified FILE."
   (interactive (list (file-name-base)))
   (salesforce-apex--execute-unit-test :test-cases file :test-level "RunSpecifiedTests"))
 
 (defun salesforce-apex-execute-local-tests ()
-  "Run all tests class expect tests class in org managed package"
+  "Run all test classes except those in the org managed package."
   (interactive)
   (salesforce-core--apex-process
    :cmd '("run" "test" "--test-level" "RunLocalTests" "--json")
    (salesforce-apex--get-result-test-job :job-id (salesforce-core--get-data-json "result.testRunId" json-instance))))
 
 (defun salesforce-lightning-local-lwc ()
-  "Start lwc server on local."
+  "Start the local server for Lightning Web Components (LWC)."
   (interactive)
   (salesforce-make-async-process
    :cmd (salesforce-generate-command (list salesforce-legacy-alias "lightning" "lwc" "start" "--json"))
-   (alert "Start lwc local server success"
-          :title "Salesforce Alert")))
+   (salesforce-core--alert "Start lwc local server success")))
 
 (defun salesforce-apex--transient:--template-handler (obj)
-  "Set default value for --template param."
+  "Set the default value for the --template parameter."
   (transient-infix-set obj (format "--template=%s" salesforce-apex--transient:template)))
 
 (defun salesforce-apex--lightning-transient:--type-handler (obj)
-  "Set default value for --event param."
+  "Set the default value for the --type parameter."
   (transient-infix-set obj (format "%s" salesforce-apex--lightning-type)))
 
 (defun salesforce-apex--trigger-transient:--event-handler (obj)
-  "Set default value for --type param."
+  "Set the default value for the --event parameter."
   (transient-infix-set obj (format "%s" (string-join salesforce-apex--trigger-events ","))))
 
 (defun salesforce-apex--trigger-transient:--sobject-handler (obj)
-  "Set default value for --type param."
+  "Set the default value for the --sobject parameter."
   (transient-infix-set obj (format "%s" salesforce-apex--trigger-sobject)))
 
 (provide 'salesforce-apex)

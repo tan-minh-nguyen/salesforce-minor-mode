@@ -48,7 +48,7 @@
      (lambda (org-list)
        (salesforce-core--org-process
         :cmd (list "login" "web" "-a" (completing-read "Alias: " org-list nil nil) "--instance-url" org-url "--set-default" "--json")
-        (alert (format "Authorize to %s success" (salesforce-core--get-data-json "result.username" json-instance)) :title "Salesforce Alert"))))))
+        (salesforce-core--alert (format "Authorize to %s success" (salesforce-core--get-data-json "result.username" json-instance))))))))
 
 (defun salesforce-org-note-news ()
   "What news on dx cli."
@@ -66,7 +66,7 @@
                            (salesforce-core--config-process
                             :cmd `("set" "target-org" ,org "--json")
                             (let ((org-name (salesforce-core--get-data-json "result.successes.0.value" json-instance)))
-                              (alert (format "Change to %s success" (setq salesforce-org-name org-name)) :title "DX Alert")))))))
+                              (salesforce-core--alert (format "Change to %s success" (setq salesforce-org-name org-name)))))))))
 
 (defun salesforce-org--get-status ()
   "Checking connect status on current org"
@@ -74,7 +74,7 @@
    :cmd `("display" "--json")
    (when (string= (salesforce-core--get-data-json "result.connectedStatus" json-instance)
                   "RefreshTokenAuthError")
-     (alert "Token expired !!" :title "Salesforce Alert"))))
+     (salesforce-core--alert "Token expired !!"))))
 
 (defun salesforce-org--fetch-users-org (org-type)
   "Show all user connected organizations."
@@ -124,8 +124,7 @@
           (with-current-buffer file
             (with-silent-modifications
               (setf (buffer-string) (salesforce-core--get-data-json "result.0.log" json-instance))))
-          (alert (format "Fetch log %s success" read-log)
-                 :title "DX Alert")))))))
+          (salesforce-core--alert (format "Fetch log %s success" read-log))))))))
 
 (defun salesforce-org--annotation (item log-map)
   "Build log annotate"

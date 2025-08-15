@@ -36,26 +36,23 @@
 
                       (salesforce-core--get-data-json "result.tests" json-instance)
                       "\n")))
-      (alert result-tests
-             :title "Salesforce Alert")
+      (salesforce-core-alert result-tests)
       (when body
         ,@body))))
 
 (cl-defun salesforce-soql--delete-bulk (sobject file &optional (message-after-process "Clear record success"))
   "Call API clear record come from file."
-  (salesforce-core--start-process
+  (salesforce-core--data-process
    (lambda (_)
-     (alert message-after-process
-            :title "SALESFORCE Alert"))
-   salesforce-data-command-alias "delete" "bulk" "--sobject" sobject "--file" file "--json"))
+     (salesforce-core-alert message-after-process))
+   :cmd `("delete" "bulk" "--sobject" ,sobject "--file" ,file "--json")))
 
 (cl-defun salesforce-soql--export-bulk (soql format-type)
   "Call API export records with query string."
-  (salesforce-core--start-process
+  (salesforce-core--data-process
    (lambda (_)
-     (alert message-after-process
-            :title "SALESFORCE Alert"))
-   salesforce-data-command-alias "export" "bulk" "--sobject" sobject "--file" file "--json"))
+     (salesforce-core-alert message-after-process))
+   :cmd `("export" "bulk" "--sobject" ,sobject "--file" ,file "--json")))
 
 (defun salesforce-apex-run-local-tests ()
   "Run all tests class expect tests class in org managed package"
@@ -69,7 +66,6 @@
   (interactive)
   (salesforce-make-async-process
    :cmd (salesforce-generate-command (list salesforce-legacy-alias "lightning" "lwc" "start" "--json"))
-   (alert "Start lwc local server success"
-          :title "Salesforce Alert")))
+   (salesforce-core-alert "Start lwc local server success")))
 
 (provide 'salesforce-soql)

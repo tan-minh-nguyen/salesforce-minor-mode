@@ -18,18 +18,23 @@
 (require 'soql-ts-mode)
 (require 'ob-soql)
 
+(defcustom salesforce-mode-lighter " DX"
+  "Mode line lighter for Salesforce Mode."
+  :type 'string
+  :group 'salesforce)
+
 (defvar salesforce-org-keymap (let ((map (make-sparse-keymap)))
-                               (keymap-set map "TAB" (cons "Switch Org" #'salesforce-org-change-connection))
+                                (keymap-set map "TAB" (cons "Switch Org" #'salesforce-org-change-connection))
 
-                               (keymap-set map "r" (cons "Retrieve Metadata" #'salesforce-project-source-retrieve))
-                               (keymap-set map "d" (cons "Push Metadata" #'salesforce-project-source-push))
+                                (keymap-set map "r" (cons "Retrieve Metadata" #'salesforce-project-source-retrieve))
+                                (keymap-set map "d" (cons "Push Metadata" #'salesforce-project-source-push))
 
-                               (keymap-set map "n" (cons "List All Orgs" #'salesforce-org-display-all-orgs))
-                               (keymap-set map "m" (cons "List All Devhubs" #'salesforce-org-display-all-devhubs))
-                               (keymap-set map "p" (cons "Diff File" #'salesforce-project-preview-metadata-change))
-                               (keymap-set map ";" (cons "Execute Apex Code" #'salesforce-apex-execute-code))
-                               (keymap-set map "." (cons "Open Org" #'salesforce-org-open-current))
-                               map)
+                                (keymap-set map "n" (cons "List All Orgs" #'salesforce-org-display-all-orgs))
+                                (keymap-set map "m" (cons "List All Devhubs" #'salesforce-org-display-all-devhubs))
+                                (keymap-set map "p" (cons "Diff File" #'salesforce-project-preview-metadata-change))
+                                (keymap-set map ";" (cons "Execute Apex Code" #'salesforce-apex-execute-code))
+                                (keymap-set map "." (cons "Open Org" #'salesforce-org-open-current))
+                                map)
   "Keymap for org features.")
 
 (defvar salesforce-mode-map (let ((map (make-sparse-keymap))
@@ -77,12 +82,18 @@
                                     (propertize salesforce-mode-line-disconnect-icon 'face 'error))))))
 
 ;;;###autoload
-(easy-mmode-define-minor-mode salesforce-mode
+(define-minor-mode salesforce-mode
   "Toggles salesforce minor mode."
   :init-value nil
   :group 'salesforce
+  :lighter salesforce-mode-lighter
   :keymap salesforce-mode-map)
 
 (add-hook 'salesforce-minor-mode-hook #'salesforce-minor-mode--init)
+
+(add-to-list 'mode-line-misc-info `(salesforce-mode ("" salesforce-project--mode-line-format " ")))
+
+(put 'salesforce-project--mode-line-format 'risky-local-variable t)
+
 
 (provide 'salesforce-mode) ;;; salesforce-minor-mode end here.

@@ -383,7 +383,9 @@ BODY contains the process handling code."
                                            (if (member "--json" ,cmd)
                                                (salesforce-parse-buffer-json (process-buffer proc))
                                              (process-buffer proc))))))
-          (apply #'salesforce-start-process
+
+          (apply #'async-start-process "salesforce-process"
+                 salesforce-program-bin 
                  (unless ,sync handle-callback)
                  (cons ,alias ,cmd))))))
 
@@ -397,33 +399,6 @@ BODY contains the process handling code."
 (salesforce-core--make-process salesforce-config-command-alias)
 (salesforce-core--make-process salesforce-whatsnew-command-alias)
 
-(defun salesforce-make-chain-process (&rest process-list &key params &allow-other-keys)
-  "Chain all processes."
-  (let ((proc (pop process-list)))
-    (salesforce-make-process
-     :cmd (plist-get proc :cmd)
-     :type 'async
-     :callback (lambda (content)
-                 (let ((result-proc (condition-case error
-                                        (funcall (plist-get proc :callback) content params)
-                                      (error (alert (format "%s" error)
-                                                    :title "SALESFORCE Alert"
-                                                    :severity 'urgent)))))
-                   (salesforce-make-chain-process (car process-list) :params result-proc))))))
-
-(cl-defmacro salesforce-make-process-json-sync (&key cmd)
-  "Execute sync salesforce cli command and return json result."
-  `(condition-case json-instance
-       (json-parse-string (salesforce-make-process :cmd ,cmd :type 'sync) :object-type 'plist)
-     (:success json-instance)
-     (error (cond ((string-match-p "json-parse-error" (symbol-name (car json-instance)))
-                   (alert "something wrong with JSON result."
-                          :title "SALESFORCE Alert"
-                          :severity 'urgent))
-                  (t (alert json-instance
-                            :title "SALESFORCE Alert"
-                            :severity 'urgent))))))
-
 ;; Async library
 (defun salesforce-start-process (&optional callback &rest params &allow-other-keys)
   "Start salesforce process."
@@ -433,7 +408,6 @@ BODY contains the process handling code."
          salesforce-program-bin 
          callback
          params))
-
 
 (defun salesforce-parse-buffer-json (buffer)
   "Parsing json on buffer."
@@ -472,10 +446,8 @@ BODY contains the process handling code."
                         (salesforce-process--handle-error-metadata-action json-instance))
                        (t (salesforce-process--handle-common-error json-instance)))))
 
-    (alert show-message
-           :title "SALESFORCE Alert"
-           :category 'error
-           :severity 'urgent)
+    (salesforce-core--alert show-message
+                            :severity 'urgent)
     show-message))
 
 (defun salesforce-core--projects (prefix)
@@ -510,5 +482,12 @@ BODY contains the process handling code."
         (salesforce-handle-process-error--json (salesforce-parse-buffer-json (process-buffer proc))))))
 
 (advice-add 'async-when-done :after #'salesforce--async-when-done)
+
+(defun salesforce-core--alert (message &rest args)
+  "Display an alert with MESSAGE and optional ARGS.
+This function uses the `alert` package to show notifications."
+  (unless (plist-member args :title)
+    (plist-put args :title (projectile-project-name)))
+  (apply 'alert message args))
 
 (provide 'salesforce-core)
