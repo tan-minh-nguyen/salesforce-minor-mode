@@ -2,14 +2,6 @@
 (require 'salesforce-core)
 
 ;;; Code:
-(defun salesforce-soql--read-content ()
-  "Read content that sf support for SOQL."
-  (pcase (completing-read "Content type: " '(QUERY FILE REGION) nil t)
-    ("FILE" (read-file-name "File name: "))
-    ("REGION" (buffer-substring-no-properties (mark) (point)))
-    (_ (let ((minibuffer-setup-hook `(,@minibuffer-setup-hook soql-ts-mode)))
-         (read-from-minibuffer "SOQL: ")))))
-
 (cl-defmacro salesforce-apex-get-result-test-job (&rest body &key job-id &allow-other-keys)
   "Get result tests"
   `(salesforce-core--process--make-handle-json
@@ -53,19 +45,5 @@
    (lambda (_)
      (salesforce-core-alert message-after-process))
    :cmd `("export" "bulk" "--sobject" ,sobject "--file" ,file "--json")))
-
-(defun salesforce-apex-run-local-tests ()
-  "Run all tests class expect tests class in org managed package"
-  (interactive)
-  (salesforce-core--process--make-handle-json
-   :cmd (salesforce-generate-command (list salesforce-apex-command-alias "run" "test" "--test-level" "RunLocalTests" "--json"))
-   (salesforce-apex-get-result-test-job (job-id (salesforce-core--get-data-json "result.testRunId" json-instance)))))
-
-(defun salesforce-server-local-lwc ()
-  "Start lwc server on local."
-  (interactive)
-  (salesforce-make-async-process
-   :cmd (salesforce-generate-command (list salesforce-legacy-alias "lightning" "lwc" "start" "--json"))
-   (salesforce-core-alert "Start lwc local server success")))
 
 (provide 'salesforce-soql)

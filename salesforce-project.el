@@ -16,6 +16,7 @@
 (require 'projectile)
 (require 'salesforce-core)
 (require 'transient)
+(require 'taxy)
 
 (defvar salesforce-project-ediff-help-message
   "\n=====================|===========================|=============================
@@ -40,6 +41,17 @@
   "Project configuration for Salesforce projects."
   :type 'list
   :group 'salesforce-project)
+
+(defcustom salesforce-project-mode-line-icon ""
+  "`salesforce-minor-mode' icon."
+  :type 'string
+  :group 'salesforce-project)
+
+(defvar salesforce-project-token nil
+  "Token of current org.")
+
+(defvar salesforce-project-url nil
+  "URL of current org.")
 
 ;;;###autoload
 (defun salesforce-project-p (&optional dir)
@@ -360,7 +372,6 @@ FINISH-FUNC is a function to call upon completion."
   (salesforce-project--process-multi-sources files "retrieve"))
 
 ;;FIXME: use taxy package
-
 (defun salesforce-project--group-files-menu (files)
   "Group FILES for display on the transient menu."
   (cl-loop for file in files
@@ -539,7 +550,7 @@ Copy CURRENT-FILE to a temp folder with the same path structure as the project r
   "Diff source between the local project and a specific Salesforce platform."
   (interactive)
   (salesforce-org--list (lambda (org-list)
-                         (salesforce-project-preview-metadata-change (completing-read "Org: " org-list)))))
+                          (salesforce-project-preview-metadata-change (completing-read "Org: " org-list)))))
 
 (defun salesforce-project-preview-metadata-change (&optional target-org)
   "Diff source between the local project and a Salesforce platform.
@@ -560,10 +571,10 @@ Optionally specify a TARGET-ORG."
 
 (defun salesforce-project--mode-line-format ()
   "Compose the mode-line for Salesforce mode."
-  (when (bound-and-true-p salesforce-mode)
-    (if (string-blank-p salesforce-org-name) ""
-      (concat (propertize (concat salesforce-mode-line-icon " " salesforce-org-name)
-                          'face 'salesforce-mode-line-face)
-              salesforce-mode-line-current-org-status))))
+  (when (and (bound-and-true-p salesforce-mode)
+           salesforce-org-name)
+    (concat (propertize (concat salesforce-project-mode-line-icon " " salesforce-org-name)
+                        'face 'salesforce-mode-line-face)
+            salesforce-mode-line-current-org-status)))
 
 (provide 'salesforce-project)

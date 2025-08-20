@@ -262,56 +262,12 @@
                     "@isTest"
                     method-name))))
 
-(defun salesforce-apex-get-all-log ()
-  "Retrieve all Apex logs."
-  (interactive)
-
-  (salesforce-core--apex-process
-   :cmd '("list" "log" "--json")
-   (let* ((records-list (salesforce-core--get-data-json "result" json-instance))
-          (header-columns '("No" "Id" "Browser" "Operation"))
-          (data (salesforce-table--make-data-table-from-vector
-                 :header-columns header-columns
-                 :data records-list)))
-
-     (pop-to-buffer
-      (salesforce-table--create-table
-       :model
-       (salesforce-table--make-table-mode
-        :column-header
-        (cl-loop for key in header-columns
-                 collect `(:align ,'left :title ,key `:max-width ,'50))
-        :data data)
-       :buffer salesforce-dedicated-window-right
-       :open t)))))
-
-(cl-defun salesforce-apex--get-log (&key log-id number org post-log-handle)
-  "Retrieve a specific Apex log by log ID or number."
-  (salesforce-core--apex-process
-   :cmd `("get" "log" "--json"
-          ,(and org ,@("-o" org))
-          ,(unless (string-empty-p log-id) ,@("--log-id" ,log-id))
-          ,(unless (null number) ,@("--number" ,number)))
-
-   (funcall post-log-handle (salesforce-core--get-data-json "result.0.log" json-instance))))
-
-(defun salesforce-apex-log-track (buffer)
-  "Trace Apex logs in the specified buffer."
-  (interactive (list (generate-new-buffer "*salesforce-trace-log*")))
-  (make-process :name "salesforce-trace-log"
-                :buffer buffer
-                :stderr "*salesforce-trace-log:error*"
-                :command '("sf" "apex" "log" "tail"))
-  ;;TODO: enable apex log major mode
-  (with-current-buffer buffer)
-  (pop-to-buffer buffer))
-
 (defun salesforce-apex--get-result-test-job (job-id &optional poll-id)
   "Retrieve the result of an Apex test job by job ID."
   (salesforce-core--apex-process
    :cmd `("get" "test" "-i" ,job-id "-o" ,salesforce-org-name "--code-coverage" "--json")
    (salesforce-core--alert (format "Tests class run success with coverage"))
-                  ;; (salesforce-core--get-data-json "result.summary.testRunCoverage" json-instance)
+   ;; (salesforce-core--get-data-json "result.summary.testRunCoverage" json-instance)
    (and poll-id (cancel-timer poll-id))))
 
 (cl-defun salesforce-apex--execute-unit-test (&key test-cases test-level)
@@ -364,9 +320,47 @@
 (defun salesforce-lightning-local-lwc ()
   "Start the local server for Lightning Web Components (LWC)."
   (interactive)
-  (salesforce-make-async-process
-   :cmd (salesforce-generate-command (list salesforce-legacy-alias "lightning" "lwc" "start" "--json"))
+  (salesforce-core--lightning-process
+   :cmd '("lightning" "lwc" "start" "--json")
    (salesforce-core--alert "Start lwc local server success")))
+
+(defun salesforce-apex-run-local-tests ()
+  "Run all test classes except those in the org managed package."
+  (interactive)
+  (salesforce-core--apex-process
+   :cmd '("run" "test" "--test-level" "RunLocalTests" "--json")
+   (salesforce-apex-get-result-test-job (job-id (salesforce-core--get-data-json "result.testRunId" json-instance)))))
+
+(defun salesforce-apex-logs ()
+  "Download and display a list of available log files."
+  (interactive)
+  (salesforce-core--apex-process
+   :cmd '("list" "log" "--json")
+   (let ((candidate-alist (cl-loop for log-file across (salesforce-core--get-data-json "result" json-instance)
+                                   collect (cons (salesforce-apex--format-candidate (salesforce-core--get-data-json "Application" log-file)
+                                                                                    (salesforce-core--get-data-json "StartTime" log-file)
+                                                                                    (salesforce-core--get-data-json "Operation" log-file)
+                                                                                    (salesforce-core--get-data-json "LogLength" log-file)
+                                                                                    (salesforce-core--get-data-json "Status" log-file))
+                                                 (salesforce-core--get-data-json "Id" log-file)))))
+     (completing-read "Log: " (mapcar #'car candidate-alist)))))
+
+(defun salesforce-apex--time-format (format-string time-string)
+  "Format TIME-STRING according to FORMAT-STRING."
+  (format-time-string format-string
+                      (encode-time (parse-time-string time-string))))
+
+(defun salesforce-apex--format-candidate (&rest args)
+  "Format a candidate string with properties for display."
+  (pcase-let* ((`(,app ,time ,op ,size ,status) args)
+               (properize-time (propertize (salesforce-apex--time-format "%Y-%m-%d %H:%M:%S" time) 'face 'org-time-grid))
+               (properize-op (propertize op 'face 'font-lock-doc-markup-face))
+               (propertize-size (propertize size 'face 'font-lock-keyword-face))
+               (propertize-status (propertize size 'face 'font-lock-keyword-face)))
+    (concat (propertize app 'face (if (string= status "success") 'font-lock-builtin-face 'font-lock-string-face))
+            propertize-size
+            propertize-op
+            propertize-time)))
 
 (defun salesforce-apex--transient:--template-handler (obj)
   "Set the default value for the --template parameter."

@@ -28,7 +28,7 @@
    ("B" "Bulk" salesforce-data--transient:import-bulk)])
 
 ;; Query data
-(transient-define-prefix salesforce-data--transient:data-query ()
+(transient-define-prefix salesforce-data--transient:data-search ()
   "Menu configuration sf data query command."
   ["Arguments"
    [""
@@ -42,7 +42,8 @@
     (salesforce--transient-menu:-o)
     (salesforce--transient-menu:--api-version)]]
   [""
-   ("RET" "Execute SOQL" salesforce-data--execute-query)])
+   ("RET" "Execute SOQL" salesforce-data-query-data)
+   ("M-RET" "Execute SOSL" salesforce-data-search-data)])
 
 ;; Import data
 (transient-define-prefix salesforce-data--transient:import-bulk ()
@@ -51,7 +52,7 @@
   ["Arguments"
    [""
     (salesforce--transient-menu:-o)
-    (salesforce-core--transient-menu:--api-version)
+    (salesforce--transient-menu:--api-version)
     (salesforce-data--transient:--sobject)
     ;;(salesforce-data--transient:--async)
     (salesforce-data--transient:-f)]
@@ -60,7 +61,7 @@
     (salesforce-data--transient:--column-delimiter)
     (salesforce-data--transient:--line-ending)]]
   [""
-   ("RET" "Import bulk" salesforce-data--import-bulk)])
+   ("RET" "Import bulk" salesforce-data-import-bulk)])
 
 (transient-define-prefix salesforce-data--transient:import-tree ()
   "Menu configuration export tree."
@@ -72,7 +73,7 @@
     (salesforce-data--transient:-p)
     (salesforce-data--transient:-f)]]
   [""
-   ("RET" "Import tree" salesforce-data--import-tree)])
+   ("RET" "Import tree" salesforce-data-import-tree)])
 
 (transient-define-prefix salesforce-data--transient:import-resume ()
   "Menu configuration export resume."
@@ -128,7 +129,7 @@
     (salesforce-data--transient:-i)
     (salesforce-data--transient:--use-most-recent)]]
   [""
-   ("RET" "Export resume" salesforce-data--export-resume)])
+   ("RET" "Export resume" salesforce-data-export-resume)])
 
 (transient-define-argument salesforce-data--transient:-f ()
   :class 'transient-option
@@ -291,14 +292,14 @@
    :cmd `("export" "tree" ,@args "--json")
    (message "%s" json-instance)))
 
-(defun salesforce-data--export-resume (args)
+(defun salesforce-data-export-resume (args)
   "Export tree data to org."
   (interactive (list (transient-args 'salesforce-data--transient:export-resume)))
   (salesforce-core--data-process
    :cmd `("export" "resume" ,@args "--json")
    (message "%s" json-instance)))
 
-(defun salesforce-data--import-bulk (args)
+(defun salesforce-data-import-bulk (args)
   "Import bulk data to org."
   (interactive (list (transient-args 'salesforce-data--transient:import-bulk)))
   (salesforce-core--data-process
@@ -307,11 +308,11 @@
                                    (or (salesforce-core--get-data-json "result.successfulRecords" json-instance) 0)
                                    (or (salesforce-core--get-data-json "result.failedRecords" json-instance)) 0))))
 
-(defun salesforce-data--import-bulk (args)
+(defun salesforce-data-import-tree (args)
   "Import tree data to org."
   (interactive (list (transient-args 'salesforce-data--transient:import-bulk)))
   (salesforce-core--data-process
-   :cmd `("import" "bulk" ,@args "--json")
+   :cmd `("import" "tree" ,@args "--json")
    (salesforce-core--alert (format "Import status:\nSuccessful Records:%s\nFailed Records:"
                                    (or (salesforce-core--get-data-json "result.successfulRecords" json-instance) 0)
                                    (or (salesforce-core--get-data-json "result.failedRecords" json-instance)) 0))))
@@ -326,6 +327,7 @@
                     (require 'async nil t)
                     (require 'process nil t)
                     (require 'request nil t)
+                    (require 'salesforce-core nil t)
 
                     ;; Create temporary file for the imported data
                     (let* ((file (make-temp-file "salesforce-import-data"))
@@ -350,16 +352,15 @@
                         (error "Request failed with error: %s" response-error))
 
                       ;; Execute the import command
-                      (let ((proc (apply #'salesforce-start-process nil
-                                         `(
-                                           ,salesforce-data-command-alias
-                                           "import"
-                                           "bulk"
-                                           "--file"
-                                           ,file
-                                           "--target-org"
-                                           ,salesforce-org-name
-                                           "--json"))))
+                      (let ((proc (apply #'salesforce-core--data-process 
+                                         :cmd `("import"
+                                                "bulk"
+                                                "--file"
+                                                ,file
+                                                "--target-org"
+                                                ,salesforce-org-name
+                                                "--json")
+                                         :sync t)))
                         (async-wait proc)
                         (if (eq (process-exit-status proc) 1)
                             (list :status 1 :error (salesforce--async-when-done proc))
@@ -379,27 +380,57 @@
                    ;; Handle import error
                    (salesforce-core--alert (format "Data import failed: %s" (plist-get result :error)))))))
 
-(cl-defun salesforce-data--execute-query (args &key callback sync)
-  "Execute SOQL string/file in specific org."
-  (salesforce-core--data-process
-   :cmd (if (plistp args) args
-          `("query" ,@(if (f-file-p args) `("-f" ,(expand-file-name args)) `("-q" ,args)) "-o" ,salesforce-org-name "--result-format=csv"))
-   :sync sync
-   ;; use for async  process only
-   (if callback
-       (funcall callback json-instance)
-     (let ((soql-buffer (generate-new-buffer "*soql data results*")))
-       (with-current-buffer soql-buffer
-         (insert (with-current-buffer json-instance (buffer-string)))
-         (csv-mode))
-       (pop-to-buffer soql-buffer)))))
+(defun salesforce-data--read-content ()
+  "Read content that sf support for SOQL."
+  (pcase (completing-read "Content type: " '(QUERY FILE REGION) nil t)
+    ("FILE" (read-file-name "File name: "))
+    ("REGION" (replace-regexp-in-string "\/\/.+\n" "" (buffer-substring-no-properties (use-region-beginning)
+                                                                                      (use-region-end))))
+    (_ (let ((minibuffer-setup-hook `(,@minibuffer-setup-hook soql-ts-mode)))
+         (read-from-minibuffer "Query: ")))))
 
-(defun salesforce-data-execute-query (query-string)
+(defun salesforce-data-query-data (args)
   "Execute SOQL statement."
-  (interactive (list (or (transient-args 'salesforce-data--transient:data-query)
-                      (salesforce-soql--read-content))))
-  (let ((stream-query (replace-regexp-in-string "\/\/.+\n" "" query-string)))
-    (salesforce-data--execute-query stream-query)))
+  (interactive (list (or (transient-args 'salesforce-data--transient:data-search)
+                     (salesforce-data--read-content))))
+  (apply #'salesforce-data--dispatch-search `("query" ,@(if (f-file-p args)
+                                                            `("-f" ,(expand-file-name args))
+                                                          `("-q" ,args)))))
+
+(defun salesforce-data-search-data (search-string)
+  "Execute SOQL statement."
+  (interactive (list (or (transient-args 'salesforce-data--transient:data-search)
+                     (salesforce-data--read-content))))
+  (apply #'salesforce-data--dispatch-search `("search" ,@(if (f-file-p args)
+                                                             `("-f" ,(expand-file-name args))
+                                                           `("-q" ,args)))))
+
+(cl-defun salesforce-data--dispatch-search
+    (&rest args &key callback sync &allow-other-keys)
+  "Use SOSL to search value on org Salesforce an return data."
+  (let ((commands (seq-difference args (list :callback callback :sync sync))))
+
+    (unless (member-if (lambda (arg)
+                         (or (string-prefix-p "-o" arg)
+                            (string-prefix-p "--target-org" arg)))
+                       commands)
+      (add-to-list commands (concat "--target-org=" salesforce-org-name) t))
+    (unless (member-if (lambda (arg)
+                         (or (string-prefix-p "-r" arg)
+                            (string-prefix-p "--result-format" arg)))
+                       commands)
+      (add-to-list commands "--result-format=csv" t))
+    (salesforce-core--data-process
+     :cmd commands
+     :sync sync
+     ;; use for async  process only
+     (if callback
+         (funcall callback json-instance)
+       (let ((soql-buffer (generate-new-buffer "*search results*")))
+         (with-current-buffer soql-buffer
+           (insert (with-current-buffer json-instance (buffer-string)))
+           (csv-mode))
+         (pop-to-buffer soql-buffer))))))
 
 ;;;###autoload
 (defun salesforce-data-org-table-export (file type)

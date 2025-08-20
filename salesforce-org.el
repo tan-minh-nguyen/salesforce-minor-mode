@@ -150,7 +150,7 @@
    (funcall callback (salesforce-core--get-data-json "result" json-instance))))
 
 ;; TODO: Clear log with input date condition
-(defun salesforce-org-clear-log-data ()
+(defun salesforce-org-delete-logs ()
   "Clear all apex log on org."
   (interactive)
   (salesforce-org--list
@@ -166,13 +166,7 @@
         ;; Clear log on org.
         (salesforce-soql--delete-bulk "ApexLog" temp-file))))))
 
-(defun salesforce-org--clear-cache ()
-  "Clear the org list cache."
-  (interactive)
-  (setq salesforce-core--org-list-cache nil)
-  (message "Org list cache cleared"))
-
-(defun salesforce-org--list-build-format-1 (json-instance)
+(defun salesforce-org--list-build-format (json-instance)
   "Build list of orgs from json response."
   (when-let* ((org-types (salesforce-core--get-data-json "result" json-instance))
               (org-data (cl-loop for (_ orgs) on org-types by #'cddr
@@ -190,16 +184,16 @@
 
 (cl-defun salesforce-org--list (finish-func &key org-type sync)
   "Fetch org information."
-  (let ((data (salesforce-org--list-1 :finish-func finish-func
-                              :org-type org-type
-                              :sync sync)))
+  (let ((data (salesforce-org--fetch-list-org :finish-func finish-func
+                                              :org-type org-type
+                                              :sync sync)))
     (when (processp data)
-      (ignore-errors (salesforce-org--list-build-format-1
+      (ignore-errors (salesforce-org--list-build-format
                       (json-parse-string (with-current-buffer (process-buffer data)
                                            (buffer-string))
                                          :object-type 'plist))))))
 
-(cl-defun salesforce-org--list-1 (&key finish-func org-type sync)
+(cl-defun salesforce-org--fetch-list-org (&key finish-func org-type sync)
   "Internal process that fetch list of available Salesforce orgs with caching.
 Optional ORG-TYPE can be 'devhub' or 'scratch' to filter orgs.
 Returns list of org aliases or nil on error."
@@ -227,7 +221,7 @@ Returns list of org aliases or nil on error."
          :cmd `("list" "--skip-connection-status" "--json")
          :sync sync
          (unless sync
-           (let ((org-data (salesforce-org--list-build-format-1 json-instance)))
+           (let ((org-data (salesforce-org--list-build-format json-instance)))
              (funcall finish-func
                       (if org-type
                           (cl-loop for org in org-data
@@ -238,7 +232,7 @@ Returns list of org aliases or nil on error."
                                    collect (plist-get org :alias))
                         (mapcar (lambda (org) (or (plist-get org :alias) (plist-get org :username))) org-data))))))))))
 
-(cl-defun salesforce-org--status (&key finish-func org)
+(cl-defun salesforce-org-status (&key finish-func org)
   "Check current org status."
   (salesforce-core--org-process
    :cmd `("display" "-o" ,(or org salesforce-org-name) "--json")

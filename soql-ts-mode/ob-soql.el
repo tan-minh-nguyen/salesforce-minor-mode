@@ -92,10 +92,10 @@
          (file-temp (make-temp-file "soql"))
          (async-debug t)
          (process (progn (write-region full-body nil file-temp)
-                         (async-get (salesforce-data--execute-query `("query" "-f" ,file-temp
-                                                                      "-o" ,(ob-soql--get-param :org processed-params)
-                                                                      "--result-format=csv")
-                                                                    :sync t))))
+                         (async-get (salesforce-data--dispatch-search `("query" "-f" ,file-temp
+                                                                        "-o" ,(ob-soql--get-param :org processed-params)
+                                                                        "--result-format=csv")
+                                                                      :sync t))))
          (result (with-current-buffer (process-buffer process)
                    (unless (string-blank-p (buffer-string))
                      (write-region (point-min) (point-max) (ob-soql--modify-csv (buffer-string)))

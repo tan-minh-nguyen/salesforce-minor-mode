@@ -187,20 +187,6 @@ Example: ((:project \"test\" :note-file \"org\"))"
 (defvar-local salesforce-project-root-dir ""
   "Full path project root.")
 
-(defcustom salesforce-mode-line-active-connect-icon "\xf444"
-  "Icon display on mode-line when current org is active.")
-
-(defcustom salesforce-mode-line-disconnect-icon "\xf444"
-  "Icon display on mode-line when current org is disconnect.")
-
-(defcustom salesforce-mode-line-current-org-status nil
-  "Icon display on mode-line when current org is active.")
-
-(defcustom salesforce-mode-line-icon "\xf0c2"
-  "`salesforce-minor-mode' icon."
-  :type 'string
-  :group 'salesforce-config)
-
 (defface salesforce-mode-line-face
   '((((type praphic) (class color) (background dark))
      :foreground "DodgerBlue1" :slant oblique :weight bold)
