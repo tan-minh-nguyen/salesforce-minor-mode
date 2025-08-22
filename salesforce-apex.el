@@ -6,6 +6,8 @@
 (require 'salesforce-transient-menu)
 
 ;;TODO set default output-directory
+(defvar-local salesforce-apex--test-coverage nil
+  "Test coverage of apex class.")
 
 (defvar-local salesforce-apex--transient:template ""
   "Default value for --template argument.")
@@ -264,11 +266,21 @@
 
 (defun salesforce-apex--get-result-test-job (job-id &optional poll-id)
   "Retrieve the result of an Apex test job by job ID."
-  (salesforce-core--apex-process
-   :cmd `("get" "test" "-i" ,job-id "-o" ,salesforce-org-name "--code-coverage" "--json")
-   (salesforce-core--alert (format "Tests class run success with coverage"))
-   ;; (salesforce-core--get-data-json "result.summary.testRunCoverage" json-instance)
-   (and poll-id (cancel-timer poll-id))))
+  (let ((buffer (current-buffer)))
+    (salesforce-core--apex-process
+     :cmd `("get" "test" "-i" ,job-id "-o" ,salesforce-org-name "--code-coverage" "--json")
+     ;; (salesforce-core--alert (format "Tests class run success with coverage"))
+     (let ((summary (salesforce-core--get-data-json "result.summary" json-instance)))
+       (salesforce-core--alert (format "Tests Ran:%s\nFailed Test:%s\t\t\tPassed Test:%s\t\t\t\t"
+                                       (salesforce-core--get-data-json "testsRan" summary)
+                                       (salesforce-core--get-data-json "failing" summary)
+                                       (salesforce-core--get-data-json "passing" summary))
+                               :title (format "Unit Tests Run %s"
+                                              (salesforce-core--get-data-json "outcome" summary))))
+     (with-current-buffer buffer
+       (setq-local salesforce-apex--test-coverage
+                   (salesforce-core--get-data-json "result.coverage" json-instance)))
+     (and poll-id (cancel-timer poll-id)))))
 
 (cl-defun salesforce-apex--execute-unit-test (&key test-cases test-level)
   "Execute specific unit tests with the given test cases and test level."
@@ -353,14 +365,14 @@
 (defun salesforce-apex--format-candidate (&rest args)
   "Format a candidate string with properties for display."
   (pcase-let* ((`(,app ,time ,op ,size ,status) args)
-               (properize-time (propertize (salesforce-apex--time-format "%Y-%m-%d %H:%M:%S" time) 'face 'org-time-grid))
-               (properize-op (propertize op 'face 'font-lock-doc-markup-face))
-               (propertize-size (propertize size 'face 'font-lock-keyword-face))
-               (propertize-status (propertize size 'face 'font-lock-keyword-face)))
-    (concat (propertize app 'face (if (string= status "success") 'font-lock-builtin-face 'font-lock-string-face))
-            propertize-size
-            propertize-op
-            propertize-time)))
+               (prop-time (propertize (salesforce-apex--time-format "%Y-%m-%d %H:%M:%S" time) 'face 'org-time-grid))
+               (prop-op (propertize op 'face 'font-lock-doc-markup-face))
+               (prop-size (propertize (format "%s" (/ size 1000)) 'face 'font-lock-keyword-face))
+               (prop-status (propertize status 'face 'font-lock-keyword-face)))
+    (concat (propertize op 'face (if (string= status "success") 'font-lock-builtin-face 'font-lock-string-face)) "             "
+            prop-size  "               "
+            status "                  "
+            prop-time)))
 
 (defun salesforce-apex--transient:--template-handler (obj)
   "Set the default value for the --template parameter."

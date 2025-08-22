@@ -1,0 +1,92 @@
+;; -*- mode: lisp-data; -*-
+
+apex-mode
+
+(override (p "Access modifier (public/private/protected/global)") " override "
+          (p "Return type") " " (p "Method name") " (" (p "Parameters") ") {" n> r> n "}")
+
+(assertEquals "System.assertEquals(" (p "Expected") ", " (p "Actual") ");" n> r>)
+
+(batchable (p "Access modifier") " " (p "Sharing (with/without)") " class "
+           (p "Class name") " implements Database.Batchable<SObject> {" n> r> n "}")
+
+(test-class "@isTest" n
+            "public class " (p (file-name-base (or (buffer-file-name) (buffer-name)))) " {" n>
+            "@TestSetup" n>
+            "private static void initializeTestData() {" n> r> n "}")
+
+(doc "/**" n
+     " * " (p "Description") n
+     " */")
+
+(doc-function "/*" n
+              "*********************************************************" n
+              "* @Method Name : " (p "Method") n
+              "* @author : " (p "Author") n
+              "* @description : " (q) n
+              "* @param : " (p "Parameters") n
+              "* @return : " (p "Return") n
+              "********************************************************" n
+              "*/")
+
+(define-test-method "@isTest" n
+                    (p "private") " static void " (p "Name") " () {" n> r> n "}")
+
+(file-class "public class " (p (file-name-base (or (buffer-file-name) (buffer-name)))) " {" n> r> n "}")
+
+(ife "if (" (p "Condition") ") {" n> r> n "} else {" n> r> n "}")
+
+(doc-class "/*" n
+           "*********************************************************" n
+           "* Apex Class Name : " (file-name-base (buffer-file-name)) n
+           "* Created Date : " (format-time-string "%Y%m%d") n
+           "* @description : " (q) n
+           "* @author : " (p "Author") n
+           "* @group : " (p "Group") n
+           "* @group-content : " (p "Group content") n
+           "* Modification Log:" n
+           "* Ver Date Author Modification" n
+           "*********************************************************" n
+           "*/")
+
+(if "if (" (p "Condition") ") {" n> r> n "}")
+
+(define-method (p "public") " static " (p "Return type") " " (p "Method name") " (" (p "Parameters") ") {" n> r> n "}")
+
+(aura-method "@AuraEnabled(" (p "Cacheable=true/false") ")" n
+             (p "public") " static " (p "Return type") " " (p "Method name") " (" (p "Parameters") ") {" n> r> n "}")
+
+(fori "for (" (p "Type var") " : " (p "Collection") ") {" n> r> n "}")
+
+(schedulable (p "public") " " (p "with sharing/without sharing") " class "
+             (p "Class name") " implements Schedulable {" n> r> n "}")
+
+(cls (p "public") " " (p "with sharing/without sharing") " class "
+     (p "Class name") " {" n> r> n "}")
+
+(new (p "Type") " " (p "var") " = new " (p "Constructor") "(" (p "Args") ");" n> r>)
+
+(for "for (" (p "Integer i = 0") "; " (p "i < N") "; " (p "i++") ") {" n> r> n "}")
+
+(debug "System.debug(" (p "Message/var") ");" n> r>)
+
+(iterator "public class " (p (file-name-base (or (buffer-file-name) (buffer-name))))
+          " implements Iterator<" (p "Type") "> {" n> r> n "}")
+
+(constructor "public " (p (file-name-base (or (buffer-file-name) (buffer-name))))
+             "(" (p "Params") ") {" n> r> n "}")
+
+(assert "System.assert(" (p "Condition") ");")
+
+(getter (p "public") " " (p "Type") " get" (p "Field") "() {" n>
+        "return " (s Field) ";" n
+        "}")
+
+(try "try {" n> r> n "} catch (" (p "Exception e") ") {" n>
+     "System.debug(e.getMessage() + '\\n' + e.getStackTraceString());" n
+     "}")
+
+;; Local Variables:
+;; mode: lisp-data
+;; outline-regexp: "[a-z]"
+;; End:
