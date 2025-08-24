@@ -462,6 +462,10 @@ Return nil if there is no name or if NODE is not a defun node."
   (require 'apex-ts-mode-yasnippet)
   (apex-ts-mode-yasnippet-initialize))
 
+(with-eval-after-load 'tempel
+  (require 'apex-ts-mode-tempel)
+  (apex-ts-mode-tempel-initialize))
+
 (with-eval-after-load 'org
   (add-to-list 'org-src-lang-modes '("apex" . apex-ts))
   (add-to-list 'org-babel-load-languages '("apex" . t)))
