@@ -42,8 +42,8 @@
     (salesforce--transient-menu:-o)
     (salesforce--transient-menu:--api-version)]]
   [""
-   ("RET" "Execute SOQL" salesforce-data-query-data)
-   ("M-RET" "Execute SOSL" salesforce-data-search-data)])
+   ("RET" "Execute SOQL" salesforce-data-query)
+   ("M-RET" "Execute SOSL" salesforce-data-search)])
 
 ;; Import data
 (transient-define-prefix salesforce-data--transient:import-bulk ()
@@ -389,7 +389,7 @@
     (_ (let ((minibuffer-setup-hook `(,@minibuffer-setup-hook soql-ts-mode)))
          (read-from-minibuffer "Query: ")))))
 
-(defun salesforce-data-query-data (args)
+(defun salesforce-data-query (args)
   "Execute SOQL statement."
   (interactive (list (or (transient-args 'salesforce-data--transient:data-search)
                      (salesforce-data--read-content))))
@@ -397,13 +397,15 @@
                                                             `("-f" ,(expand-file-name args))
                                                           `("-q" ,args)))))
 
-(defun salesforce-data-search-data (search-string)
-  "Execute SOQL statement."
+(defun salesforce-data-search (search-string)
+  "Execute SOSL statement with SEARCH-STRING."
   (interactive (list (or (transient-args 'salesforce-data--transient:data-search)
                      (salesforce-data--read-content))))
-  (apply #'salesforce-data--dispatch-search `("search" ,@(if (f-file-p args)
-                                                             `("-f" ,(expand-file-name args))
-                                                           `("-q" ,args)))))
+  (apply #'salesforce-data--dispatch-search :callback (lambda (content-csv)
+                                                        ())
+         `("search" ,@(if (f-file-p args)
+                          `("-f" ,(expand-file-name args))
+                        `("-q" ,args)))))
 
 (cl-defun salesforce-data--dispatch-search
     (&rest args &key callback sync &allow-other-keys)
@@ -433,12 +435,15 @@
          (pop-to-buffer soql-buffer))))))
 
 ;;;###autoload
-(defun salesforce-data-org-table-export (file type)
+(defun salesforce-data-org-table-export ()
   "Import data from org table."
-  (interactive (list (read-file-name "File: ")
-                  (completing-read "Export type: " '("orgtbl-to-csv"))))
-  (unless (org-at-table-p) (error "No table at point")) 
-  (org-table-export file type))
+  (interactive)
+  (let ((file (org-entry-get (point) "TABLE_EXPORT_FILE" t))
+        (export-format (org-entry-get (point) "TABLE_EXPORT_FORMAT" t)))
+    (unless (org-at-table-p) (error "No table at point")) 
+    (unless file (error "Missing file name"))
+    (unless export-format (error "Missing file format"))
+    (org-table-export file export-format)))
 
 ;;;###autoload
 (defun salesforce-data-org-table-import ()

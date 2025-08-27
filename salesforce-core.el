@@ -474,6 +474,6 @@ BODY contains the process handling code."
 This function uses the `alert` package to show notifications."
   (unless (plist-member args :title)
     (plist-put args :title (projectile-project-name)))
-  (apply 'alert message args))
+  (apply #'alert message args))
 
 (provide 'salesforce-core)

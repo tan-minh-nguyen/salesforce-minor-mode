@@ -86,45 +86,71 @@
 ;; specified by the user will be available in the PARAMS variable.
 
 (defun org-babel-execute:soql (body params)
-  "Execute SOQL content"
+  "Execute a block of SOQL code with org-babel.
+BODY is the SOQL query, PARAMS are header arguments."
   (let* ((processed-params (org-babel-process-params params))
          (full-body (org-babel-expand-body:soql body params processed-params))
          (file-temp (make-temp-file "soql"))
          (async-debug t)
-         (process (progn (write-region full-body nil file-temp)
-                         (async-get (salesforce-data--dispatch-search `("query" "-f" ,file-temp
-                                                                        "-o" ,(ob-soql--get-param :org processed-params)
-                                                                        "--result-format=csv")
-                                                                      :sync t))))
-         (result (with-current-buffer (process-buffer process)
-                   (unless (string-blank-p (buffer-string))
-                     (write-region (point-min) (point-max) (ob-soql--modify-csv (buffer-string)))
-                     (org-table-convert-region (point-min) (point-max))
-                     (buffer-string)))))
+         (org (ob-soql--get-param :org processed-params))
+         (org-url (ob-soql--org-url org)))
+    (write-region full-body nil file-temp)
+    (ob-soql--data file-temp `(,org ,org-url))))
 
-    (concat result)))
+(defun ob-soql--data (file org-attr)
+  "Execute SOQL query stored in FILE against ORG-ATTR.
+ORG-ATTR is a list: (ORG URL). Returns results as an org-table string."
+  (pcase-let* ((`(,org ,url) org-attr)
+               (process (async-get
+                         (apply #'salesforce-data--dispatch-search
+                                :sync t
+                                `("query" "-f" ,file "-o" ,org "--result-format=csv"))))
+               (buf (process-buffer process)))
+    (unwind-protect
+        (with-current-buffer buf
+          (let ((content (string-trim (buffer-string))))
+            (unless (string-empty-p content)
+              (let ((csv (ob-soql--modify-csv content url)))
+                (erase-buffer)
+                (insert csv)
+                (org-table-convert-region (point-min) (point-max))
+                (buffer-string)))))
+      (when (buffer-live-p buf)
+        (kill-buffer buf)))))
 
-(defun ob-soql--modify-csv (csv)
-  "Return CSV after converting 'Id' field values into hyperlinks."
-  (let* ((lines (string-split csv "\n" t)) ; split into lines, remove empty
+
+(defun ob-soql--org-url (org)
+  "Return the Salesforce instance URL for ORG."
+  (let* ((process (async-get
+                   (salesforce-core--org-process
+                    :cmd `("display" "-o" ,org "--json")
+                    :sync t)))
+         (json-instance (salesforce-parse-buffer-json (process-buffer process))))
+    (salesforce-core--get-data-json "result.instanceUrl" json-instance)))
+
+(defun ob-soql--modify-csv (csv org-hyperlink)
+  "Return CSV after converting 'Id' field values into ORG-HYPERLINK."
+  (let* ((lines (string-split csv "\n" t))
          (headers (car lines))
          (rows (cdr lines))
          (header-fields (string-split headers ","))
-         (id-pos (cl-position "Id" header-fields :test #'string=)))
+         (id-pos (cl-position "id" header-fields
+                              :test (lambda (a b)
+                                      (string= (downcase a) (downcase b))))))
+    (string-join
+     (cons headers
+           (mapcar (lambda (line)
+                     (let ((cols (string-split line ",")))
+                       (when (and id-pos (< id-pos (length cols)))
+                         (setf (nth id-pos cols)
+                               (ob-soql--convert-id-to-hyperlink (nth id-pos cols) org-hyperlink)))
+                       (string-join cols ",")))
+                   rows))
+     "\n")))
 
-    (string-join (cons headers
-                       (mapcar (lambda (line)
-                                 (let ((cols (string-split line ",")))
-                                   (when (and id-pos (< id-pos (length cols)))
-                                     (setf (nth id-pos cols)
-                                           (ob-soql--convert-id-to-hyperlink (nth id-pos cols))))
-                                   (string-join cols ",")))
-                               rows))
-                 "\n")))
-
-(defun ob-soql--convert-id-to-hyperlink (id)
-  "Convert ID Salesforce to hyperlink."
-  (format "[[%s][%s]]" id id))
+(defun ob-soql--convert-id-to-hyperlink (id org-hyperlink)
+  "Convert Salesforce ID into an ORG-HYPERLINK."
+  (format "[[%s][%s]]" (concat org-hyperlink "/" id) id))
 
 (defun ob-soql--get-param (key param-list)
   "Extract param in list."

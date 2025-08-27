@@ -35,21 +35,27 @@
 (defun salesforce-mode--initialize-org-keymap ()
   "Initialize the keymap for org features."
   (let ((map (make-sparse-keymap)))
-    (keymap-set map "TAB" (cons "Switch Org" #'salesforce-org-change-connection))
-    (keymap-set map "r" (cons "Retrieve Metadata" #'salesforce-project-source-retrieve))
-    (keymap-set map "d" (cons "Push Metadata" #'salesforce-project-source-push))
-    (keymap-set map "n" (cons "List All Orgs" #'salesforce-org-display-all-orgs))
-    (keymap-set map "m" (cons "List All Devhubs" #'salesforce-org-display-all-devhubs))
-    (keymap-set map "p" (cons "Diff File" #'salesforce-project-preview-metadata-change))
-    (keymap-set map ";" (cons "Execute Apex Code" #'salesforce-apex-execute-code))
-    (keymap-set map "." (cons "Open Org" #'salesforce-org-open-current))
+    (keymap-set map "TAB" (cons "switch org" #'salesforce-org-change-connection))
+    (keymap-set map "r" (cons "retrieve metadata" #'salesforce-project-source-retrieve))
+    (keymap-set map "d" (cons "push metadata" #'salesforce-project-source-push))
+    (keymap-set map "n" (cons "list all orgs" #'salesforce-org-display-all-orgs))
+    (keymap-set map "m" (cons "list all devhubs" #'salesforce-org-display-all-devhubs))
+    (keymap-set map "p" (cons "diff file" #'salesforce-project-preview-metadata-change))
+    (keymap-set map "." (cons "open org" #'salesforce-org-open-current))
     map))
+
+(defun salesforce-mode--initialize-run-keymap ()
+  "Initialize the keymap for run features."
+  (let ((map (make-sparse-keymap)))
+    (keymap-set map "q" (cons "execute soql" #'salesforce-data-query))
+    (keymap-set map "s" (cons "execute soql" #'salesforce-data-search))
+    (keymap-set map "a" (cons "execute apex code" #'salesforce-apex-execute-code))))
 
 (defun salesforce-mode--initialize-resource-keymap ()
   "Initialize the keymap for resource features."
   (let ((map (make-sparse-keymap)))
-    (keymap-set map "SPC" (cons "Create SALESFORCE Resource" #'salesforce-apex--transient:generate-resource))
-    (keymap-set map "L" (cons "Clear Log Data" #'salesforce-org-delete-logs))
+    (keymap-set map "SPC" (cons "create salesforce resource" #'salesforce-apex--transient:generate-resource))
+    (keymap-set map "L" (cons "clear log data" #'salesforce-org-delete-logs))
     ;;(keymap-set map "t" (cons "Source Tracker" #'salesforce-source-tracker))
     map))
 
@@ -59,14 +65,18 @@
 (defvar salesforce-mode-resource-keymap (salesforce-mode--initialize-resource-keymap)
   "Keymap for resource features.")
 
+(defvar salesforce-mode-run-keymap (salesforce-mode--initialize-run-keymap)
+  "Keymap for resource features.")
+
 (defvar salesforce-mode-map
   (let ((map (make-sparse-keymap)))
 
     ;; leader map
-    (keymap-set map "M-o o" (cons "Org Features" salesforce-mode-org-keymap))
-    (keymap-set map "M-o r" (cons "Resource Features" salesforce-mode-resource-keymap))
-    (keymap-set map "M-o N" (cons "Notes" #'salesforce-project-open-note))
-    (keymap-set map "M-o A" (cons "Authorize Org" #'salesforce-org-authorize))
+    (keymap-set map "M-o o" (cons "org" salesforce-mode-org-keymap))
+    (keymap-set map "M-o r" (cons "resource" salesforce-mode-resource-keymap))
+    (keymap-set map "M-o r" (cons "execute" salesforce-mode-run-keymap))
+    (keymap-set map "M-o N" (cons "notes" #'salesforce-project-open-note))
+    (keymap-set map "M-o A" (cons "authorize org" #'salesforce-org-authorize))
     
     map)
   "Keymap for `salesforce-minor-mode'.")

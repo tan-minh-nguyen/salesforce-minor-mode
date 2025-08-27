@@ -205,7 +205,7 @@
   (let* ((component-name (read-string "Visualforce component name: "))
          (component-label (read-string "Visualforce component label: "))
          (output-dir (salesforce-core--build-path salesforce-vf-component-dir))
-         (component-path (concat output-dir "/" component-name ".component")))
+         (component-path (salesforce-core--build-path "/" component-name ".component")))
 
     (salesforce-core--visualforce-process
      :cmd `("generate" "component" "--json" "--name" ,component-name "--label" ,component-label "--output-dir" ,output-dir)
@@ -241,28 +241,24 @@
   (interactive)
   (let* ((class-name (read-string "Class name: "))
          (output-dir (salesforce-core--build-path salesforce-apex-dir))
-         (class-path (concat output-dir "/" class-name ".cls")))
+         (class-path (salesforce-core--build-path "/" class-name ".cls")))
 
     (salesforce-core--apex-process
-     :cmd `("generate" "class" "--name" ,class-name "--output-dir" ,output-dir "--json")
-     (let ((buffer (find-file class-path)))
-       (with-current-buffer buffer
-         (goto-char (point-min))
-         (insert "@isTest\n")
-         (save-buffer))
-       (switch-to-buffer buffer)
-       (salesforce-core--alert (format "Successfully created test class: %s" class-name))))))
+     :cmd `("generate" "class" "--name" ,class-name "-t" "ApexUnitTest" "--output-dir" ,output-dir "--json")
+     (switch-to-buffer (find-file class-path))
+     (salesforce-core--alert (format "Successfully created test class: %s" class-name)))))
 
-(defun salesforce-apex-generate-test-method ()
-  "Generate an Apex test method."
-  (interactive)
-  (let ((method-name (read-string "method name: ")))
-
-    (end-of-buffer)
-    (forward-line -1)
-    (insert (format "\n%s\nprivate static void %s () {\n}"
-                    "@isTest"
-                    method-name))))
+(defun salesforce-apex--draw-table (header data)
+  "Draw table from DATA and HEADER."
+  (let ((header-construct (mapcar (lambda (col)
+                                    `(,col . ,(length col)))
+                                  header)))
+    (cl-loop for row in data
+             as line = (mapcar (lambda (col)
+                                 (let ((header (pop header-construct)))
+                                   (string-pad col (cdr header))
+                                   (add-to-list header-construct header t))))
+             concat (concat line "\n"))))
 
 (defun salesforce-apex--get-result-test-job (job-id &optional poll-id)
   "Retrieve the result of an Apex test job by job ID."
@@ -298,29 +294,37 @@
            (progn (salesforce-core--alert (format "%s class is running." file-name))
                   (setq poll-id (run-at-time 60 nil callback job-id)))
          (salesforce-core--alert (format "Tests class run success with coverage %s"
-                        (salesforce-core--get-data-json "result.summary.testRunCoverage" json-instance))))))))
+                                         (salesforce-core--get-data-json "result.summary.testRunCoverage" json-instance))))))))
 
 ;;;FIXME: get name
 (defun salesforce-apex--retrieve-functions ()
   "Retrieve all function names in the current buffer."
   (cl-loop for (_ . node) in (treesit-query-capture (treesit-buffer-root-node)
-                                                    '((method_declaration) @function))
+                                                 '((method_declaration) @function))
            collect (treesit-node-text (treesit-node-child-by-field-name node "name") t)))
 
 (defun salesforce-apex-execute-method-test (node)
   "Execute a single unit test for the method at the given node."
   (interactive
    (list (treesit-parent-until (treesit-node-at (point))
-                               (lambda (node)
-                                 (string= (treesit-node-type node) "method_declaration")))))
+                            (lambda (node)
+                              (string= (treesit-node-type node) "method_declaration")))))
   (when-let* ((func-name (treesit-node-text (treesit-node-child-by-field-name node "name")))
               (test-cases (format "%s.%s" (file-name-base) func-name)))
     (salesforce-apex--execute-unit-test :test-cases test-cases :test-level "RunSpecifiedTests")))
 
 (defun salesforce-apex-execute-test-class (file)
-  "Execute all unit tests in the specified FILE."
+  "Execute all unit tests in the specified file."
   (interactive (list (file-name-base)))
   (salesforce-apex--execute-unit-test :test-cases file :test-level "RunSpecifiedTests"))
+
+(defun salesforce-apex-select-classes ()
+  "Selection of classes in the project.")
+
+;;TODO: choose class to run test, support multi-selection
+(defun salesforce-apex-execute-selection-class (classes)
+  "Run the selection unit test class."
+  (interactive (list (completing-read-multiple ""))))
 
 (defun salesforce-apex-execute-local-tests ()
   "Run all test classes except those in the org managed package."
@@ -365,13 +369,14 @@
 (defun salesforce-apex--format-candidate (&rest args)
   "Format a candidate string with properties for display."
   (pcase-let* ((`(,app ,time ,op ,size ,status) args)
+               (len-text 10)
                (prop-time (propertize (salesforce-apex--time-format "%Y-%m-%d %H:%M:%S" time) 'face 'org-time-grid))
-               (prop-op (propertize op 'face 'font-lock-doc-markup-face))
-               (prop-size (propertize (format "%s" (/ size 1000)) 'face 'font-lock-keyword-face))
-               (prop-status (propertize status 'face 'font-lock-keyword-face)))
-    (concat (propertize op 'face (if (string= status "success") 'font-lock-builtin-face 'font-lock-string-face)) "             "
-            prop-size  "               "
-            status "                  "
+               (prop-op (propertize (string-pad op len-text) 'face 'font-lock-doc-markup-face))
+               (prop-size (propertize (string-pad (format "%s" (/ size 1000)) len-text) 'face 'font-lock-keyword-face))
+               (prop-status (propertize (string-pad status len-text) 'face 'font-lock-keyword-face)))
+    (concat (propertize (string-pad op len-text) 'face (if (string= status "success") 'font-lock-builtin-face 'font-lock-string-face))
+            prop-size
+            status 
             prop-time)))
 
 (defun salesforce-apex--transient:--template-handler (obj)

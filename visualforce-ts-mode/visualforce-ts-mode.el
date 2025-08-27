@@ -4,7 +4,9 @@
 
 (require 'treesit)
 (require 'sgml-mode)
-(require 'visualforce-lsp)
+(require 'visualforce-eglot)
+(when (require 'lsp-bridge nil :noerror)
+  (require 'visualforce-lsp-bridge))
 
 (defcustom visualforce-ts-mode--indent-offset 4
   "Visualforce indent offset."
