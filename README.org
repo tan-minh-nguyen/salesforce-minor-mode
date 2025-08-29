@@ -14,6 +14,8 @@
   - [[Visualforce Mode][Visualforce Mode]]
   - [[LWC Mode][LWC Mode]]
   - [[SOQL Mode][SOQL Mode]]
+- [[Road Map][Road Map]]
+  - [[Salesforce data][Salesforce data]]
 
 * Overview
 This Emacs package, "Salesforce Development Tools for Emacs," provides a comprehensive suite of tools to enhance Salesforce development within the Emacs environment. It is designed to streamline the development process by integrating various Salesforce functionalities directly into Emacs, making it easier for developers to work with Salesforce technologies.
@@ -105,3 +107,11 @@ SOQL mode is designed to facilitate the development and execution of SOQL querie
 - **Query Execution**: Allows for the execution of SOQL queries with result visualization, making it easier to interact with Salesforce data.
 - **Customization**: Offers customizable settings for LSP paths and completion types, allowing for a tailored development experience.
 
+
+* Road Map
+** Salesforce data
+ - [ ] Integrate consult-omni for SOQL
+ - [ ] Export data come from org-table
+ - [ ] Import data come from org-table
+ - [ ] Test on ob-soql to return org table
+ - [ ] Search logs

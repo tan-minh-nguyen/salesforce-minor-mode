@@ -379,6 +379,11 @@
             status 
             prop-time)))
 
+(defun salesforce-apex-soql-string-p (soql-string)
+  "Check query string is soql."
+  (let ((soql-re (concat "^SELECT [A-Za-z]+ FROM ([A-Za-z0-9_]+) ")))
+    (string-match-p soql-re soql-string)))
+
 (defun salesforce-apex--transient:--template-handler (obj)
   "Set the default value for the --template parameter."
   (transient-infix-set obj (format "--template=%s" salesforce-apex--transient:template)))

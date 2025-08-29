@@ -4,10 +4,10 @@
 ;; Keywords: salesforce, emacs
 ;; Homepage: https://github.com/tan-minh-nguyen/salesforce-minor-mode
 ;; Version: 1.0
-;; Package-Requires: ((request "0.1.3"))
+;; Package-Requires: ((request "0.1.3") (ctable "0.1.3"))
 
 (require 'salesforce-transient-menu)
-(require 'salesforce-ctable)
+;; (require 'salesforce-table)
 (require 'salesforce-core)
 (require 'salesforce-apex)
 (require 'salesforce-org)

@@ -29,7 +29,7 @@
 
 ;;; Customization
 (defgroup salesforce-project nil
-  "Salesforce SALESFORCE project management."
+  "Salesforce project management."
   :group 'tools)
 
 (defcustom salesforce-files-test-root '(".forceignore")

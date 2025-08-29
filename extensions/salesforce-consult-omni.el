@@ -5,31 +5,30 @@
 (require 'salesforce-project)
 (require 'url-util)
 
-(defun salesforce-consult-omni--process-results (query raw-results)
+(cl-defun salesforce-consult-omni--process-results
+    (&key source
+          label
+          data)
   "Process search results and return annotated results."
   (mapcar (lambda (item)
-            (let* ((source "Records")
+            (let* ((source source)
                    (id (gethash "Id" item))
-                   (title (gethash "Name" item))
+                   (title (if label
+                              (gethash label item)
+                            (gethash "Name" item)))
                    (url (concat salesforce-project-url "/" id))
                    (decorated (funcall consult-omni-default-format-candidate
                                        :source source
-                                       :query query
                                        :url url
                                        :title title)))
               (propertize decorated
                           :source source
                           :title title
-                          :url url
-                          :query query)))
-          raw-results))
+                          :url url)))
+          data))
 
 (defun salesforce-consult-omni--build-url (&rest args)
   (string-join args ""))
-
-(defun salesforce-consult-omni--build-params (query)
-  "Build parameters for the search query."
-  `(("q" . ,(url-hexify-string query))))
 
 (cl-defun salesforce-consult-omni--build-sosl (input &key fields objects)
   "Build SOSL clause from FIELDS, OBJECTS and INPUT."
@@ -44,6 +43,41 @@
                       objects)
             "Contact (Id, Name)")))
 
+(defun salesforce-consult-omni--extract-soql-clause (soql-string)
+  "Extract fields, table, where, and limit clauses from SOQL-STRING.
+Supports SELECT … FROM … [WHERE …] [LIMIT …]."
+  (let ((case-fold-search t)
+        fields object where limit)
+
+    ;; SELECT … FROM …
+    (when (string-match
+           "SELECT[ \t\n]+\\(.+?\\)[ \t\n]+FROM[ \t\n]+\\([a-zA-Z0-9_]+\\)"
+           soql-string)
+      (setq fields (match-string 1 soql-string)
+            object  (match-string 2 soql-string)))
+
+    ;; WHERE (non-greedy, stops before LIMIT if present)
+    (when (string-match
+           "WHERE[ \t\n]+\\(.*?\\)\\(?:[ \t\n]+LIMIT\\|$\\)"
+           soql-string)
+      (setq where (match-string 1 soql-string)))
+
+    ;; LIMIT N
+    (when (string-match "LIMIT[ \t\n]+\\([0-9]+\\)" soql-string)
+      (setq limit (match-string 1 soql-string)))
+
+    ;; return as a list
+    (list fields object where limit)))
+
+(cl-defun salesforce-consult-omni--build-soql (input &key limit)
+  "Build SOQL clause from LIMIT and INPUT."
+  (pcase-let* ((`(,string-field ,object ,where ,limit) (salesforce-consult-omni--extract-soql-clause input))
+               (fields (string-split string-field)))
+    (s-trim (format "SELECT %s FROM %s %s"
+                    (string-join `("Id" "Name" ,@(seq-difference (seq-difference fields '("Name")) '("Id"))) ",")
+                    object
+                    (or other-clause "")))))
+
 (defun salesforce-consult-omni--build-headers ()
   "Build headers for the request."
   `(("Authorization" . ,(concat "Bearer " salesforce-project-token))))
@@ -57,7 +91,7 @@
   "Trigger consult-omni on selection CAND."
   (browse-url (get-text-property 0 :url cand)))
 
-(cl-defun salesforce-consult-omni--fetch-records (input &rest args &key callback &allow-other-keys)
+(cl-defun salesforce-consult-omni--search-records (input &rest args &key callback &allow-other-keys)
   "Search records on current org."
   (pcase-let* ((`(,query . ,opts) (consult-omni--split-command input (seq-difference args (list :callback callback))))
                (opts (car-safe opts))
@@ -65,21 +99,23 @@
                (params (salesforce-consult-omni--build-params sosl-string))
                (endpoint (salesforce-consult-omni--build-url salesforce-project-url
                                                              "/services/data/v" salesforce-api-version "/search"
-                                                             "?q=" (assoc-default "q" params))))
+                                                             "?q=" (url-hexify-string sosl-string))))
 
     (consult-omni--fetch-url endpoint consult-omni-http-retrieve-backend
                              :encoding 'utf-8
-                             :params (salesforce-consult-omni--build-params query)
                              :headers (salesforce-consult-omni--build-headers)
                              :parser #'consult-omni--json-parse-buffer
                              :callback
                              (lambda (attrs)
                                (when-let* ((raw-results (map-nested-elt attrs '("searchRecords")))
-                                           (annotated-results (salesforce-consult-omni--process-results query raw-results)))
+                                           (annotated-results (salesforce-consult-omni--process-results
+                                                               :source "Search"
+                                                               :label (plist-get opts :label)
+                                                               :data raw-results)))
                                  (funcall callback annotated-results)
                                  annotated-results)))))
 
-(consult-omni-define-source "Records"
+(consult-omni-define-source "Search"
                             :narrow-char ?r
                             :type 'dynamic
                             :require-match t
@@ -96,5 +132,65 @@
                             :group #'consult-omni--group-function
                             :sort t
                             :static 'both)
+
+(cl-defun salesforce-consult-omni--query-records (input &rest args &key callback &allow-other-keys)
+  "Search records on current org."
+  (pcase-let* ((`(,query . ,opts) (consult-omni--split-command input (seq-difference args (list :callback callback))))
+               (opts (car-safe opts))
+               (soql-string (salesforce-consult-omni--build-soql query))
+               (endpoint (salesforce-consult-omni--build-url salesforce-project-url
+                                                             "/services/data/v" salesforce-api-version "/query"
+                                                             "?q=" (replace-regexp-in-string " " "+" soql-string)))
+               (annotated-results))
+
+    (consult-omni--fetch-url endpoint consult-omni-http-retrieve-backend
+                             :encoding 'utf-8
+                             :headers (salesforce-consult-omni--build-headers)
+                             :parser #'consult-omni--json-parse-buffer
+                             :callback
+                             (lambda (attrs)
+                               (when-let* ((raw-results (map-nested-elt attrs '("records")))
+                                           (annotated-results (salesforce-consult-omni--process-results
+                                                               :source "Query"
+                                                               :label (plist-get opts :label)
+                                                               :data raw-results)))
+                                 (funcall callback annotated-results)
+                                 annotated-results)))))
+
+(consult-omni-define-source "Query"
+                            :narrow-char ?q
+                            :type 'dynamic
+                            :require-match t
+                            :category 'consult-omni-salesforce
+                            :face 'consult-omni-engine-title-face
+                            :request #'salesforce-consult-omni--query-records
+                            ;; TODO: use org-table or grid-table to show result
+                            :on-preview #'ignore
+                            ;;:preview-key consult-omni-preview-key
+                            ;;:on-return #'salesforce-consult-omni--doc-return
+                            :on-callback #'salesforce-consult-omni--doc-callback
+                            :search-hist 'consult-omni--search-history
+                            :select-hist 'consult-omni--selection-history
+                            :group #'consult-omni--group-function
+                            :sort t
+                            :static 'both)
+
+(defun salesforce-consult-omni-dispatch-query ()
+  "Fetch records from Salesforce Org."
+  (interactive)
+  (consult-omni-multi nil
+                      (concat "[" (propertize salesforce-org-name
+                                              'face 'consult-omni-prompt-face)
+                              "] Query Records: ")
+                      '("Query")))
+
+(defun salesforce-consult-omni-dispatch-search ()
+  "Fetch records from Salesforce Org."
+  (interactive)
+  (consult-omni-multi nil
+                      (concat "[" (propertize salesforce-org-name
+                                              'face 'consult-omni-prompt-face)
+                              "] Search Records: ")
+                      '("Search")))
 
 (provide 'salesforce-consult-omni)

@@ -29,21 +29,24 @@
   "Pattern trigger SOQL complete.")
 
 (defun soql-company--sobject-metadata (sobject-name)
-  "Get metadata file of SOBJECT-NAME."
-  (let* ((file-name (concat sobject-name ".json"))
-         (sobject-dir (if (string-match-p "__c$" sobject-name)
+  "Return metadata JSON file path for SOBJECT-NAME, or nil if it does not exist."
+  (let* ((file-name   (concat sobject-name ".json"))
+         (sobject-dir (if (string-suffix-p "__c" sobject-name)
                           salesforce-custom-objects-dir
                         salesforce-stardard-objects-dir))
-         (search-folder (cond ((salesforce-project-p)
-                               (salesforce-core--build-path (salesforce-core--tools-folder)
-                                                    "/" salesforce-soql-metadata-dir "/"
-                                                    sobject-dir))
-                              (t (expand-file-name (concat (salesforce-core--tools-folder)
-                                                           "/" salesforce-soql-metadata-dir "/"
-                                                           sobject-dir)
-                                                   soql-company-workspace))))
-         (file-path (expand-file-name file-name search-folder)))
-    (and (file-exists-p file-path) file-path)))
+         (base-folder (if (salesforce-project-p)
+                          (salesforce-core--build-path
+                           (salesforce-core--tools-folder)
+                           "/" salesforce-soql-metadata-dir "/"
+                           sobject-dir)
+                        (expand-file-name
+                         (concat (salesforce-core--tools-folder)
+                                 "/" salesforce-soql-metadata-dir
+                                 "/" sobject-dir)
+                         soql-company-workspace)))
+         (file-path (expand-file-name file-name base-folder)))
+    (when (file-exists-p file-path)
+      file-path)))
 
 (defun soql-company--picklist-values (field)
   "Get all available options in FIELD."
