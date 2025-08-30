@@ -32,7 +32,7 @@
   "Salesforce project management."
   :group 'tools)
 
-(defcustom salesforce-files-test-root '(".forceignore")
+(defcustom salesforce-files-test-root '(".sf" ".sfdx" ".forceignore")
   "Files/dirs to identify Salesforce projects."
   :type 'list
   :group 'salesforce-project)
@@ -73,23 +73,66 @@ This includes setting up metadata and applying directory locals."
   "Locate and configure the metadata directory for the current project."
   (when-let* ((root (projectile-project-root))
               (config (salesforce-project--get-root-config root)))
-    (salesforce-project--update-config-with-metadata root config)))
+    (salesforce-project--set-local-metadata-dir root config)
+    (salesforce-project--update-dir-local-config 'salesforce-project-root-dir
+                                                 (salesforce-core--find-root-dir))
+    (salesforce-project--update-dir-local-config 'salesforce-org-name
+                                                 (salesforce-project--fetch-org-name))))
+
+(defun salesforce-project--fetch-org-name ()
+  "Return the current Salesforce org alias for the project.
+Checks `.sf/config.json` or legacy `.sfdx/sfsalesforce-config.json`.
+Falls back to cached `salesforce-org-name` or `sfdx` CLI if needed."
+  (let* ((root (salesforce-core--find-root-dir))
+         (config (concat root ".sf/config.json"))
+         (legacy (concat root ".sfdx/sfdx-config.json")))
+
+    (cond
+     ;; No config files present → return empty string
+     ((not (or (file-exists-p config)
+             (file-exists-p legacy)))
+      "")
+
+     ;; Otherwise, try reading org from config or fallback to CLI
+     (t
+      (ignore-errors
+        (when-let* ((command-string (concat "[ -f %s ] && grep -Po '(?<=\"target-org\": )\"[^\"]+\"' %s"
+                                            "| sed -E 's/\"([^\"]+)\"/\\1/'"
+                                            "|| grep -Po '(?<=\"defaultusername\": )\"[^\"]+\"' %s"
+                                            "| sed -E 's/\"([^\"]+)\"/\\1/'")))
+          (string-trim
+           (shell-command-to-string (format command-string config config legacy)))))))))
 
 (defun salesforce-project--get-root-config (root)
   "Retrieve the project configuration for the given ROOT directory."
   (or (alist-get root salesforce-metadata-define-roots)
-      (alist-get 'default salesforce-metadata-define-roots)))
+     (alist-get 'default salesforce-metadata-define-roots)))
 
-(defun salesforce-project--update-config-with-metadata (root config)
-  "Update the project CONFIG with the metadata path for the given ROOT."
-  (when-let ((metadata-dir (locate-dominating-file root config)))
-    (let ((metadata-path (expand-file-name config metadata-dir)))
-      (if (assoc nil salesforce-project-configuration)
-          (setf (alist-get nil salesforce-project-configuration)
-                `(,@(assoc-default nil salesforce-project-configuration)
-                  (salesforce-metadata-root-dir . ,metadata-path)))
-        (add-to-list 'salesforce-project-configuration 
-                    `(nil . ((salesforce-metadata-root-dir . ,metadata-path))))))))
+(defun salesforce-project--set-local-metadata-dir (root config)
+  "Search from ROOT for CONFIG and set `salesforce-metadata-root-dir' to its path."
+  (when-let* ((metadata-dir (locate-dominating-file root config))
+              (metadata-path (expand-file-name config metadata-dir)))
+    (salesforce-project--update-dir-local-config 'salesforce-metadata-root-dir
+                                                 metadata-path)))
+
+(defun salesforce-project-get-symbol-dir-local (symbol &optional mode)
+  "Return non-nil if SYMBOL exists under MODE in `salesforce-project-configuration'.
+If MODE is nil, check the default project entry."
+  (assoc symbol (alist-get mode salesforce-project-configuration)))
+
+(defalias 'salesforce-project-symbol-dir-local-p #'salesforce-project-get-symbol-dir-local)
+
+(defun salesforce-project--update-dir-local-config (symbol value &optional force)
+  "Update project configuration for SYMBOL with VALUE.
+Configuration is stored in `salesforce-project-configuration'."
+  (when (or (not (salesforce-project-symbol-dir-local-p symbol))
+           force)
+    (if (assoc nil salesforce-project-configuration)
+        (setf (alist-get nil salesforce-project-configuration)
+              `(,@(assoc-default nil salesforce-project-configuration)
+                (,symbol . ,value)))
+      (cl-pushnew 'salesforce-project-configuration 
+                  `(nil . ((,symbol . ,value)))))))
 
 (defun salesforce-project--apply-dir-locals ()
   "Apply directory local variables for the current project."
@@ -100,7 +143,7 @@ This includes setting up metadata and applying directory locals."
 ;; Define own projectile
 (with-eval-after-load 'projectile
   (projectile-register-project-type 'salesforce #'salesforce-project-p
-                                    :project-file "package.json"
+                                    :project-file salesforce-files-test-root
                                     :compile "npm install")
 
   ;; Add initialize salesforce for projectile
@@ -514,10 +557,10 @@ RELATIVE-PATH is the path within the project to replicate."
     (unless (file-exists-p dest-dir)
       (make-directory dest-dir t))
     
-    ;; Copy sfsalesforce-project.json file to project temp
-    (let ((salesforce-project-file (expand-file-name "sfsalesforce-project.json" (projectile-project-root))))
-      (unless (file-exists-p (expand-file-name "sfsalesforce-project.json" temp-dir))
-        (copy-file salesforce-project-file (expand-file-name "sfsalesforce-project.json" temp-dir) t)))
+    ;; Copy sfdx-project.json file to project temp
+    (let ((salesforce-project-file (expand-file-name "sfdx-project.json" (projectile-project-root))))
+      (unless (file-exists-p (expand-file-name "sfdx-project.json" temp-dir))
+        (copy-file salesforce-project-file (expand-file-name "sfdx-project.json" temp-dir) t)))
     
     dest-dir))
 

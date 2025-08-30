@@ -35,15 +35,12 @@
                           salesforce-custom-objects-dir
                         salesforce-stardard-objects-dir))
          (base-folder (if (salesforce-project-p)
-                          (salesforce-core--build-path
-                           (salesforce-core--tools-folder)
-                           "/" salesforce-soql-metadata-dir "/"
-                           sobject-dir)
-                        (expand-file-name
-                         (concat (salesforce-core--tools-folder)
-                                 "/" salesforce-soql-metadata-dir
-                                 "/" sobject-dir)
-                         soql-company-workspace)))
+                          (concat (salesforce-core--tools-folder)
+                                  "/" salesforce-soql-metadata-dir "/"
+                                  sobject-dir)
+                        (concat (salesforce-core--tools-folder)
+                                "/" salesforce-soql-metadata-dir
+                                "/" sobject-dir)))
          (file-path (expand-file-name file-name base-folder)))
     (when (file-exists-p file-path)
       file-path)))

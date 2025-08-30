@@ -10,7 +10,7 @@
 (defconst salesforce-tools-dir "tools"
   "Tools folder name.")
 
-(defconst salesforce-state-dir ".sfsalesforce"
+(defconst salesforce-state-dir ".sfdx"
   "Folder contains information of project.")
 
 (defconst salesforce-custom-objects-dir "customObjects"
@@ -47,7 +47,7 @@
   :group 'salesforce-minor-mode)
 
 (defcustom salesforce-legacy-alias "force"
-  "The legacy command alias for Salesforce CLI (sfsalesforce)."
+  "The legacy command alias for Salesforce CLI (sfdx)."
   :type 'string
   :group 'salesforce-minor-mode)
 
@@ -97,11 +97,6 @@
 (defcustom salesforce-core--org-list-cache-ttl 300000
   "Time-to-live for org list cache in seconds."
   :type 'integer
-  :group 'salesforce-minor-mode)
-
-(defcustom salesforce-default-browser "qutebrowser"
-  "The default browser to use for opening Salesforce URLs."
-  :type 'string
   :group 'salesforce-minor-mode)
 
 (defcustom salesforce-metadata-define-roots '((default . "force-app/main/default"))
@@ -199,7 +194,7 @@ Example: ((:project \"test\" :note-file \"org\"))"
   :group 'font-lock-rules)
 
 ;; salesforce-log.el configurations
-(defcustom salesforce-log-dir-path ".sfsalesforce/tools/debug/logs/"
+(defcustom salesforce-log-dir-path ".sfdx/tools/debug/logs/"
   "Path to the directory where Salesforce debug logs are stored."
   :type 'string
   :group 'salesforce-config)
@@ -207,46 +202,13 @@ Example: ((:project \"test\" :note-file \"org\"))"
 (defun salesforce-build-sf-command (&rest args)
   `(,@args))
 
-(cl-defun salesforce-convert-hashtable-data-to-list
-    (&key hashtable-data columns (post-process nil))
-  "Convert hashtable data to list"
-  (let ((data '()))
-
-    (mapcar
-     `(lambda (key)
-        (when (member key columns)
-          (let ((value (plist-get ,hashtable-data key (lambda (prop key)
-                                                        (string= (format ":%s" key) (symbol-name prop))))))
-
-            (when (eq value ':null)
-              (setq value " "))
-            (when (eq value ':false)
-              (setq value "False"))
-            (when (eq value 't)
-              (setq value "True"))
-            (when (eq value 'nil)
-              (setq value " "))
-
-            (add-to-list 'data value 1
-                         '(lambda (element1 element2) nil))
-
-            (when ,post-process
-              (funcall ,post-process key value)))))
-     columns)
-    data))
-
 (defun salesforce-recursive-list (list-data lambda-function)
-  ""
-  (let* ((new-list (cdr list-data))
-         (first-item (car list-data))
-         (remap-list '()))
+  "Recursively apply LAMBDA-FUNCTION to each element in LIST-DATA."
+  (if (null list-data)
+      nil
+    (cons (funcall lambda-function (car list-data))
+          (salesforce-recursive-list (cdr list-data) lambda-function))))
 
-    (when (length> new-list 0)
-      (setq remap-list
-            (append remap-list
-                    (salesforce-recursive-list new-list lambda-function))))
-
-    (add-to-list 'remap-list (funcall lambda-function first-item))))
 
 (defun salesforce-core--get-json-value (table key)
   "Get value from TABLE by KEY based on data structure type."
@@ -272,45 +234,19 @@ Example: (salesforce-core--get-data-json \"result.data.0.name\" table)"
 
 (defun salesforce-core--tools-folder ()
   "Get tools folder path in project."
-  (concat salesforce-state-dir "/" salesforce-tools-dir))
+  (salesforce-core--build-path salesforce-state-dir "/" salesforce-tools-dir))
 
 (defun salesforce-core--build-path (&rest args)
   "Build a full path from root directory and additional path components."
   (mapconcat 'identity `(,(salesforce-core--find-root-dir) ,@args)))
 
 (defun salesforce-core--metadata-path (&optional path)
-  "Get full path for metadata directory.
-If PATH is provided, append it to the metadata root directory."
-  (let ((base-path (expand-file-name salesforce-metadata-root-dir (salesforce-core--find-root-dir))))
-    (if path
-        (expand-file-name path base-path)
-      base-path)))
-
-;;;###autoload
-(cl-defun salesforce-internal-current-org ()
-  (let* ((root-dir (salesforce-core--find-root-dir))
-         (config-path (concat root-dir ".sf/config.json"))
-         (old-config-path (concat root-dir ".sfsalesforce/sfsalesforce-config.json")))
-
-    (cond
-     ;; Return empty string if config files not exist
-     ((not (or (file-exists-p config-path)
-             (file-exists-p old-config-path)))
-      "")
-     ;; Return org name var if root dir not change
-     ((and (string= root-dir salesforce-project-root-dir)
-         salesforce-org-name)
-      salesforce-org-name)
-     ;; Find org alias in root dir
-     (t
-      (condition-case org-name
-          (string-replace "\n" ""
-                          (shell-command-to-string (concat "[ -f " config-path " ] && grep -Po '(?<=\"target-org\": )\"[^\"]+\"' " config-path " | sed -E 's/\"([^\"]+)\"/\\1/' || grep -Po '(?<=\"defaultusername\": )\"[^\"]+\"' " old-config-path " | sed -E 's/\"([^\"]+)\"/\\1/'")))
-        (:success org-name)
-        (error
-         (salesforce-core--get-data-json "result.0.value"
-                                 (salesforce-core--config-process
-                                  :cmd '("get" "target-org" "--json")))))))))
+  "Return the full path for the metadata directory.
+If PATH is non-nil, append it to the metadata root directory."
+  (let ((base (expand-file-name
+               salesforce-metadata-root-dir
+               (salesforce-core--find-root-dir))))
+    (expand-file-name (or path "") base)))
 
 (defun salesforce--get-cache-folder-path ()
   "Get absolute path of cache directory."

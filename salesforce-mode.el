@@ -93,10 +93,9 @@
 
 (defun salesforce-mode--initialize ()
   "Initialize Salesforce mode."
-  (setq salesforce-org-name (salesforce-internal-current-org)
-        salesforce-project-root-dir (salesforce-core--find-root-dir))
-  (salesforce-org-status :org salesforce-org-name
-                         :finish-func #'salesforce-mode--set-mode-line-status))
+  (when salesforce-org-name
+    (salesforce-org-status :org salesforce-org-name
+                           :finish-func #'salesforce-mode--set-mode-line-status)))
 
 ;;;###autoload
 (define-minor-mode salesforce-mode
