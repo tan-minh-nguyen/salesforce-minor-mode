@@ -65,4 +65,27 @@ CONSULT-SOURCES are the sources to be used in the consult multi command."
        (interactive)
        (consult--multi ',consult-sources))))
 
+(defun salesforce-consult-prompt-org ()
+  "Prompt for a Salesforce org using `consult--read` with annotations."
+  (salesforce-org--fetch-list-org
+   :finish-func
+   (lambda (org-list)
+     (consult--read
+      (mapcar (lambda (org)
+                (cons (or (plist-get org :alias)
+                         (plist-get org :username))
+                      org))
+              org-list)
+      :prompt "Org: "
+      :category 'salesforce-org
+      :annotate (lambda (cand)
+                  (pcase-let ((`(,prefix ,suffix)
+                               (salesforce-org--annotation (get-text-property 0 'data cand))))
+                    (list cand prefix suffix)))
+      :lookup (lambda (cand &rest _) (car cand))
+      :sort nil))
+   :fields '(:alias :username :instanceUrl :connectedStatus :isDevHub)))
+
+(defalias 'salesforce-org-prompt-org #'salesforce-consult-prompt-org)
+
 (provide 'salesforce-consult)

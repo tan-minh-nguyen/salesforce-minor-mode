@@ -125,7 +125,7 @@ ORG-ATTR is a list: (ORG URL). Returns results as an org-table string."
                    (salesforce-core--org-process
                     :cmd `("display" "-o" ,org "--json")
                     :sync t)))
-         (json-instance (salesforce-parse-buffer-json (process-buffer process))))
+         (json-instance (salesforce-core-parse-buffer-json (process-buffer process))))
     (salesforce-core--get-data-json "result.instanceUrl" json-instance)))
 
 (defun ob-soql--modify-csv (csv org-hyperlink)

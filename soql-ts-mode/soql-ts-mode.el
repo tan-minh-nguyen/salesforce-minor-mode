@@ -103,6 +103,10 @@
   "Check current context is apex."
   (eq major-mode 'soql-ts-mode))
 
+(defun soql-ts-mode-minibuffer ()
+  "Enable SOQL major mode in minibuffer."
+  (setq-local minibuffer-allow-text-properties t))
+
 ;;;###autoload
 (define-derived-mode soql-ts-mode prog-mode "SOQL"
   "Major mode for editing SOQL, powered by tree-sitter."

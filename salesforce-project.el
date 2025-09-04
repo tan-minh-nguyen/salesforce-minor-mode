@@ -1,8 +1,8 @@
 ;;; salesforce-project.el --- Salesforce SALESFORCE Project Management -*- lexical-binding: t; no-byte-compile: t; -*-
 
-;; Copyright (C) 2024 Your Name
+;; Copyright (C) 2025 Tan Nguyen
 
-;; Author: Your Name <your@email.com>
+;; Author: Tan Nguyen <tan.nguyen.w.information@gmail.com> 
 ;; Version: 0.1
 ;; Package-Requires: ((emacs "27.1") (projectile "0.14.0") (transient "0.1.0") (taxy "0.10.2"))
 ;; Keywords: salesforce, salesforce, project
@@ -285,7 +285,7 @@ FINISH-FUNC is a function to call upon completion."
 (defun salesforce-project-preview-metadata-multi-org ()
   "Diff metadata between the current file and two different orgs using Ediff."
   (interactive)
-  (salesforce-org--list (lambda (org-list)
+  (salesforce-org-list (lambda (org-list)
                          (let* ((current-file (buffer-file-name))
                                 (file-name (file-name-nondirectory current-file))
                                 (org1 (completing-read "First Org: " org-list nil 'require-match))
@@ -399,7 +399,7 @@ FINISH-FUNC is a function to call upon completion."
                           :error ,(salesforce--async-when-done proc))
                       `(
                         :status 0
-                        :json-instance ,(salesforce-parse-buffer-json (process-buffer proc))))))
+                        :json-instance ,(salesforce-core-parse-buffer-json (process-buffer proc))))))
                (lambda (result)
                  (when (eq (plist-get result :status) 0)
                    (salesforce-core--alert (concat "Success " command " files"))))))
@@ -592,8 +592,8 @@ Copy CURRENT-FILE to a temp folder with the same path structure as the project r
 (defun salesforce-project-preview-metadata-change-other-org ()
   "Diff source between the local project and a specific Salesforce platform."
   (interactive)
-  (salesforce-org--list (lambda (org-list)
-                          (salesforce-project-preview-metadata-change (completing-read "Org: " org-list)))))
+  (salesforce-org-list (lambda (org-list)
+                         (salesforce-project-preview-metadata-change (completing-read "Org: " org-list)))))
 
 (defun salesforce-project-preview-metadata-change (&optional target-org)
   "Diff source between the local project and a Salesforce platform.

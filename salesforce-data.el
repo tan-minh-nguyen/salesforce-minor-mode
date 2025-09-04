@@ -364,7 +364,7 @@
                         (async-wait proc)
                         (if (eq (process-exit-status proc) 1)
                             (list :status 1 :error (salesforce--async-when-done proc))
-                          (list :status 0 :json-instance (salesforce-parse-buffer-json (process-buffer proc))))))))
+                          (list :status 0 :json-instance (salesforce-core-parse-buffer-json (process-buffer proc))))))))
                (lambda (result)
                  (if (eq (plist-get result :status) 0)
                      ;; Schedule periodic resume processing
@@ -382,12 +382,11 @@
 
 (defun salesforce-data--read-content ()
   "Read content that sf support for SOQL."
-  (pcase (completing-read "Content type: " '(QUERY FILE REGION) nil t)
-    ("FILE" (read-file-name "File name: "))
-    ("REGION" (replace-regexp-in-string "\/\/.+\n" "" (buffer-substring-no-properties (use-region-beginning)
-                                                                                      (use-region-end))))
-    (_ (let ((minibuffer-setup-hook `(,@minibuffer-setup-hook soql-ts-mode)))
-         (read-from-minibuffer "Query: ")))))
+  (cond ((use-region-p)
+         (replace-regexp-in-string "\/\/.+\n" "" (buffer-substring-no-properties (use-region-beginning)
+                                                                                 (use-region-end))))
+        (t (minibuffer-with-setup-hook (apply-partially #'soql-ts-mode-minibuffer)
+             (read-from-minibuffer "Query: ")))))
 
 (defun salesforce-data-query (args)
   "Execute SOQL statement."

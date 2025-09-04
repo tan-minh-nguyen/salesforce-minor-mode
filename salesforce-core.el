@@ -149,17 +149,17 @@
   :type 'string
   :group 'salesforce-minor-mode)
 
-(defcustom salesforce-process-buffer "*SALESFORCE Process*"
+(defcustom salesforce-process-buffer "salesforce process"
   "Name of the buffer used for displaying Salesforce CLI process output."
   :type 'string
   :group 'salesforce-minor-mode)
 
-(defcustom salesforce-process-success-buffer "SALESFORCE Success"
+(defcustom salesforce-process-success-buffer "salesforce success"
   "Name of the buffer used for displaying successful process results."
   :type 'string
   :group 'salesforce-minor-mode)
 
-(defcustom salesforce-process-error-buffer "SALESFORCE Error"
+(defcustom salesforce-process-error-buffer "salesforce error"
   "Name of the buffer used for displaying process error messages."
   :type 'string
   :group 'salesforce-minor-mode)
@@ -217,8 +217,9 @@ Example: ((:project \"test\" :note-file \"org\"))"
                                 (string= (format ":%s" key) (symbol-name prop)))))
         ((arrayp table)
          (aref table (string-to-number key)))
-        (t
-         (gethash key table))))
+        ((hash-table-p table)
+         (gethash key table))
+        (t nil)))
 
 (defun salesforce-core--get-data-json (path table)
   "Get nested data from TABLE following the dot-separated PATH.
@@ -230,6 +231,7 @@ Example: (salesforce-core--get-data-json \"result.data.0.name\" table)"
                :initial-value table)))
 
 (defun salesforce-core--find-root-dir ()
+  "Return the root directory of the current project using `project-current'."
   (cdr (project-current)))
 
 (defun salesforce-core--tools-folder ()
@@ -301,12 +303,15 @@ BODY contains the process handling code."
        `(let* ((callback (lambda (json-instance)
                            ,@body))
                (handle-callback (lambda (proc)
-                                  (funcall callback 
-                                           (if (member "--json" ,cmd)
-                                               (salesforce-parse-buffer-json (process-buffer proc))
-                                             (process-buffer proc))))))
+                                  (when-let* ((data (if (member "--json" ,cmd)
+                                                        (salesforce-core-parse-buffer-json (process-buffer proc))
+                                                      (process-buffer proc)))
+                                              (_ (if (plistp data)
+                                                     (= (salesforce-core--get-data-json "status" data) 0)
+                                                   (not (string-blank-p data)))))
+                                    (funcall callback data)))))
 
-          (apply #'async-start-process "salesforce-process"
+          (apply #'async-start-process salesforce-process-buffer
                  salesforce-program-bin 
                  (unless ,sync handle-callback)
                  (cons ,alias ,cmd))))))
@@ -321,24 +326,15 @@ BODY contains the process handling code."
 (salesforce-core--make-process salesforce-config-command-alias)
 (salesforce-core--make-process salesforce-whatsnew-command-alias)
 
-;; Async library
-(defun salesforce-start-process (&optional callback &rest params &allow-other-keys)
-  "Start salesforce process."
-  (when salesforce-debug
-    (message "%s" params))
-  (apply #'async-start-process "salesforce-process"
-         salesforce-program-bin 
-         callback
-         params))
-
-(defun salesforce-parse-buffer-json (buffer)
-  "Parsing json on buffer."
-  (condition-case data
+(defun salesforce-core-parse-buffer-json (buffer)
+  "Parse JSON from BUFFER and return it as a plist.
+If parsing fails, return the raw buffer contents as a string."
+  (condition-case err
       (with-current-buffer buffer
         (beginning-of-buffer)
         (json-parse-buffer :object-type 'plist))
-    (:succes data)
-    (error (with-current-buffer buffer (buffer-string)))))
+    (error `(:status 1 :content ,(with-current-buffer buffer
+                                   (buffer-string))))))
 
 (defun salesforce-process--handle-error-metadata-action (json-instance)
   "Get error messages of metadata action."
@@ -390,20 +386,20 @@ BODY contains the process handling code."
                  result)
                (cond ((assoc-default 'data salesforce-core--org-list-cache)
                       (assoc-default 'data salesforce-core--org-list-cache))
-                     (t (or (salesforce-org--list nil :sync t) '())))
+                     (t (or (salesforce-org-list nil :sync t) '())))
                :initial-value '())))
 
 
 
 ;; Modify async package to handle signal process
-(defun salesforce--async-when-done (proc &optional _change)
+(defun salesforce-core--async-when-done (proc &optional _change)
   "Handle signal process return from sf package."
   (when-let ((_ (eq (process-exit-status proc) 1))
-             (_ (string= "salesforce-process" (process-name proc))))
+             (_ (string= salesforce-process-buffer (process-buffer proc))))
     (condition-case error
-        (salesforce-handle-process-error--json (salesforce-parse-buffer-json (process-buffer proc))))))
+        (salesforce-handle-process-error--json (salesforce-core-parse-buffer-json (process-buffer proc))))))
 
-(advice-add 'async-when-done :after #'salesforce--async-when-done)
+(advice-add 'async-when-done :after #'salesforce-core--async-when-done)
 
 (defun salesforce-core--alert (message &rest args)
   "Display an alert with MESSAGE and optional ARGS.

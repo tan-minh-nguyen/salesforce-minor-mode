@@ -82,11 +82,6 @@ Supports SELECT … FROM … [WHERE …] [LIMIT …]."
   "Build headers for the request."
   `(("Authorization" . ,(concat "Bearer " salesforce-project-token))))
 
-;; (defun salesforce-consult-omni--doc-return (cand)
-;;   "Return the string of selection CAND with no properties."
-;;   (when (stringp cand)
-;;     (substring-no-properties (string-trim cand))))
-
 (defun salesforce-consult-omni--doc-callback (cand)
   "Trigger consult-omni on selection CAND."
   (browse-url (get-text-property 0 :url cand)))
@@ -125,7 +120,6 @@ Supports SELECT … FROM … [WHERE …] [LIMIT …]."
                             ;; TODO: use org-table or grid-table to show result
                             :on-preview #'ignore
                             ;;:preview-key consult-omni-preview-key
-                            ;;:on-return #'salesforce-consult-omni--doc-return
                             :on-callback #'salesforce-consult-omni--doc-callback
                             :search-hist 'consult-omni--search-history
                             :select-hist 'consult-omni--selection-history
