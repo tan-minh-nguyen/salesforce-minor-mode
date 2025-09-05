@@ -35,21 +35,19 @@
 (defun salesforce-mode--initialize-org-keymap ()
   "Initialize the keymap for org features."
   (let ((map (make-sparse-keymap)))
-    (keymap-set map "TAB" (cons "switch org" #'salesforce-org-change-connection))
-    (keymap-set map "r" (cons "retrieve metadata" #'salesforce-project-source-retrieve))
-    (keymap-set map "d" (cons "push metadata" #'salesforce-project-source-push))
-    (keymap-set map "n" (cons "list all orgs" #'salesforce-org-display-all-orgs))
-    (keymap-set map "m" (cons "list all devhubs" #'salesforce-org-display-all-devhubs))
-    (keymap-set map "p" (cons "diff file" #'salesforce-project-preview-metadata-change))
-    (keymap-set map "." (cons "open org" #'salesforce-org-open-current))
+    (keymap-set map "TAB" (cons "Switch org" #'salesforce-org-change-connection))
+    (keymap-set map "r" (cons "Retrieve metadata" #'salesforce-project-source-retrieve))
+    (keymap-set map "d" (cons "Push metadata" #'salesforce-project-source-push))
+    (keymap-set map "p" (cons "Diff file" #'salesforce-project-preview-metadata-change))
+    (keymap-set map "." (cons "Open org" #'salesforce-org-open))
     map))
 
 (defun salesforce-mode--initialize-run-keymap ()
   "Initialize the keymap for run features."
   (let ((map (make-sparse-keymap)))
-    (keymap-set map "q" (cons "execute soql" #'salesforce-data-query))
-    (keymap-set map "s" (cons "execute soql" #'salesforce-data-search))
-    (keymap-set map "a" (cons "execute apex code" #'salesforce-apex-execute-code))))
+    (keymap-set map "q" (cons "Execute SOQL" #'salesforce-data-query))
+    (keymap-set map "s" (cons "Execute SOQL" #'salesforce-data-search))
+    (keymap-set map "a" (cons "Execute Apex code" #'salesforce-apex-execute-code))))
 
 (defun salesforce-mode--initialize-resource-keymap ()
   "Initialize the keymap for resource features."

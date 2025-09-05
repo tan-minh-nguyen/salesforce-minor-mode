@@ -300,7 +300,8 @@ BODY contains the process handling code."
   `(cl-defmacro ,(intern (format "salesforce-core--%s-process" (symbol-value command-alias)))
        (&rest body &key cmd sync &allow-other-keys)
      (let ((alias ,(symbol-value command-alias)))
-       `(let* ((callback (lambda (json-instance)
+       `(let* ((default-directory salesforce-project-root-dir)
+               (callback (lambda (json-instance)
                            ,@body))
                (handle-callback (lambda (proc)
                                   (when-let* ((data (if (member "--json" ,cmd)
@@ -389,7 +390,9 @@ If parsing fails, return the raw buffer contents as a string."
                      (t (or (salesforce-org-list nil :sync t) '())))
                :initial-value '())))
 
-
+;;TODO: command function use for all read input value.
+(cl-defun salesforce-core-read-input (&key prompt collection)
+  "Read input from collection.")
 
 ;; Modify async package to handle signal process
 (defun salesforce-core--async-when-done (proc &optional _change)

@@ -7,30 +7,11 @@
 (defun salesforce-org-open ()
   "Open selection org."
   (interactive)
-  (salesforce-org-list
-   (lambda (org-list)
+  (salesforce-org-prompt-org
+   (lambda (org)
      (salesforce-core--org-process
-      :cmd `("org" "open" "--json" "-o" ,(completing-read "Org: " org-list) "-r")
+      :cmd `("org" "open" "--json" "-o" ,org "-r")
       (browse-url-generic (salesforce-core--get-data-json "result.url" json-instance))))))
-
-(defun salesforce-org-open-current ()
-  "Open current default org."
-  (interactive)
-  (salesforce-core--org-process
-   :cmd '("org" "open" "--json" "-r")
-   (async-start (lambda ()
-                  (shell-command (string-join `(,salesforce-default-browser
-                                                ,(salesforce-core--get-data-json "result.url" json-instance))
-                                              " ")))
-                'ignore)))
-
-(defun salesforce-org-display-all-orgs ()
-  (interactive)
-  (salesforce-org--fetch-users-org "other"))
-
-(defun salesforce-org-display-all-devhubs ()
-  (interactive)
-  (salesforce-org--fetch-users-org "devhubs"))
 
 (defun salesforce-org-authorize ()
   "Using web login to authorize to org."
@@ -44,11 +25,12 @@
                      "https://login.salesforce.com")
                     (_ (read-from-minibuffer "URL: ")))))
 
-    (salesforce-org-list 
-     (lambda (org-list)
+    (salesforce-org-prompt-org 
+     (lambda (org)
        (salesforce-core--org-process
-        :cmd (list "login" "web" "-a" (completing-read "Alias: " org-list nil nil) "--instance-url" org-url "--set-default" "--json")
-        (salesforce-core--alert (format "Authorize to %s success" (salesforce-core--get-data-json "result.username" json-instance))))))))
+        :cmd `("login" "web" "-a" ,org "--instance-url" ,org-url "--set-default" "--json")
+        (salesforce-core--alert (format "Authorize to %s success"
+                                        (salesforce-core--get-data-json "result.username" json-instance))))))))
 
 (defun salesforce-org-note-news ()
   "What news on dx cli."
@@ -61,13 +43,12 @@
 (defun salesforce-org-change-connection ()
   "Change default connection org."
   (interactive)
-  (salesforce-org-list
-   (lambda (org-list)
-     (let ((org (completing-read "Org name: " org-list)))
-       (salesforce-core--config-process
-        :cmd `("set" "target-org" ,org "--json")
-        (let ((org-name (salesforce-core--get-data-json "result.successes.0.value" json-instance)))
-          (salesforce-core--alert (format "Change to %s success" (setq salesforce-org-name org-name)))))))))
+  (salesforce-org-prompt-org
+   (lambda (org)
+     (salesforce-core--config-process
+      :cmd `("set" "target-org" ,org "--json")
+      (let ((org-name (salesforce-core--get-data-json "result.successes.0.value" json-instance)))
+        (salesforce-core--alert (format "Change to %s success" (setq salesforce-org-name org-name))))))))
 
 (defun salesforce-org--get-status ()
   "Checking connect status on current org"
@@ -77,15 +58,7 @@
                   "RefreshTokenAuthError")
      (salesforce-core--alert "Token expired !!"))))
 
-(defun salesforce-org--fetch-users-org (org-type)
-  "Show all user connected organizations."
-  (salesforce-core--org-process
-   :cmd '("list" "--json")
-   (let ((header (make-salesforce-ctable (:show-index t
-                                                      :columns '("alias" "instanceUrl" "connectedStatus" "lastUsed")
-                                                      :)))))))
-
-
+;; TODO: Refactor this, maybe use export to get a list of logs and convert to an org-table for selection.
 (defun salesforce-org-view-log ()
   "View specific log."
   (interactive)
@@ -134,64 +107,44 @@
 
 ;; TODO: Clear log with input date condition
 (defun salesforce-org-delete-logs ()
-  "Clear all apex log on org."
+  "Clear logs from the connected Salesforce org."
   (interactive)
-  (salesforce-org-list
-   (lambda (org-list)
-     (let ((temp-file (make-temp-file "log" nil ".csv"))
-           (org-name (completing-read "Org alias: " org-list nil nil salesforce-org-name)))
+  (let ((temp-file (make-temp-file "log" nil ".csv")))
 
-       (salesforce-core--data-process
-        :cmd `("query" "--query" "SELECT Id FROM ApexLog" "-t" "-r" "csv" "-o" ,org-name)
-        ;; Save data to temp file.
-        (write-region (with-current-buffer json-instance (buffer-string)) nil temp-file)
+    (salesforce-data--export-bulk
+     `("-q" "SELECT Id FROM ApexLog" "--result-format=csv" "--output-file" ,temp-file)
+     :callback
+     (lambda (_)
+       ;; Save data to temp file.
+       ;; (write-region (with-current-buffer json-instance (buffer-string)) nil temp-file)
 
-        ;; Clear log on org.
-        (salesforce-soql--delete-bulk "ApexLog" temp-file))))))
-
-(defun salesforce-org--annotation (candidate)
-  "Format CANDIDATE to show on `completing-read'."
-  (let* ((hub (when (plist-get candidate :isDevHub)
-                (propertize "D" 'face 'font-lock-keyword-face)))
-         (status (if (string= (plist-get candidate :connectedStatus) "Connected")
-                     (propertize salesforce-mode-line-connect-icon 'face 'success)
-                   (propertize salesforce-mode-line-disconnect-icon 'face 'error)))
-         (url (propertize (plist-get candidate :instanceUrl)
-                          'face 'font-lock-comment-face)))
-    `(,hub ,(concat status " " url))))
+       ;; Clear log on org.
+       (salesforce-data--delete-bulk
+        `("--sobject" "ApexLog" "--file" ,temp-file)
+        :callback (lambda (_)
+                    (salesforce-core-alert "Deleting log data succeeded")))))))
 
 (defun salesforce-org--complete-candidate (orgs input pred action)
   "Completion table for ORGS.
 Handles INPUT, PRED, ACTION according to `completing-read' contract."
   (if (eq action 'metadata)
       `(metadata (category . salesforce-org))
-    (complete-with-action
-     action
-     (mapcar (lambda (org)
-               (cons (propertize (or (plist-get org :alias)
-                                    (plist-get org :username))
-                                 'face 'font-lock-string-face
-                                 'data org)
-                     (plist-get org :username)))
-             orgs)
-     input pred)))
+    (complete-with-action action (mapcar (lambda (org)
+                                           (or (plist-get org :alias)
+                                              (plist-get org :username)))
+                                         orgs)
+                          input pred)))
 
-(defun salesforce-org-prompt-org ()
-  "Selection available orgs that authorized."
+(defun salesforce-org-prompt-org (callback)
+  "Selection available orgs that authorized.
+CALLBACK: The function to get the organization is selected."
   (salesforce-org--fetch-list-org
    :finish-func (lambda (org-list)
-                  (let ((completion-extra-properties
-                         '(:affixation-function (lambda (cands)
-                                                  (mapcar (lambda (cand)
-                                                            (pcase-let ((`(,prefix ,suffix)
-                                                                         (salesforce-org--annotation (get-text-property 0 'data cand))))
-                                                              (list cand prefix suffix)))
-                                                          cands)))))
-                    (completing-read "Org: " (apply-partially #'salesforce-org--complete-candidate org-list))))
+                  (funcall callback (completing-read "Org: " (apply-partially #'salesforce-org--complete-candidate org-list))))
    :fields '(:alias :username :instanceUrl :connectedStatus :isDevHub)))
 
 (defun salesforce-org--list-build-format (json-instance)
-  "Build list of orgs from JSON response and update cache."
+  "Build a list of orgs from the JSON-INSTANCE response and update the cache."
   (let* ((org-types (salesforce-core--get-data-json "result" json-instance))
          (org-data (cl-loop for (type orgs) in `((other ,(plist-get org-types :other))
                                               (sandboxs ,(plist-get org-types :sandboxs))
@@ -221,8 +174,13 @@ Handles INPUT, PRED, ACTION according to `completing-read' contract."
           orgs))
 
 (cl-defun salesforce-org--fetch-list-org (&key finish-func org-type sync fields)
-  "Fetch Salesforce orgs with caching.
-Optional ORG-TYPE filters ('devhub, 'scratch)."
+  "Fetch Salesforce orgs, using cache when valid.
+
+Options:
+- FINISH-FUNC: Callback to receive results (async mode).
+- ORG-TYPE: Filter orgs by type ('devhub, 'scratch, 'scratchorgs, 'nonscratchorgs, 'other).
+- SYNC: Run synchronously if non-nil.
+- FIELDS: Fields to return (default: (:alias))."
   (let* ((cached (assoc 'timestamp salesforce-core--org-list-cache))
          (now (time-to-seconds))
          (cache-valid (and cached
@@ -248,7 +206,11 @@ Optional ORG-TYPE filters ('devhub, 'scratch)."
           (salesforce-org--extract-fields filtered (or fields '(:alias))))))))
 
 (cl-defun salesforce-org-list (finish-func &key org-type sync)
-  "Fetch org information and pass list of aliases/usernames to FINISH-FUNC."
+  "Fetch Salesforce orgs and pass aliases/usernames to FINISH-FUNC.
+
+Options:
+- ORG-TYPE: Filter orgs by type ('devhub, 'scratch, 'scratchorgs, 'nonscratchorgs, 'other).
+- SYNC: Run synchronously if non-nil."
   (salesforce-org--fetch-list-org
    :finish-func (lambda (orgs)
                   (funcall finish-func

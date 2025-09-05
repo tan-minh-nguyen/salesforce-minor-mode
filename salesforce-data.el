@@ -278,44 +278,66 @@
   "Read a sobject string return value."
   (salesforce--transient-menu:read-string prompt initial-input history "Please enter a sobject."))
 
-(defun salesforce-data--export-bulk (args)
-  "Export bulk data to org."
+(cl-defun salesforce-data--delete-bulk (args &key callback)
+  "Delete records in bulk from a file.
+
+- ARGS: Parameters passed to the process.
+- CALLBACK: Optional function called after success."
+  (salesforce-core--data-process
+   :cmd `("delete" "bulk" ,@args "--json")
+   (and callback (funcall callback json-instance))))
+
+(cl-defun salesforce-data--export-bulk (args &key callback)
+  "Export bulk data to the current org.
+
+- ARGS: Parameters passed to the process.
+- CALLBACK: Optional function called after success."
   (interactive (list (transient-args 'salesforce-data--transient:export-bulk)))
   (salesforce-core--data-process
    :cmd `("export" "bulk" ,@args "--json")
-   (message "%s" json-instance)))
+   (and callback (funcall callback json-instance))))
 
 (defun salesforce-data--export-tree (args)
-  "Export tree data to org."
+  "Export tree data from the org.
+
+ARGS is a list of parameters passed to the Salesforce CLI."
   (interactive (list (transient-args 'salesforce-data--transient:export-tree)))
   (salesforce-core--data-process
    :cmd `("export" "tree" ,@args "--json")
    (message "%s" json-instance)))
 
 (defun salesforce-data-export-resume (args)
-  "Export tree data to org."
+  "Resume a previously interrupted export.
+
+ARGS is a list of parameters passed to the Salesforce CLI."
   (interactive (list (transient-args 'salesforce-data--transient:export-resume)))
   (salesforce-core--data-process
    :cmd `("export" "resume" ,@args "--json")
    (message "%s" json-instance)))
 
 (defun salesforce-data-import-bulk (args)
-  "Import bulk data to org."
+  "Import bulk data into the org.
+
+ARGS is a list of parameters passed to the Salesforce CLI."
   (interactive (list (transient-args 'salesforce-data--transient:import-bulk)))
   (salesforce-core--data-process
    :cmd `("import" "bulk" ,@args "--json")
-   (salesforce-core--alert (format "Import status:\nSuccessful Records:%s\nFailed Records:"
-                                   (or (salesforce-core--get-data-json "result.successfulRecords" json-instance) 0)
-                                   (or (salesforce-core--get-data-json "result.failedRecords" json-instance)) 0))))
+   (salesforce-core--alert
+    (format "Import status:\nSuccessful Records: %s\nFailed Records: %s"
+            (or (salesforce-core--get-data-json "result.successfulRecords" json-instance) 0)
+            (or (salesforce-core--get-data-json "result.failedRecords" json-instance) 0)))))
 
 (defun salesforce-data-import-tree (args)
-  "Import tree data to org."
+  "Import tree data into the org.
+
+ARGS is a list of parameters passed to the Salesforce CLI."
   (interactive (list (transient-args 'salesforce-data--transient:import-bulk)))
   (salesforce-core--data-process
    :cmd `("import" "tree" ,@args "--json")
-   (salesforce-core--alert (format "Import status:\nSuccessful Records:%s\nFailed Records:"
-                                   (or (salesforce-core--get-data-json "result.successfulRecords" json-instance) 0)
-                                   (or (salesforce-core--get-data-json "result.failedRecords" json-instance)) 0))))
+   (salesforce-core--alert
+    (format "Import status:\nSuccessful Records: %s\nFailed Records: %s"
+            (or (salesforce-core--get-data-json "result.successfulRecords" json-instance) 0)
+            (or (salesforce-core--get-data-json "result.failedRecords" json-instance) 0)))))
 
 (defun salesforce-data-link-import (url)
   "Import data from the specified URL."
@@ -389,7 +411,9 @@
              (read-from-minibuffer "Query: ")))))
 
 (defun salesforce-data-query (args)
-  "Execute SOQL statement."
+  "Execute SOQL statement.
+
+ARGS: Parameters are passed to the search record process."
   (interactive (list (or (transient-args 'salesforce-data--transient:data-search)
                      (salesforce-data--read-content))))
   (apply #'salesforce-data--dispatch-search `("query" ,@(if (f-file-p args)
@@ -408,14 +432,12 @@
 
 (cl-defun salesforce-data--dispatch-search
     (&rest args &key callback sync &allow-other-keys)
-  "Use SOSL to search value on org Salesforce an return data."
-  (let ((commands (seq-difference args (list :callback callback :sync sync))))
+  "Search records on the connecting Salesforce org.
 
-    (unless (member-if (lambda (arg)
-                         (or (string-prefix-p "-o" arg)
-                            (string-prefix-p "--target-org" arg)))
-                       commands)
-      (add-to-list commands (concat "--target-org=" salesforce-org-name) t))
+- ARGS: parameters use for build the command.
+- CALLBACK: function run after search succeeded.
+- SYNC: Run the process in sync."
+  (let ((commands (seq-difference args (list :callback callback :sync sync))))
     (unless (member-if (lambda (arg)
                          (or (string-prefix-p "-r" arg)
                             (string-prefix-p "--result-format" arg)))
@@ -432,6 +454,35 @@
            (insert (with-current-buffer json-instance (buffer-string)))
            (csv-mode))
          (pop-to-buffer soql-buffer))))))
+
+(cl-defmacro salesforce-apex-get-result-test-job (&rest body &key job-id &allow-other-keys)
+  "Get result tests"
+  `(salesforce-core--apex-process
+    :cmd '("get" "test" "-i" ,job-id "--json")
+    (let ((result-tests
+           (mapconcat (lambda (result-test)
+                        (let ((stack-trace (gethash "StackTrace" result-test))
+                              (outcome (gethash "Outcome" result-test))
+                              (error-message (gethash "Message" result-test))
+                              (method-name (gethash "MethodName" result-test))
+                              (class-name-test (salesforce-core--get-data-json "ApexClass.Name" result-test)))
+
+                          (format "Class: %s\nMethod: %s\nResult: %s\n%s"
+                                  class-name-test
+                                  method-name
+                                  (cond ((equal error-message ':null)
+                                         outcome)
+                                        (error-message
+                                         error-message))
+                                  (cond ((equal stack-trace ':null)
+                                         "")
+                                        (stack-trace
+                                         stack-trace)))))
+
+                      (salesforce-core--get-data-json "result.tests" json-instance)
+                      "\n")))
+      (salesforce-core-alert result-tests)
+      (and body ,@body))))
 
 ;;;###autoload
 (defun salesforce-data-org-table-export ()
