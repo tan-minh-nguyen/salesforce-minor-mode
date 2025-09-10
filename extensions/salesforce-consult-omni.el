@@ -5,6 +5,22 @@
 (require 'salesforce-project)
 (require 'url-util)
 
+(defgroup salesforce-consult-omni nil
+  "Customization options for Salesforce Consult Omni."
+  :prefix "salesforce-consult-omni-")
+
+(defcustom salesforce-consult-omni-default-fields '("Name")
+  "Default Salesforce fields used when searching for records."
+  :type '(repeat string)
+  :group 'salesforce-consult-omni)
+
+(defcustom salesforce-consult-omni-default-returning '("Contact (Id, Name)")
+  "Default Salesforce sObjects and fields to return when searching for records.
+Each entry is expected to follow the format: 
+  \"SObject (Field1, Field2, ...)\"."
+  :type '(repeat string)
+  :group 'salesforce-consult-omni)
+
 (cl-defun salesforce-consult-omni--process-results
     (&key source
           label
@@ -34,14 +50,12 @@
   "Build SOSL clause from FIELDS, OBJECTS and INPUT."
   (format "FIND {%s} IN %s Fields RETURNING %s"
           input
-          (if fields
-              (string-join fields ",")
-            "Name")
+          (string-join (or fields salesforce-consult-omni-default-fields) ",")
           (if objects
               (mapcar (lambda (objects)
                         (concat object "(Id,Name)"))
                       objects)
-            "Contact (Id, Name)")))
+            (string-join salesforce-consult-omni-default-returning ","))))
 
 (defun salesforce-consult-omni--extract-soql-clause (soql-string)
   "Extract fields, table, where, and limit clauses from SOQL-STRING.
@@ -54,7 +68,7 @@ Supports SELECT … FROM … [WHERE …] [LIMIT …]."
            "SELECT[ \t\n]+\\(.+?\\)[ \t\n]+FROM[ \t\n]+\\([a-zA-Z0-9_]+\\)"
            soql-string)
       (setq fields (match-string 1 soql-string)
-            object  (match-string 2 soql-string)))
+            object (match-string 2 soql-string)))
 
     ;; WHERE (non-greedy, stops before LIMIT if present)
     (when (string-match

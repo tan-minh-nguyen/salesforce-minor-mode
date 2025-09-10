@@ -300,7 +300,7 @@ BODY contains the process handling code."
   `(cl-defmacro ,(intern (format "salesforce-core--%s-process" (symbol-value command-alias)))
        (&rest body &key cmd sync &allow-other-keys)
      (let ((alias ,(symbol-value command-alias)))
-       `(let* ((default-directory salesforce-project-root-dir)
+       `(let* (;; (default-directory salesforce-project-root-dir)
                (callback (lambda (json-instance)
                            ,@body))
                (handle-callback (lambda (proc)
@@ -398,7 +398,7 @@ If parsing fails, return the raw buffer contents as a string."
 (defun salesforce-core--async-when-done (proc &optional _change)
   "Handle signal process return from sf package."
   (when-let ((_ (eq (process-exit-status proc) 1))
-             (_ (string= salesforce-process-buffer (process-buffer proc))))
+             (_ (string-match-p salesforce-process-buffer (buffer-name (process-buffer proc)))))
     (condition-case error
         (salesforce-handle-process-error--json (salesforce-core-parse-buffer-json (process-buffer proc))))))
 

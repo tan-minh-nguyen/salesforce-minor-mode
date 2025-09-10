@@ -1,6 +1,5 @@
 ;; -*- no-byte-compile: t; no-native-compile: t; lexical-binding: t -*-
 (require 'salesforce-core)
-(require 'salesforce-soql)
 
 ;;TODO: create transient menu
 

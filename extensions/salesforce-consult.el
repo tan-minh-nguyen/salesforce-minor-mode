@@ -9,12 +9,12 @@
     `(defvar ,var-name
        (salesforce-consult--source-list ',args))))
 
-(defun salesforce--consult-source-var-name (prefix args)
+(defun salesforce-consult--source-var-name (prefix args)
   "Generate variable name for consult source."
   (let ((name (plist-get args :name)))
     (intern (format "%s--consult-%s-source" prefix (downcase name)))))
 
-(defun salesforce--consult-source-list (args)
+(defun salesforce-consult--source-list (args)
   "Generate source list for consult."
   (list
    :name (capitalize (plist-get args :name))

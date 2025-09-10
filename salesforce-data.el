@@ -1,6 +1,5 @@
 ;;; salesforce-data.el --- Import/export data on org -*- lexical-binding: t -*-
 
-(require 'salesforce-soql)
 (require 'salesforce-core)
 (require 'salesforce-transient-menu)
 
@@ -416,16 +415,16 @@ ARGS is a list of parameters passed to the Salesforce CLI."
 ARGS: Parameters are passed to the search record process."
   (interactive (list (or (transient-args 'salesforce-data--transient:data-search)
                      (salesforce-data--read-content))))
-  (apply #'salesforce-data--dispatch-search `("query" ,@(if (f-file-p args)
-                                                            `("-f" ,(expand-file-name args))
-                                                          `("-q" ,args)))))
+  (apply #'salesforce-data--dispatch-search
+         `("query" ,@(if (f-file-p args)
+                         `("-f" ,(expand-file-name args))
+                       `("-q" ,args)))))
 
 (defun salesforce-data-search (search-string)
   "Execute SOSL statement with SEARCH-STRING."
   (interactive (list (or (transient-args 'salesforce-data--transient:data-search)
                      (salesforce-data--read-content))))
-  (apply #'salesforce-data--dispatch-search :callback (lambda (content-csv)
-                                                        ())
+  (apply #'salesforce-data--dispatch-search 
          `("search" ,@(if (f-file-p args)
                           `("-f" ,(expand-file-name args))
                         `("-q" ,args)))))
