@@ -4,7 +4,7 @@
 ;; Keywords: salesforce, emacs
 ;; Homepage: https://github.com/tan-minh-nguyen/salesforce-minor-mode
 ;; Version: 1.0
-;; Package-Requires: ((request "0.1.3") (ctable "0.1.3"))
+;; Package-Requires: ((request "0.1.3") (ctable "0.1.3") (nerd-icons 0.1.0) (nerd-icons 0.1.0) (consult 2.8))
 
 (require 'salesforce-transient-menu)
 ;; (require 'salesforce-table)
@@ -18,10 +18,10 @@
 (require 'soql-ts-mode)
 (require 'ob-soql)
 
-(defcustom salesforce-mode-line-connect-icon "\xf444"
+(defcustom salesforce-mode-line-connect-icon ""
   "Icon display on mode-line when current org is active.")
 
-(defcustom salesforce-mode-line-disconnect-icon "\xf444"
+(defcustom salesforce-mode-line-disconnect-icon ""
   "Icon display on mode-line when current org is disconnect.")
 
 (defcustom salesforce-mode-line-current-org-status nil
@@ -35,7 +35,7 @@
 (defun salesforce-mode--initialize-org-keymap ()
   "Initialize the keymap for org features."
   (let ((map (make-sparse-keymap)))
-    (keymap-set map "TAB" (cons "Switch org" #'salesforce-org-change-connection))
+    (keymap-set map "TAB" (cons "Switch org" #'salesforce-org-switch-connect))
     (keymap-set map "r" (cons "Retrieve metadata" #'salesforce-project-source-retrieve))
     (keymap-set map "d" (cons "Push metadata" #'salesforce-project-source-push))
     (keymap-set map "p" (cons "Diff file" #'salesforce-project-preview-metadata-change))
@@ -71,9 +71,8 @@
 
     ;; leader map
     (keymap-set map "M-o o" (cons "org" salesforce-mode-org-keymap))
-    (keymap-set map "M-o r" (cons "resource" salesforce-mode-resource-keymap))
+    (keymap-set map "M-o R" (cons "resource" salesforce-mode-resource-keymap))
     (keymap-set map "M-o r" (cons "execute" salesforce-mode-run-keymap))
-    (keymap-set map "M-o N" (cons "notes" #'salesforce-project-open-note))
     (keymap-set map "M-o A" (cons "authorize org" #'salesforce-org-authorize))
     
     map)
@@ -91,7 +90,9 @@
 
 (defun salesforce-mode--initialize ()
   "Initialize Salesforce mode."
-  (when salesforce-org-name
+  (when (and (bound-and-true-p salesforce-mode)
+           (not (string-blank-p salesforce-org-name))
+           (null salesforce-mode-line-current-org-status))
     (salesforce-org-status :org salesforce-org-name
                            :finish-func #'salesforce-mode--set-mode-line-status)))
 

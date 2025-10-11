@@ -283,7 +283,7 @@
 - ARGS: Parameters passed to the process.
 - CALLBACK: Optional function called after success."
   (salesforce-core--data-process
-   :cmd `("delete" "bulk" ,@args "--json")
+   :args `("delete" "bulk" ,@args "--json")
    (and callback (funcall callback json-instance))))
 
 (cl-defun salesforce-data--export-bulk (args &key callback)
@@ -293,7 +293,7 @@
 - CALLBACK: Optional function called after success."
   (interactive (list (transient-args 'salesforce-data--transient:export-bulk)))
   (salesforce-core--data-process
-   :cmd `("export" "bulk" ,@args "--json")
+   :args `("export" "bulk" ,@args "--json")
    (and callback (funcall callback json-instance))))
 
 (defun salesforce-data--export-tree (args)
@@ -302,7 +302,7 @@
 ARGS is a list of parameters passed to the Salesforce CLI."
   (interactive (list (transient-args 'salesforce-data--transient:export-tree)))
   (salesforce-core--data-process
-   :cmd `("export" "tree" ,@args "--json")
+   :args `("export" "tree" ,@args "--json")
    (message "%s" json-instance)))
 
 (defun salesforce-data-export-resume (args)
@@ -311,7 +311,7 @@ ARGS is a list of parameters passed to the Salesforce CLI."
 ARGS is a list of parameters passed to the Salesforce CLI."
   (interactive (list (transient-args 'salesforce-data--transient:export-resume)))
   (salesforce-core--data-process
-   :cmd `("export" "resume" ,@args "--json")
+   :args `("export" "resume" ,@args "--json")
    (message "%s" json-instance)))
 
 (defun salesforce-data-import-bulk (args)
@@ -320,7 +320,7 @@ ARGS is a list of parameters passed to the Salesforce CLI."
 ARGS is a list of parameters passed to the Salesforce CLI."
   (interactive (list (transient-args 'salesforce-data--transient:import-bulk)))
   (salesforce-core--data-process
-   :cmd `("import" "bulk" ,@args "--json")
+   :args `("import" "bulk" ,@args "--json")
    (salesforce-core--alert
     (format "Import status:\nSuccessful Records: %s\nFailed Records: %s"
             (or (salesforce-core--get-data-json "result.successfulRecords" json-instance) 0)
@@ -332,7 +332,7 @@ ARGS is a list of parameters passed to the Salesforce CLI."
 ARGS is a list of parameters passed to the Salesforce CLI."
   (interactive (list (transient-args 'salesforce-data--transient:import-bulk)))
   (salesforce-core--data-process
-   :cmd `("import" "tree" ,@args "--json")
+   :args `("import" "tree" ,@args "--json")
    (salesforce-core--alert
     (format "Import status:\nSuccessful Records: %s\nFailed Records: %s"
             (or (salesforce-core--get-data-json "result.successfulRecords" json-instance) 0)
@@ -374,13 +374,13 @@ ARGS is a list of parameters passed to the Salesforce CLI."
 
                       ;; Execute the import command
                       (let ((proc (apply #'salesforce-core--data-process 
-                                         :cmd `("import"
-                                                "bulk"
-                                                "--file"
-                                                ,file
-                                                "--target-org"
-                                                ,salesforce-org-name
-                                                "--json")
+                                         :args `("import"
+                                                 "bulk"
+                                                 "--file"
+                                                 ,file
+                                                 "--target-org"
+                                                 ,salesforce-org-name
+                                                 "--json")
                                          :sync t)))
                         (async-wait proc)
                         (if (eq (process-exit-status proc) 1)
@@ -392,8 +392,8 @@ ARGS is a list of parameters passed to the Salesforce CLI."
                      (let ((poll-id (run-at-time 10 t
                                                  (lambda ()
                                                    (salesforce-core--data-process
-                                                    :cmd `("export" "resume" "--json"
-                                                           "-i" ,(salesforce-core--get-data-json "result.jobId" result))
+                                                    :args `("export" "resume" "--json"
+                                                            "-i" ,(salesforce-core--get-data-json "result.jobId" result))
                                                     (salesforce-core-alert "Import process resumed successfully.")
                                                     ;; clear poll event
                                                     (cancel-timer poll-id))))))
@@ -443,7 +443,7 @@ ARGS: Parameters are passed to the search record process."
                        commands)
       (add-to-list commands "--result-format=csv" t))
     (salesforce-core--data-process
-     :cmd commands
+     :args commands
      :sync sync
      ;; use for async  process only
      (if callback
@@ -457,7 +457,7 @@ ARGS: Parameters are passed to the search record process."
 (cl-defmacro salesforce-apex-get-result-test-job (&rest body &key job-id &allow-other-keys)
   "Get result tests"
   `(salesforce-core--apex-process
-    :cmd '("get" "test" "-i" ,job-id "--json")
+    :args '("get" "test" "-i" ,job-id "--json")
     (let ((result-tests
            (mapconcat (lambda (result-test)
                         (let ((stack-trace (gethash "StackTrace" result-test))
@@ -482,6 +482,43 @@ ARGS: Parameters are passed to the search record process."
                       "\n")))
       (salesforce-core-alert result-tests)
       (and body ,@body))))
+
+(defun salesforce-data-search-entity ()
+  "Search entity definition on org."
+  (consult--read
+   (consult--async-dynamic
+    (cl-function
+     (lambda (input &rest args &key callback &allow-other-keys)
+       (let ((query (format "SELECT Id, Label, DeveloperName, IsApexTriggerable, IsWorkflowEnabled, IsProcessEnabled FROM EntityDefinition WHERE DeveloperName LIKE '%%%s%%'" input))
+             (opts (seq-difference args (:callback callback))))
+
+         (salesforce-data--dispatch-search
+          "query" "-q" ,query "--json"
+          :callback
+          (lambda (json-instace)
+            (let* ((collection (salesforce-core--get-data-json "result.records"))
+                   (candidates (mapcar (lambda (item)
+                                         (cons (salesforce-core--get-data-json "Id")
+                                               `(:label ,(salesforce-core--get-data-json "Label")
+                                                        :name ,(salesforce-core--get-data-json "DeveloperName")
+                                                        :enabled-trigger ,(salesforce-core--get-data-json "IsApexTriggerable")
+                                                        :enabled-workflow ,(salesforce-core--get-data-json "IsWorkflowEnabled")
+                                                        :enabled-process ,(salesforce-core--get-data-json "IsProcessEnabled "))))
+                                       collection)))
+
+              (callback candidates))))))))
+   :prompt "Entity: "
+   :required-match t
+   :category 'salesforce-records
+   :anonate (lambda (candidate)
+              (pcase-let* ((`(:label ,label :name ,name :enabled-trigger ,trigger :enabled-worflow ,flow :enabled-process ,process) (cdr candidate))
+                           (prefix (nerd-icons-octicon "nf-oct-tools"))
+                           (suffix (propertize name 'face font-lock-keyword-face)))
+                `(label
+                  prefix
+                  suffix)))
+   :lookup (lambda (candidate)
+             (car candidate))))
 
 ;;;###autoload
 (defun salesforce-data-org-table-export ()

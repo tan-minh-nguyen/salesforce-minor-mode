@@ -1,6 +1,5 @@
 ;; -*- no-byte-compile: t; no-native-compile: t; lexical-binding: t -*-
 (require 'alert)
-(require 'cl)
 (require 'json)
 (require 'async)
 
@@ -35,59 +34,8 @@
   :type 'string
   :group 'salesforce-minor-mode)
 
-(defcustom salesforce-org-list-header-display
-  '("username" "instanceUrl" "orgId" "isDevHub" "instanceApiVersion" "alias" "lastUsed" "connectedStatus")
-  "Custom define header display on table non scratch orgs"
-  :type 'list
-  :group 'salesforce-minor-mode)
-
 (defcustom salesforce-program-bin "sf"
   "Path to Salesforce CLI."
-  :type 'string
-  :group 'salesforce-minor-mode)
-
-(defcustom salesforce-legacy-alias "force"
-  "The legacy command alias for Salesforce CLI (sfdx)."
-  :type 'string
-  :group 'salesforce-minor-mode)
-
-(defcustom salesforce-project-command-alias "project"
-  "The command alias for project-related Salesforce CLI commands."
-  :type 'string
-  :group 'salesforce-minor-mode)
-
-(defcustom salesforce-data-command-alias "data"
-  "The command alias for data-related Salesforce CLI commands."
-  :type 'string
-  :group 'salesforce-minor-mode)
-
-(defcustom salesforce-visualforce-command-alias "visualforce"
-  "The command alias for Visualforce-related Salesforce CLI commands."
-  :type 'string
-  :group 'salesforce-minor-mode)
-
-(defcustom salesforce-apex-command-alias "apex"
-  "The command alias for Apex-related Salesforce CLI commands."
-  :type 'string
-  :group 'salesforce-minor-mode)
-
-(defcustom salesforce-org-command-alias "org"
-  "The command alias for org-related Salesforce CLI commands."
-  :type 'string
-  :group 'salesforce-minor-mode)
-
-(defcustom salesforce-lightning-command-alias "lightning"
-  "The command alias for Lightning-related Salesforce CLI commands."
-  :type 'string
-  :group 'salesforce-minor-mode)
-
-(defcustom salesforce-config-command-alias "config"
-  "The command alias for configuration-related Salesforce CLI commands."
-  :type 'string
-  :group 'salesforce-minor-mode)
-
-(defcustom salesforce-whatsnew-command-alias "whatsnew"
-  "The command alias for configuration-related Salesforce CLI commands."
   :type 'string
   :group 'salesforce-minor-mode)
 
@@ -136,11 +84,6 @@
 
 (defcustom salesforce-org-cache-dir ".cache/"
   "Directory to store cache files relative to the project root."
-  :type 'string
-  :group 'salesforce-minor-mode)
-
-(defcustom salesforce-dedicated-window-right "*List View*"
-  "Name of the dedicated window buffer displayed on the right side."
   :type 'string
   :group 'salesforce-minor-mode)
 
@@ -199,9 +142,6 @@ Example: ((:project \"test\" :note-file \"org\"))"
   :type 'string
   :group 'salesforce-config)
 
-(defun salesforce-build-sf-command (&rest args)
-  `(,@args))
-
 (defun salesforce-recursive-list (list-data lambda-function)
   "Recursively apply LAMBDA-FUNCTION to each element in LIST-DATA."
   (if (null list-data)
@@ -210,7 +150,7 @@ Example: ((:project \"test\" :note-file \"org\"))"
           (salesforce-recursive-list (cdr list-data) lambda-function))))
 
 
-(defun salesforce-core--get-json-value (table key)
+(defun salesforce-core--extract-json-value (table key)
   "Get value from TABLE by KEY based on data structure type."
   (cond ((plistp table)
          (plist-get table key (lambda (prop key)
@@ -226,7 +166,7 @@ Example: ((:project \"test\" :note-file \"org\"))"
 Example: (salesforce-core--get-data-json \"result.data.0.name\" table)"
   (let ((path-parts (split-string path "\\.")))
     (cl-reduce (lambda (acc key)
-                 (salesforce-core--get-json-value acc key))
+                 (salesforce-core--extract-json-value acc key))
                path-parts
                :initial-value table)))
 
@@ -236,23 +176,21 @@ Example: (salesforce-core--get-data-json \"result.data.0.name\" table)"
 
 (defun salesforce-core--tools-folder ()
   "Get tools folder path in project."
-  (salesforce-core--build-path salesforce-state-dir "/" salesforce-tools-dir))
+  (salesforce-core--join-path salesforce-state-dir "/" salesforce-tools-dir))
 
-(defun salesforce-core--build-path (&rest args)
+(defun salesforce-core--join-path (&rest args)
   "Build a full path from root directory and additional path components."
-  (mapconcat 'identity `(,(salesforce-core--find-root-dir) ,@args)))
+  (expand-file-name (string-join args "/")
+                    (salesforce-core--find-root-dir)))
 
 (defun salesforce-core--metadata-path (&optional path)
   "Return the full path for the metadata directory.
 If PATH is non-nil, append it to the metadata root directory."
-  (let ((base (expand-file-name
-               salesforce-metadata-root-dir
-               (salesforce-core--find-root-dir))))
-    (expand-file-name (or path "") base)))
+  (salesforce-core--join-path salesforce-metadata-root-dir (or path "")))
 
 (defun salesforce--get-cache-folder-path ()
   "Get absolute path of cache directory."
-  (let ((cache-dir (expand-file-name (concat salesforce-org-cache-dir salesforce-org-name "/") (salesforce-core--find-root-dir))))
+  (let ((cache-dir (salesforce-core--join-path salesforce-org-cache-dir salesforce-org-name)))
 
     (unless (file-exists-p cache-dir)
       (make-directory cache-dir 'parents))
@@ -268,20 +206,17 @@ If PATH is non-nil, append it to the metadata root directory."
 (defun salesforce--get-log-dir-path ()
   "Get absolute path of log directory.
 Creates the directory if it doesn't exist."
-  (let ((log-dir (expand-file-name salesforce-log-dir-path (salesforce-core--find-root-dir))))
-    (salesforce--ensure-directory-exists log-dir)))
+  (salesforce--ensure-directory-exists (salesforce-core--join-path salesforce-log-dir-path)))
 
-(defmacro salesforce--find-backup-files (file-name &optional dir)
-  "Find backup files."
-  `(when-let* ((org-name salesforce-org-name)
-               (default-directory (or ,dir (salesforce--get-cache-folder-path))))
+(defun salesforce--find-files (files directory)
+  "Find FILES in DIRECTORY."
+  (directory-files-recursively directory
+                               (regexp-opt files)))
 
-     (directory-files-recursively default-directory
-                                  ,file-name)))
-
-(defmacro salesforce--find-backup-file (file-name &optional dir)
-  "Find backup file."
-  `(car (salesforce--find-backup-files ,file-name ,dir)))
+(defun salesforce--find-file (file directory)
+  "Find FILE in backup directory."
+  (when-let* ((files (salesforce--find-files `(,file) directory)))
+    (car files)))
 
 (defun salesforce--get-lwc-directory ()
   "Get lwc directory."
@@ -293,39 +228,53 @@ Creates the directory if it doesn't exist."
       (file-name-directory (directory-file-name file))
     (salesforce--find-parents (file-name-directory (directory-file-name file)) (- depth 1))))
 
-(defmacro salesforce-core--make-process (command-alias)
+(defmacro salesforce-core--make-process (command)
   "Create a process macro for a specific command type.
 COMMAND-ALIAS is the command prefix (e.g. salesforce-project-command-alias).
 BODY contains the process handling code."
-  `(cl-defmacro ,(intern (format "salesforce-core--%s-process" (symbol-value command-alias)))
-       (&rest body &key cmd sync &allow-other-keys)
-     (let ((alias ,(symbol-value command-alias)))
-       `(let* (;; (default-directory salesforce-project-root-dir)
-               (callback (lambda (json-instance)
-                           ,@body))
-               (handle-callback (lambda (proc)
-                                  (when-let* ((data (if (member "--json" ,cmd)
-                                                        (salesforce-core-parse-buffer-json (process-buffer proc))
-                                                      (process-buffer proc)))
-                                              (_ (if (plistp data)
-                                                     (= (salesforce-core--get-data-json "status" data) 0)
-                                                   (not (string-blank-p data)))))
-                                    (funcall callback data)))))
-
+  `(cl-defmacro ,(intern (format "salesforce-core--%s-process" command))
+       (&rest body &key args sync &allow-other-keys)
+     (let ((action ,command))
+       `(let* ((callback (lambda (proc)
+                           (let ((json-instance (if (member "--json" ,args)
+                                                    (salesforce-core-parse-buffer-json (process-buffer proc))
+                                                  (process-buffer proc))))
+                             ,@body))))
+          (message "%s" (cons ,action ,args))
           (apply #'async-start-process salesforce-process-buffer
                  salesforce-program-bin 
-                 (unless ,sync handle-callback)
-                 (cons ,alias ,cmd))))))
+                 (unless ,sync (apply-partially callback))
+                 (cons ,action ,args))))))
 
 ;; Generate all process macros using the factory
-(salesforce-core--make-process salesforce-project-command-alias)
-(salesforce-core--make-process salesforce-apex-command-alias) 
-(salesforce-core--make-process salesforce-visualforce-command-alias)
-(salesforce-core--make-process salesforce-data-command-alias)
-(salesforce-core--make-process salesforce-org-command-alias)
-(salesforce-core--make-process salesforce-lightning-command-alias)
-(salesforce-core--make-process salesforce-config-command-alias)
-(salesforce-core--make-process salesforce-whatsnew-command-alias)
+(salesforce-core--make-process "project")
+(salesforce-core--make-process "apex") 
+(salesforce-core--make-process "visualforce")
+(salesforce-core--make-process "data")
+(salesforce-core--make-process "org")
+(salesforce-core--make-process "lightning")
+(salesforce-core--make-process "config")
+(salesforce-core--make-process "cmdt")
+
+(defmacro salesforce-core--api-request (service)
+  "Request to tooling API, wrap around request package.
+
+SERVICE: name of API service."
+  `(defun ,(intern (format "salesforce-core-%s-request" service))
+       (endpoint &rest args)
+     ,(format "Call API to %s service
+
+ENDPOINT: services of API.
+ARGS: arguments passed to `request'." service)
+     (apply #'request
+            (format "%s/services/data/%s/%s"
+                    salesforce-project-url
+                    salesforce-api-version
+                    ,service
+                    endpoint)
+            args)))
+
+(salesforce-core--api-request "tooling")
 
 (defun salesforce-core-parse-buffer-json (buffer)
   "Parse JSON from BUFFER and return it as a plist.
@@ -390,25 +339,75 @@ If parsing fails, return the raw buffer contents as a string."
                      (t (or (salesforce-org-list nil :sync t) '())))
                :initial-value '())))
 
-;;TODO: command function use for all read input value.
-(cl-defun salesforce-core-read-input (&key prompt collection)
-  "Read input from collection.")
+(defun salesforce-core--prompt (candidates &rest args)
+  "prompt to select CANDIDATES."
+  (unless (plist-member args :prompt)
+    (plist-put args :prompt "read: "))
+
+  (unless (plist-member args :category)
+    (plist-put args :category 'salesforce-prompt))
+  
+  (apply #'consult--read candidates args))
+
+(defun salesforce-core--complete-candidate (candidates category input pred action)
+  "Completion table for ORGS.
+Handles INPUT, PRED, ACTION according to `completing-read' contract."
+  (if (eq action 'metadata)
+      `(metadata (category . ,category))
+    (complete-with-action action candidates input pred)))
 
 ;; Modify async package to handle signal process
 (defun salesforce-core--async-when-done (proc &optional _change)
   "Handle signal process return from sf package."
-  (when-let ((_ (eq (process-exit-status proc) 1))
+  (when-let ((_ (> (process-exit-status proc) 0))
              (_ (string-match-p salesforce-process-buffer (buffer-name (process-buffer proc)))))
     (condition-case error
         (salesforce-handle-process-error--json (salesforce-core-parse-buffer-json (process-buffer proc))))))
 
 (advice-add 'async-when-done :after #'salesforce-core--async-when-done)
 
+(defun salesforce-core--box-table (&rest rows)
+  "Pretty print ROWS as a box-drawing table with headers on left."
+  (let* ((width-col1 (apply #'max (mapcar (lambda (row) (string-width (car row))) rows)))
+         (width-col2 (apply #'max (mapcar (lambda (row) (string-width (cadr row))) rows)))
+         (hline (concat "╠" (make-string (+ width-col1 2) ?═) "╬" (make-string (+ width-col2 2) ?═) "╣"))
+         (top   (concat "╔" (make-string (+ width-col1 2) ?═) "╦" (make-string (+ width-col2 2) ?═) "╗"))
+         (bot   (concat "╚" (make-string (+ width-col1 2) ?═) "╩" (make-string (+ width-col2 2) ?═) "╝"))
+         (content (cl-loop for (col . val) in rows
+                           concat (concat (format "║ %-*s ║ %-*s ║\n" width-col1 col width-col2 val)
+                                          (unless (eq col (car (last rows)))
+                                            (concat hline "\n"))))))
+
+    (concat top "\n"
+            content "\n"
+            bot)))
+
+(defun salesforce-core--make-keymap (&rest collection)
+  "Return a sparse keymap built from COLLECTION where each element is (KEY CMD DES)." 
+  (let ((map (make-sparse-keymap)))
+    (dolist (seq collection)
+      (pcase-let* ((`(,key ,command ,which-key) seq)
+                   (bind (if which-key
+                             (cons which-key command)
+                           command)))
+        (cond
+         ((stringp key) (keymap-set map key bind))
+         ((vectorp key) (keymap-set map key bind))
+         (t (keymap-set map key bind)))))
+    map))
+
+(defun salesforce-core--pop-box-table (&rest rows)
+  "Popup ROWS as table by using `salesforce-core--box-table'."
+  (with-output-to-temp-buffer "*Salesforce Box Table*"
+    (insert (salesforce-core--box-table rows))))
+
 (defun salesforce-core--alert (message &rest args)
   "Display an alert with MESSAGE and optional ARGS.
 This function uses the `alert` package to show notifications."
   (unless (plist-member args :title)
     (plist-put args :title (projectile-project-name)))
+  (unless (plist-member args :icon)
+    (plist-put args :icon "apex"))
   (apply #'alert message args))
 
 (provide 'salesforce-core)

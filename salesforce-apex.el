@@ -167,7 +167,7 @@
   (interactive)
   (let ((salesforce-apex--lightning-organize "component")
         (salesforce-apex--transient:template "default")
-        (salesforce--transient-menu:output-dir (salesforce-core--build-path salesforce-lwc-dir)))
+        (salesforce--transient-menu:output-dir (salesforce-core--join-path salesforce-lwc-dir)))
     (salesforce-apex--transient:lightning-resource)))
 
 (defun salesforce-apex-execute-code (content)
@@ -178,7 +178,7 @@
     (write-region content nil temp-file)
 
     (salesforce-core--apex-process
-     :cmd `("run" "-f" ,temp-file "-o" ,salesforce-org-name "--json")
+     :args `("run" "-f" ,temp-file "-o" ,salesforce-org-name "--json")
      (with-current-buffer (get-buffer-create "*apex log*")
        (let ((buffer-read-only t)
              (inhibit-read-only t))
@@ -191,11 +191,11 @@
   (interactive)
   (let* ((page-name (read-string "Visualforce page name: "))
          (page-label (read-string "Visualforce page label: "))
-         (output-dir (salesforce-core--build-path salesforce-default-vf-path))
+         (output-dir (salesforce-core--join-path salesforce-default-vf-path))
          (page-path (concat output-dir "/" page-name ".page")))
 
     (salesforce-core--visualforce-process
-     :cmd `("generate" "page" "--json" "--name" ,page-name "--label" ,page-label "--output-dir" ,output-dir)
+     :args `("generate" "page" "--json" "--name" ,page-name "--label" ,page-label "--output-dir" ,output-dir)
      (switch-to-buffer (find-file page-path))
      (salesforce-core--alert (format "Successfully created Visualforce page: %s" page-name)))))
 
@@ -204,11 +204,11 @@
   (interactive)
   (let* ((component-name (read-string "Visualforce component name: "))
          (component-label (read-string "Visualforce component label: "))
-         (output-dir (salesforce-core--build-path salesforce-vf-component-dir))
-         (component-path (salesforce-core--build-path "/" component-name ".component")))
+         (output-dir (salesforce-core--join-path salesforce-vf-component-dir))
+         (component-path (salesforce-core--join-path "/" component-name ".component")))
 
     (salesforce-core--visualforce-process
-     :cmd `("generate" "component" "--json" "--name" ,component-name "--label" ,component-label "--output-dir" ,output-dir)
+     :args `("generate" "component" "--json" "--name" ,component-name "--label" ,component-label "--output-dir" ,output-dir)
      (switch-to-buffer (find-file component-path))
      (salesforce-core--alert (format "Successfully created Visualforce component: %s" component-name)))))
 
@@ -225,14 +225,14 @@
   "Generate an Apex class with the specified arguments."
   (interactive (list (transient-args 'salesforce-apex--transient:apex-resource)))
   (salesforce-core--apex-process
-   :cmd `("generate" "class" ,@args "--json")
+   :args `("generate" "class" ,@args "--json")
    (switch-to-buffer (find-file (salesforce-core--get-data-json "result.created.0" json-instance)))))
 
 (defun salesforce-apex--generate-lightning-component (args)
   "Generate a Lightning Web Component (LWC) or Aura component with the specified arguments."
   (interactive (list (transient-args 'salesforce-apex--transient:lightning-resource)))
   (salesforce-core--lightning-process
-   :cmd `("generate" "component" ,@args "--json")
+   :args `("generate" "component" ,@args "--json")
    (salesforce-core--alert (format message-success component-name))))
 
 ;;TODO: use salesforce-apex--generate-class instead
@@ -240,11 +240,11 @@
   "Generate an Apex test class."
   (interactive)
   (let* ((class-name (read-string "Class name: "))
-         (output-dir (salesforce-core--build-path salesforce-apex-dir))
-         (class-path (salesforce-core--build-path "/" class-name ".cls")))
+         (output-dir (salesforce-core--join-path salesforce-apex-dir))
+         (class-path (salesforce-core--join-path "/" class-name ".cls")))
 
     (salesforce-core--apex-process
-     :cmd `("generate" "class" "--name" ,class-name "-t" "ApexUnitTest" "--output-dir" ,output-dir "--json")
+     :args `("generate" "class" "--name" ,class-name "-t" "ApexUnitTest" "--output-dir" ,output-dir "--json")
      (switch-to-buffer (find-file class-path))
      (salesforce-core--alert (format "Successfully created test class: %s" class-name)))))
 
@@ -264,15 +264,16 @@
   "Retrieve the result of an Apex test job by job ID."
   (let ((buffer (current-buffer)))
     (salesforce-core--apex-process
-     :cmd `("get" "test" "-i" ,job-id "-o" ,salesforce-org-name "--code-coverage" "--json")
+     :args `("get" "test" "-i" ,job-id "-o" ,salesforce-org-name "--code-coverage" "--json")
      ;; (salesforce-core--alert (format "Tests class run success with coverage"))
      (let ((summary (salesforce-core--get-data-json "result.summary" json-instance)))
-       (salesforce-core--alert (format "Tests Ran:%s\nFailed Test:%s\t\t\tPassed Test:%s\t\t\t\t"
-                                       (salesforce-core--get-data-json "testsRan" summary)
-                                       (salesforce-core--get-data-json "failing" summary)
-                                       (salesforce-core--get-data-json "passing" summary))
-                               :title (format "Unit Tests Run %s"
-                                              (salesforce-core--get-data-json "outcome" summary))))
+       (salesforce-core--pop-box-table
+        (cons "Ran" (salesforce-core--get-data-json "testsRan" summary))
+        (cons "Passed" (salesforce-core--get-data-json "passing" summary))
+        (cons "Failed" (salesforce-core--get-data-json "failing" summary)))
+       
+       (salesforce-core--alert (format "Unit Tests Run %s"
+                                       (salesforce-core--get-data-json "outcome" summary))))
      (with-current-buffer buffer
        (setq-local salesforce-apex--test-coverage
                    (salesforce-core--get-data-json "result.coverage" json-instance)))
@@ -282,7 +283,7 @@
   "Execute specific unit tests with the given test cases and test level."
   (let ((file-name (file-name-base)))
     (salesforce-core--apex-process
-     :cmd `("run" "test" "--tests" ,test-cases "--test-level" ,test-level "--detailed-coverage" "--code-coverage" "--json")
+     :args `("run" "test" "--tests" ,test-cases "--test-level" ,test-level "--detailed-coverage" "--code-coverage" "--json")
 
      (let* ((poll-id nil)
             (job-id (salesforce-core--get-data-json "result.testRunId" json-instance))
@@ -330,54 +331,65 @@
   "Run all test classes except those in the org managed package."
   (interactive)
   (salesforce-core--apex-process
-   :cmd '("run" "test" "--test-level" "RunLocalTests" "--json")
+   :args '("run" "test" "--test-level" "RunLocalTests" "--json")
    (salesforce-apex--get-result-test-job :job-id (salesforce-core--get-data-json "result.testRunId" json-instance))))
 
 (defun salesforce-lightning-local-lwc ()
   "Start the local server for Lightning Web Components (LWC)."
   (interactive)
   (salesforce-core--lightning-process
-   :cmd '("lightning" "lwc" "start" "--json")
+   :args '("lightning" "lwc" "start" "--json")
    (salesforce-core--alert "Start lwc local server success")))
 
 (defun salesforce-apex-run-local-tests ()
   "Run all test classes except those in the org managed package."
   (interactive)
   (salesforce-core--apex-process
-   :cmd '("run" "test" "--test-level" "RunLocalTests" "--json")
+   :args '("run" "test" "--test-level" "RunLocalTests" "--json")
    (salesforce-apex-get-result-test-job (job-id (salesforce-core--get-data-json "result.testRunId" json-instance)))))
 
-(defun salesforce-apex-logs ()
-  "Download and display a list of available log files."
-  (interactive)
-  (salesforce-core--apex-process
-   :cmd '("list" "log" "--json")
-   (let ((candidate-alist (cl-loop for log-file across (salesforce-core--get-data-json "result" json-instance)
-                                   collect (cons (salesforce-apex--format-candidate (salesforce-core--get-data-json "Application" log-file)
-                                                                                    (salesforce-core--get-data-json "StartTime" log-file)
-                                                                                    (salesforce-core--get-data-json "Operation" log-file)
-                                                                                    (salesforce-core--get-data-json "LogLength" log-file)
-                                                                                    (salesforce-core--get-data-json "Status" log-file))
-                                                 (salesforce-core--get-data-json "Id" log-file)))))
-     (completing-read "Log: " (mapcar #'car candidate-alist)))))
+(defmacro salesforce-apex-prompt-log (&rest body)
+  "Collect all logs and make prompt for select.
+
+BODY: Forms execute after select candidate."
+  `(salesforce-core--apex-process
+    :args '("list" "log" "--json")
+    (let* ((candidates (cl-loop for log-file across (salesforce-core--get-data-json "result" json-instance)
+                                collect `(:app ,(salesforce-core--get-data-json "Application" log-file)
+                                               :time ,(salesforce-core--get-data-json "StartTime" log-file)
+                                               :operation ,(salesforce-core--get-data-json "Operation" log-file)
+                                               :log-length ,(salesforce-core--get-data-json "LogLength" log-file)
+                                               :status ,(salesforce-core--get-data-json "Status" log-file)
+                                               :log-id ,(salesforce-core--get-data-json "Id" log-file))))
+           (candidate (consult--read candidates
+                                     :prompt "Log: "
+                                     :category 'salesforce-log
+                                     :require-match t
+                                     :annotate #'salesforce-apex-consult--annotate)))
+      ,@body)))
 
 (defun salesforce-apex--time-format (format-string time-string)
   "Format TIME-STRING according to FORMAT-STRING."
   (format-time-string format-string
                       (encode-time (parse-time-string time-string))))
 
-(defun salesforce-apex--format-candidate (&rest args)
-  "Format a candidate string with properties for display."
-  (pcase-let* ((`(,app ,time ,op ,size ,status) args)
+(defun salesforce-apex-consult--annotate (candidate)
+  "Format a CANDIDATE string with properties for display."
+  (pcase-let* ((`(:app ,app :time ,time operation ,op :log-length ,size :status ,status :log-id ,id) args)
                (len-text 10)
                (prop-time (propertize (salesforce-apex--time-format "%Y-%m-%d %H:%M:%S" time) 'face 'org-time-grid))
                (prop-op (propertize (string-pad op len-text) 'face 'font-lock-doc-markup-face))
                (prop-size (propertize (string-pad (format "%s" (/ size 1000)) len-text) 'face 'font-lock-keyword-face))
-               (prop-status (propertize (string-pad status len-text) 'face 'font-lock-keyword-face)))
-    (concat (propertize (string-pad op len-text) 'face (if (string= status "success") 'font-lock-builtin-face 'font-lock-string-face))
-            prop-size
-            status 
-            prop-time)))
+               (prop-status (propertize (string-pad status len-text) 'face 'font-lock-keyword-face))
+               (prefix (nerd-icons-octicon "nf-oct-log"))
+               (suffix (concat (propertize (string-pad op len-text) 'face (if (string= status "success") 'font-lock-builtin-face 'font-lock-string-face))
+                               prop-size
+                               status 
+                               prop-time)))
+    
+    `(,id
+      ,prefix
+      ,suffix)))
 
 (defun salesforce-apex-soql-string-p (soql-string)
   "Check query string is soql."

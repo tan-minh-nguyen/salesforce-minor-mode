@@ -91,11 +91,13 @@ BODY is the SOQL query, PARAMS are header arguments."
   (let* ((processed-params (org-babel-process-params params))
          (full-body (org-babel-expand-body:soql body params processed-params))
          (file-temp (make-temp-file "soql"))
-         (async-debug t)
          (org (ob-soql--get-param :org processed-params))
          (org-url (ob-soql--org-url org)))
-    (write-region full-body nil file-temp)
-    (ob-soql--data file-temp `(,org ,org-url))))
+
+    (if (and org org-url)
+        (progn (write-region full-body nil file-temp)
+               (ob-soql--data file-temp `(,org ,org-url)))
+      "Something error")))
 
 (defun ob-soql--data (file org-attr)
   "Execute SOQL query stored in FILE against ORG-ATTR.
@@ -121,11 +123,12 @@ ORG-ATTR is a list: (ORG URL). Returns results as an org-table string."
 
 (defun ob-soql--org-url (org)
   "Return the Salesforce instance URL for ORG."
-  (let* ((process (async-get
-                   (salesforce-core--org-process
-                    :cmd `("display" "-o" ,org "--json")
-                    :sync t)))
-         (json-instance (salesforce-core-parse-buffer-json (process-buffer process))))
+  (when-let* ((process (async-get
+                        (salesforce-core--org-process
+                         :args `("display" "-o" ,org "--json")
+                         :sync t)))
+              (_ (processp process))
+              (json-instance (salesforce-core-parse-buffer-json (process-buffer process))))
     (salesforce-core--get-data-json "result.instanceUrl" json-instance)))
 
 (defun ob-soql--modify-csv (csv org-hyperlink)

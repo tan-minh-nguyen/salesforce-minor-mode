@@ -83,15 +83,6 @@ Supports SELECT … FROM … [WHERE …] [LIMIT …]."
     ;; return as a list
     (list fields object where limit)))
 
-(cl-defun salesforce-consult-omni--build-soql (input &key limit)
-  "Build SOQL clause from LIMIT and INPUT."
-  (pcase-let* ((`(,string-field ,object ,where ,limit) (salesforce-consult-omni--extract-soql-clause input))
-               (fields (string-split string-field)))
-    (s-trim (format "SELECT %s FROM %s %s"
-                    (string-join `("Id" "Name" ,@(seq-difference (seq-difference fields '("Name")) '("Id"))) ",")
-                    object
-                    (or other-clause "")))))
-
 (defun salesforce-consult-omni--build-headers ()
   "Build headers for the request."
   `(("Authorization" . ,(concat "Bearer " salesforce-project-token))))
@@ -141,14 +132,13 @@ Supports SELECT … FROM … [WHERE …] [LIMIT …]."
                             :sort t
                             :static 'both)
 
-(cl-defun salesforce-consult-omni--query-records (input &rest args &key callback &allow-other-keys)
-  "Search records on current org."
+(cl-defun salesforce-consult-omni--query-metadata (input &rest args &key callback &allow-other-keys)
+  "Search metadata on org."
   (pcase-let* ((`(,query . ,opts) (consult-omni--split-command input (seq-difference args (list :callback callback))))
                (opts (car-safe opts))
-               (soql-string (salesforce-consult-omni--build-soql query))
                (endpoint (salesforce-consult-omni--build-url salesforce-project-url
                                                              "/services/data/v" salesforce-api-version "/query"
-                                                             "?q=" (replace-regexp-in-string " " "+" soql-string)))
+                                                             "?q=" (replace-regexp-in-string " " "+" query)))
                (annotated-results))
 
     (consult-omni--fetch-url endpoint consult-omni-http-retrieve-backend
@@ -165,7 +155,7 @@ Supports SELECT … FROM … [WHERE …] [LIMIT …]."
                                  (funcall callback annotated-results)
                                  annotated-results)))))
 
-(consult-omni-define-source "Query"
+(consult-omni-define-source "Metadata"
                             :narrow-char ?q
                             :type 'dynamic
                             :require-match t
@@ -183,7 +173,7 @@ Supports SELECT … FROM … [WHERE …] [LIMIT …]."
                             :sort t
                             :static 'both)
 
-(defun salesforce-consult-omni-dispatch-query ()
+(defun salesforce-consult-omni-search-metadata ()
   "Fetch records from Salesforce Org."
   (interactive)
   (consult-omni-multi nil

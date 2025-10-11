@@ -42,7 +42,7 @@
   :type 'list
   :group 'salesforce-project)
 
-(defcustom salesforce-project-mode-line-icon ""
+(defcustom salesforce-project-mode-line-icon ""
   "`salesforce-minor-mode' icon."
   :type 'string
   :group 'salesforce-project)
@@ -77,7 +77,19 @@ This includes setting up metadata and applying directory locals."
     (salesforce-project--update-dir-local-config 'salesforce-project-root-dir
                                                  (salesforce-core--find-root-dir))
     (salesforce-project--update-dir-local-config 'salesforce-org-name
-                                                 (salesforce-project--fetch-org-name))))
+                                                 (salesforce-project--fetch-org-name))
+    (salesforce-project--update-dir-local-config 'salesforce-trigger-dir
+                                                 (salesforce-core--metadata-path salesforce-trigger-dir))
+    (salesforce-project--update-dir-local-config 'salesforce-apex-dir
+                                                 (salesforce-core--metadata-path salesforce-apex-dir))
+    (salesforce-project--update-dir-local-config 'salesforce-lwc-dir
+                                                 (salesforce-core--metadata-path salesforce-lwc-dir))
+    (salesforce-project--update-dir-local-config 'salesforce-aura-dir
+                                                 (salesforce-core--metadata-path salesforce-aura-dir))
+    (salesforce-project--update-dir-local-config 'salesforce-vf-dir
+                                                 (salesforce-core--metadata-path salesforce-vf-dir))
+    (salesforce-project--update-dir-local-config 'salesforce-object-dir
+                                                 (salesforce-core--metadata-path salesforce-object-dir))))
 
 (defun salesforce-project--fetch-org-name ()
   "Return the current Salesforce org alias for the project.
@@ -149,7 +161,7 @@ Configuration is stored in `salesforce-project-configuration'."
   ;; Add initialize salesforce for projectile
   (add-hook 'projectile-after-switch-project-hook #'salesforce-project-init))
 
-
+;;;###autoload
 (defun salesforce-project-create ()
   "Create a new Salesforce project in a specified directory."
   (interactive)
@@ -161,7 +173,7 @@ Configuration is stored in `salesforce-project-configuration'."
     (make-directory project-dir 'parents)
 
     (salesforce-core--project-process 
-     :cmd (list "generate" "--name" project-name "--template" project-template "--json")
+     :args (list "generate" "--name" project-name "--template" project-template "--json")
      (salesforce-core--alert "Create Project Success"))))
 
 (defun salesforce-project-source-push (buffer &optional target-org)
@@ -169,7 +181,7 @@ Configuration is stored in `salesforce-project-configuration'."
 Optionally specify a TARGET-ORG."
   (interactive (list (buffer-file-name)))
   (salesforce-core--project-process 
-   :cmd `("deploy" "start" "-d" ,buffer ,@(when target-org (list "-o" target-org)) "--json")
+   :args `("deploy" "start" "-d" ,buffer ,@(when target-org (list "-o" target-org)) "--json")
    (salesforce-core--alert (format "Deploy %s success" buffer))))
 
 (defun salesforce-project-source-retrieve (buffer &optional target-org)
@@ -177,7 +189,7 @@ Optionally specify a TARGET-ORG."
 Optionally specify a TARGET-ORG."
   (interactive (list (buffer-file-name)))
   (salesforce-core--project-process 
-   :cmd `("retrieve" "start" "-d" ,buffer ,@(when target-org (list "-o" target-org)) "--json")
+   :args `("retrieve" "start" "-d" ,buffer ,@(when target-org (list "-o" target-org)) "--json")
    (salesforce-core--alert (format "Retrieve %s success" buffer))))
 
 (cl-defun salesforce-project--clone-cloud-metadata
@@ -190,15 +202,15 @@ FINISH-FUNC is a function to call upon completion."
   (let* ((file-name (file-name-base metadata-file)))
 
     (salesforce-core--project-process 
-     :cmd `("retrieve"
-            "start"
-            "-d" ,metadata-file
-            "-z"
-            "-t" ,temporary-file-directory
-            "--zip-file-name" ,file-name
-            ,@(when (and target-org (not (string-blank-p target-org)))
-                (list "-o" target-org))
-            "--json")
+     :args `("retrieve"
+             "start"
+             "-d" ,metadata-file
+             "-z"
+             "-t" ,temporary-file-directory
+             "--zip-file-name" ,file-name
+             ,@(when (and target-org (not (string-blank-p target-org)))
+                 (list "-o" target-org))
+             "--json")
      ;; rename backup directory to new directory containing the last modified id
      ;; and the last modified date
      (when target-path
@@ -206,7 +218,7 @@ FINISH-FUNC is a function to call upon completion."
          (error "Path not exist"))
        (copy-file (concat temporary-file-directory file-name) target-path) t)
      (funcall finish-func (or target-path
-                             (expand-file-name file-name temporary-file-directory))))))
+                              (expand-file-name file-name temporary-file-directory))))))
 
 (defun salesforce-project--ediff-startup-hook ()
   "Hook to run on Ediff startup, setting up additional actions."
@@ -330,52 +342,7 @@ FINISH-FUNC is a function to call upon completion."
                                 (salesforce-project--ediff-quit-hook)
                                 (delete-directory (file-name-directory file-b) t)
                                 (delete-directory (file-name-directory file-c) t)))))))
-  ;; (salesforce-project--ediff-add-actions)
-  
-
-(defun salesforce-source-tracker ()
-  "Track changes in Salesforce source files."
-  (interactive)
-  (let* ((folder-name (file-name-base buffer-file-name))
-         (file-name (file-name-nondirectory buffer-file-name))
-         (salesforce-dedicated-window-right "*Org Tracker*")
-         (source-list (salesforce--find-backup-files (format "%s$" file-name)))
-         (model
-          (salesforce-table--make-table-mode
-           :column-header
-           `((:title "Backup DateTime")
-             (:title "User Modified Id")
-             (:title "Last Modified"))
-           :data
-           (cl-remove-if 'nil
-                         (mapcar (lambda (file)
-                                   ;; format files show on buffer
-                                   (when-let* ((source-dir (file-name-base (salesforce--find-parents file 3)))
-                                               (data (string-split source-dir "_"))
-                                               (date-time (format-time-string "%Y/%m/%d %H:%M:%S" (string-to-number (nth 0 data))))
-                                               (user-id (nth 1 data))
-                                               (last-modified-date (format-time-string "%Y/%m/%d %H:%M:%S" (string-to-number (nth 2 data)))))
-
-                                     `(,date-time ,user-id ,last-modified-date ,(concat (nth 3 data) "_" (nth 0 data) "_" user-id "_" (nth 2 data)))))
-                                 ;; list of file names
-                                 source-list))))
-         (component
-          (salesforce-table--create-table
-           :model model
-           :buffer salesforce-dedicated-window-right)))
-
-    (ctbl:cp-add-click-hook component
-                            `(lambda ()
-                               (when-let* ((data (ctbl:cp-get-selected-data-row ,component))
-                                           (cache-dir (concat (salesforce--get-cache-folder-path)
-                                                              (nth 3 data)))))
-                               (ediff (car (directory-files-recursively cache-dir ,file-name))
-                                      ,buffer-file-name
-                                      '((lambda ()
-                                          (add-hook 'ediff-startup-hook #'salesforce-project--ediff-startup-hook)
-                                          (add-hook 'ediff-quit-hook #'salesforce-project--ediff-quit-hook))))))
-
-    (pop-to-buffer (ctbl:cp-get-buffer component))))
+;; (salesforce-project--ediff-add-actions)
 
 (defun salesforce-project--process-multi-sources (files command)
   "Process multiple metadata FILES with the specified COMMAND."
@@ -388,9 +355,9 @@ FINISH-FUNC is a function to call upon completion."
                   (require 'cl-macs nil t)
                   (setq async-debug t)
                   (let ((proc (apply #'salesforce-core--project-process
-                                     :cmd ,(apply #'append (list command "start" "--json")
-                                                  (cl-loop for file in files
-                                                           collect `("-d" ,file)))
+                                     :args ,(apply #'append (list command "start" "--json")
+                                                   (cl-loop for file in files
+                                                            collect `("-d" ,file)))
                                      :sync t)))
                     (async-wait proc)
                     (if (eq (process-exit-status proc) 1)
@@ -414,83 +381,9 @@ FINISH-FUNC is a function to call upon completion."
   (interactive (list (transient-args 'salesforce-project--deploy-files-menu)))
   (salesforce-project--process-multi-sources files "retrieve"))
 
-;;FIXME: use taxy package
-(defun salesforce-project--group-files-menu (files)
-  "Group FILES for display on the transient menu."
-  (cl-loop for file in files
-           if (and (string-match-p (regexp-quote salesforce-default-apex-class-path) file)
-                 (not (member (salesforce-project--remove-xml-suffix file) classes)))
-           collect (salesforce-project--remove-xml-suffix file) into classes
-           else if (and (string-match-p (regexp-quote salesforce-default-vf-path) file)
-                      (not (member (salesforce-project--remove-xml-suffix file) pages)))
-           collect (salesforce-project--remove-xml-suffix file) into pages
-           else if (string-match-p (concat salesforce-default-object-path "/[A-Za-z_]+/fields") file)
-           collect file into fields
-           else if (string-match-p (regexp-quote salesforce-default-object-path) file)
-           collect (salesforce-project--remove-xml-suffix file) into objects
-           ;; else 
-           ;; collect file into other
-           finally return (list (cons "classes" classes) 
-                        (cons "pages" pages)
-                        (cons "objects" objects)
-                        (cons "fields" fields))))
-                        ;; (cons "Misc" other)
-                        
-
 (defun salesforce-project--remove-xml-suffix (original-name)
   "Remove the '-meta.xml' suffix from ORIGINAL-NAME for display."
   (string-replace "-meta.xml" "" original-name))
-
-(defun salesforce-project--generate-files-menu (prefix-name files &rest sections)
-  "Configure the deploy files change menu with PREFIX-NAME and FILES.
-Additional SECTIONS can be specified."
-  `(transient-define-prefix ,(intern (concat "salesforce-project--" prefix-name)) ()
-     "Files deploy menu."
-     ,@(cl-loop for (name . items) in (salesforce-project--group-files-menu files)
-                as section = (vconcat (list (capitalize name))
-                                      (cl-loop for chunk in (salesforce-project--generate-files-section items (substring name 0 1))
-                                               as col = (vconcat "" chunk)
-                                               vconcat col))
-                collect section)
-     ,@sections))
-
-(defun salesforce-project--generate-files-section (files prefix &optional max-row)
-  "Generate a column display for FILES with PREFIX.
-Optionally limit the number of rows with MAX-ROW."
-  (seq-split (cl-loop for index from 1
-                      for file in files
-                      as file-name = (file-name-base file)
-                      as file-name-ext = (concat file-name (file-name-extension file))
-                      when (not (string= file-name ""))
-                      collect (list (format "%s%s" prefix index) file-name file :transient t)) 
-             (or max-row 5)))
-
-(defun salesforce-project--git-change-source-1 ()
-  "Deploy changed sources from local to a Salesforce org."
-  (require 'magit nil t)
-  (let ((start-point-branch (magit-read-local-branch "Start point" (magit-local-branch-at-point)))
-        (end-point-branch (magit-read-local-branch "End point" (magit-local-branch-at-point))))
-    (async-start 
-     `(lambda ()
-        ;;,(async-inject-variables "\\`load-path\'")
-        (setq default-directory ,(projectile-project-root))
-        (shell-command-to-string (format "git diff $(git reflog --date=local %s | tail -n 1 | cut -d' ' -f 1) %s --stat" ,start-point-branch ,end-point-branch)))
-     (lambda (output)
-       (let ((buffer (get-buffer-create "*git diff*")))
-         ;;FIXME: show files changed on buffer
-         ;;feature: show change line and can view changed section also as deploy file or change section
-         (with-current-buffer buffer
-           (let ((inhibit-read-only t))
-             (replace-region-contents (point-min) (point-max)
-                                      (lambda ()
-                                        output))
-             (read-only-mode 1)))
-         (pop-to-buffer buffer))))))
-
-(defun salesforce-project-git-change-source ()
-  "View all sources changed in version control."
-  (interactive)
-  (salesforce-project--git-change-source-1))
 
 (defun salesforce-project-open-note ()
   "Open the note associated with the current project."
@@ -532,7 +425,7 @@ This function:
   (salesforce-project--clone-cloud-metadata
    :metadata-file file-name
    :finish-func (lambda (cloned-path)
-                  (let* ((backup-file (salesforce--find-backup-file 
+                  (let* ((backup-file (salesforce--find-file 
                                        (file-name-nondirectory file-name)
                                        cloned-path))
                          (relative-path (salesforce-project--get-relative-path file-name))
@@ -603,14 +496,15 @@ Optionally specify a TARGET-ORG."
     (salesforce-project--clone-cloud-metadata
      :metadata-file full-file-name
      :target-org target-org
-     :finish-func (lambda (new-dir-name)
-                    (condition-case error
-                        (salesforce-project--prepare-ediff-session (salesforce--find-backup-file (file-name-nondirectory full-file-name)
-                                                                                                 new-dir-name)
-                                                                   full-file-name)
-                      (error
-                       (salesforce-core--alert (format "%s" error)
-                                               :severity 'urgent)))))))
+     :finish-func
+     (lambda (clone-directory)
+       (condition-case error
+           (salesforce-project--prepare-ediff-session
+            (salesforce--find-file (file-name-nondirectory full-file-name) clone-directory)
+            full-file-name)
+         (error
+          (salesforce-core--alert (format "%s" error)
+                                  :severity 'urgent)))))))
 
 (defun salesforce-project--mode-line-format ()
   "Compose the mode-line for Salesforce mode."
@@ -619,5 +513,69 @@ Optionally specify a TARGET-ORG."
     (concat (propertize (concat salesforce-project-mode-line-icon " " salesforce-org-name)
                         'face 'salesforce-mode-line-face)
             salesforce-mode-line-current-org-status)))
+
+(transient-define-prefix salesforce-project--transient:custom-metadata-field-menu ()
+  "Menu configuration generate custom field Salesforce."
+  ["Attributes"
+   [""
+    (salesforce-data--transient:--name)
+    (salesforce-data--transient:--label)
+    (salesforce-project--transient:--field-type)]
+   [""
+    (salesforce-project--transient:--picklist-values)
+    (salesforce-project--transient:--decimal-places)
+    (salesforce--transient-menu:-d)]]
+  [""
+   ("RET" "Generate Field" salesforce-data--transient:import-bulk)])
+
+(transient-define-argument salesforce-project--transient:--name ()
+  :class 'transient-option
+  :description "Unique name for the field"
+  :key "-n"
+  :shortarg "-n"
+  :argument "--name="
+  :reader #'salesforce--transient-menu:read-string)
+
+(transient-define-argument salesforce-project--transient:--label ()
+  :class 'transient-option
+  :description "Unique name for the field"
+  :key "-l"
+  :shortarg "-l"
+  :argument "--label="
+  :reader #'salesforce--transient-menu:read-string)
+
+(transient-define-argument salesforce-project--transient:--field-type ()
+  :class 'transient-switches
+  :description "Type of the field"
+  :key "-f"
+  :argument-format "--type=%s"
+  :argument-regexp "\\(Checkbox\\|Date\\|DateTime\\|Email\\|Number\\|Percent\\|Phone\\|Picklist\\|Text\\|TextArea\\)"
+  :choices '("Checkbox" "Date" "DateTime" "Email" "Number" "Percent" "Phone" "Picklist" "Text" "TextArea")
+  :reader #'salesforce--transient-menu:read-string)
+
+(transient-define-argument salesforce-project--transient:--picklist-values ()
+  :class 'transient-option
+  :description "Picklist values; required for picklist fields"
+  :key "-p"
+  :shortarg "-p"
+  :argument "--picklist-values="
+  :if (lambda ()
+        (string= (transient-arg-value "--type=" (transient-args salesforce-project--transient:custom-metadata-field-menu)) "Picklist"))
+  :reader #'salesforce--transient-menu:read-string)
+
+(transient-define-argument salesforce-project--transient:--decimal-places ()
+  :class 'transient-option
+  :description "Picklist values; required for picklist fields"
+  :key "-s"
+  :shortarg "-s"
+  :argument "--decimal-places="
+  :reader #'salesforce--transient-menu:read-number)
+
+(defun salesforce-project-create-cmdt-field ()
+  "Create custom field on Custom Metadata object."
+  (let ((args (transient-args 'salesforce-project--transient:custom-metadata-field-menu)))
+    (salesforce-core--cmdt-process
+     :args `("generate" "field" ,@args)
+     (salesforce-core--alert "Create field on custom metadata succeeded"))))
 
 (provide 'salesforce-project)

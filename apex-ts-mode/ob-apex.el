@@ -162,7 +162,7 @@ PROCESSED-PARAMS are the parameters for execution, and CONTENT is the code to ex
                       uuid)))
 
     (salesforce-core--apex-process
-     :cmd `("run" "-f" ,tempfile "-o" ,(cdr (assq :org processed-params)) "--json")
+     :args `("run" "-f" ,tempfile "-o" ,(cdr (assq :org processed-params)) "--json")
      (unless (string-equal-ignore-case result-eval "none")
        (with-current-buffer buffer
          ;; Replace uuid with log content

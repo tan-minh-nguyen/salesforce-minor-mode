@@ -7,31 +7,37 @@
   (declare (indent defun))
   (let ((var-name (salesforce-consult--source-var-name prefix args)))
     `(defvar ,var-name
-       (salesforce-consult--source-list ',args))))
+       (apply #'salesforce-consult--source ',args))))
 
 (defun salesforce-consult--source-var-name (prefix args)
   "Generate variable name for consult source."
   (let ((name (plist-get args :name)))
     (intern (format "%s--consult-%s-source" prefix (downcase name)))))
 
-(defun salesforce-consult--source-list (args)
-  "Generate source list for consult."
-  (list
-   :name (capitalize (plist-get args :name))
-   :narrow (plist-get args :narrow)
-   :category (plist-get args :category)
-   :face (plist-get args :face)
-   :state #'salesforce-consult--preview
-   :annotate #'salesforce-consult--annotate
-   :action #'salesforce-consult--action
-   :items (plist-get args :items)))
+(defun salesforce-consult--source (&rest args)
+  "Generate source list for consult.
 
-(defun salesforce-consult--annotate (cand)
+ARGS: arguments apply for `consult--multi'."
+  (append
+   `(:name ,(capitalize (plist-get args :name))
+           :narrow ,(plist-get args :narrow)
+           :category ,(plist-get args :category)
+           :face ,(plist-get args :face)
+           :items ,(plist-get args :items))
+
+   (when (plist-get args :annotate)
+     `(:annotate ,(plist-get args :annotate)))
+   (when (plist-get args :action)
+     `(:action ,(plist-get args :action)))
+   (when (plist-get args :state)
+     `(:state ,(plist-get args :state)))))
+
+(defun salesforce-consult---imenu-annotate (cand)
   "Annotate for consult source."
   (pcase-let ((`(text . marker) cand))
     (propertize (concat "@" (car cand)) 'face 'font-lock-keyword-face)))
 
-(defun salesforce-consult--action (candidate) 
+(defun salesforce-consult--imenu-action (candidate) 
   "Action for consult source."
   (goto-char (cdr candidate)))
 
@@ -42,18 +48,7 @@
                 (candidates (treesit--simple-imenu-1 tree pred name-fn)))
       (salesforce-consult--format-candidates candidates name icon))))
 
-(defun salesforce-consult--org-annotation (candidate)
-  "Format CANDIDATE to show on `completing-read'."
-  (let* ((hub (when (plist-get candidate :isDevHub)
-                (propertize "D" 'face 'font-lock-keyword-face)))
-         (status (if (string= (plist-get candidate :connectedStatus) "Connected")
-                     (propertize salesforce-mode-line-connect-icon 'face 'success)
-                   (propertize salesforce-mode-line-disconnect-icon 'face 'error)))
-         (url (propertize (plist-get candidate :instanceUrl)
-                          'face 'font-lock-comment-face)))
-    `(,hub ,(concat status " " url))))
-
-(defun salesforce-consult--format-candidates (candidates name icon)
+(defun salesforce-consult--format-candidates (candidates name &optional icon)
   "Format candidates for consult."
   (mapcar (lambda (candidate)
             (let ((display-text (if icon
@@ -62,8 +57,8 @@
               `(,display-text . (,name . ,(cdr candidate)))))
           candidates))
 
-(defun salesforce--consult-preview ()
-  "Handle imenu preview."
+(defun salesforce-consult--imenu-state ()
+  "Handle imenu state."
   (let ((preview (consult--jump-preview)))
     (lambda (action cand) 
       (funcall preview action (cdr cand)))))
@@ -75,29 +70,5 @@ CONSULT-SOURCES are the sources to be used in the consult multi command."
     `(defun ,function-name ()
        (interactive)
        (consult--multi ',consult-sources))))
-
-(defun salesforce-consult-prompt-org ()
-  "Prompt for a Salesforce org using `consult--read` with annotations."
-  (salesforce-org--fetch-list-org
-   :finish-func
-   (lambda (org-list)
-     (consult--read
-      (mapcar (lambda (org)
-                (cons (or (plist-get org :alias)
-                         (plist-get org :username))
-                      org))
-              org-list)
-      :prompt "Org: "
-      :category 'salesforce-org
-      :annotate (lambda (cand)
-                  (pcase-let ((`(,prefix ,suffix)
-                               (salesforce-consult--org-annotation
-                                (get-text-property 0 'data cand))))
-                    (list cand prefix suffix)))
-      :lookup (lambda (cand &rest _) (car cand))
-      :sort nil))
-   :fields '(:alias :username :instanceUrl :connectedStatus :isDevHub)))
-
-(defalias 'salesforce-org-prompt-org #'salesforce-consult-prompt-org)
 
 (provide 'salesforce-consult)

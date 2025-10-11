@@ -69,6 +69,17 @@
         (message (or message-error "Please select a file name."))
         (sit-for 1)))))
 
+(defun salesforce--transient-menu:read-number (prompt initial-input history &optional message-error)
+  "Read input file in transient menu."
+  (save-match-data
+    (cl-block nil
+      (while t
+        (let ((str (read-number prompt nil initial-input)))
+          (unless (null str)
+            (cl-return str)))
+        (message (or message-error "Please input a number."))
+        (sit-for 1)))))
+
 (defun salesforce--transient-menu:--target-org-reader (prompt initial-input history)
   "Read a org alias and return org string."
   (completing-read "Org name: " nil))

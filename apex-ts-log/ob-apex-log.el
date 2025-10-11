@@ -76,7 +76,7 @@
 (require 'ob-ref)
 (require 'ob-comint)
 (require 'ob-eval)
-(require 'salesforce-minor-mode)
+(require 'salesforce-mode)
 ;; possibly require modes required for your language
 
 ;; optionally define a file extension for this language
