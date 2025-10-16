@@ -31,7 +31,6 @@
 ;; the user's system, and the Emacs major mode relevant to the
 ;; language be installed as well.
 
-;; FIXME: export data from csv to other format
 (require 'ob)
 (require 'ob-ref)
 (require 'ob-comint)

@@ -42,7 +42,7 @@
               '("https://test.salesforce.com"
                 "https://login.salesforce.com"))))
 
-    (salesforce-org-user-prompt 
+    (salesforce-org-read-user 
      "Select Org: "
      (salesforce-org--web-authorize url org))))
 
@@ -59,7 +59,7 @@ ALIAS is the name to assign to the authorized org."
 (defun salesforce-org-switch-connect ()
   "Change default connection org."
   (interactive)
-  (salesforce-org-user-prompt
+  (salesforce-org-read-user
    "Select Org: "
    (salesforce-core--config-process
     :args `("set" "target-org" ,org "--json")
@@ -121,7 +121,7 @@ ALIAS is the name to assign to the authorized org."
         (lambda (_)
           (salesforce-core-alert "Deleting log data succeeded")))))))
 
-(defun salesforce-org-user-prompt--annotate (candidate)
+(defun salesforce-org-read-user--annotate (candidate)
   "Annotate CANDIDATE for org prompt."
   (let* ((data (cdr candidate))
          (status (plist-get data :connectedStatus))
@@ -139,7 +139,7 @@ ALIAS is the name to assign to the authorized org."
 
     postfix))
 
-(defmacro salesforce-org-user-prompt (prompt &rest body)
+(defmacro salesforce-org-read-user (prompt &rest body)
   "Selection available orgs that authorized.
 
 PROMPT: label of input candidate.
@@ -248,53 +248,53 @@ Options:
    (salesforce-org--collect-orgs org-type)))
 
 (salesforce-consult--define-source "org"
-  :name "other"
-  :narrow ?o
-  :face 'font-lock-misc-punctuation-face                                   
-  :category 'other-org
-  :annotate salesforce-org-user-prompt--annotate
-  :items (lambda ()
-           (salesforce-org--consult-candidates 'other (nerd-icons-faicon "nf-fa-cloud")))
-  :keymap salesforce-org--consult-keymap)
+                                   :name "other"
+                                   :narrow ?o
+                                   :face 'font-lock-misc-punctuation-face                                   
+                                   :category 'other-org
+                                   :annotate salesforce-org-read-user--annotate
+                                   :items (lambda ()
+                                            (salesforce-org--consult-candidates 'other (nerd-icons-faicon "nf-fa-cloud")))
+                                   :keymap salesforce-org--consult-keymap)
 
 (salesforce-consult--define-source "org"
-  :name "sandbox"
-  :narrow ?s
-  :face 'font-lock-misc-punctuation-face                                   
-  :category 'sandbox-org
-  :annotate salesforce-org-user-prompt--annotate
-  :items (lambda ()
-           (salesforce-org--consult-candidates 'sandboxs (nerd-icons-faicon "nf-fa-cloud")))
-  :keymap salesforce-org--consult-keymap)
+                                   :name "sandbox"
+                                   :narrow ?s
+                                   :face 'font-lock-misc-punctuation-face                                   
+                                   :category 'sandbox-org
+                                   :annotate salesforce-org-read-user--annotate
+                                   :items (lambda ()
+                                            (salesforce-org--consult-candidates 'sandboxs (nerd-icons-faicon "nf-fa-cloud")))
+                                   :keymap salesforce-org--consult-keymap)
 
 (salesforce-consult--define-source "org"
-  :name "nonScratch"
-  :narrow ?n
-  :face 'font-lock-misc-punctuation-face                                   
-  :category 'non-scratch-org
-  :annotate salesforce-org-user-prompt--annotate
-  :items (lambda ()
-           (salesforce-org--consult-candidates 'nonScratchOrgs (nerd-icons-faicon "nf-fa-cloud")))
-  :keymap salesforce-org--consult-keymap)
+                                   :name "nonScratch"
+                                   :narrow ?n
+                                   :face 'font-lock-misc-punctuation-face                                   
+                                   :category 'non-scratch-org
+                                   :annotate salesforce-org-read-user--annotate
+                                   :items (lambda ()
+                                            (salesforce-org--consult-candidates 'nonScratchOrgs (nerd-icons-faicon "nf-fa-cloud")))
+                                   :keymap salesforce-org--consult-keymap)
 
 (salesforce-consult--define-source "org"
-  :name "devHub"
-  :narrow ?d
-  :face 'font-lock-misc-punctuation-face                                   
-  :category 'devhub-org
-  :annotate salesforce-org-user-prompt--annotate
-  :items (lambda ()
-           (salesforce-org--consult-candidates 'devHubs (nerd-icons-faicon "nf-fa-cloud")))
-  :keymap salesforce-org--consult-keymap)
+                                   :name "devHub"
+                                   :narrow ?d
+                                   :face 'font-lock-misc-punctuation-face                                   
+                                   :category 'devhub-org
+                                   :annotate salesforce-org-read-user--annotate
+                                   :items (lambda ()
+                                            (salesforce-org--consult-candidates 'devHubs (nerd-icons-faicon "nf-fa-cloud")))
+                                   :keymap salesforce-org--consult-keymap)
 
 (salesforce-consult--define-source "org"
-  :name "scratch"
-  :narrow ?S
-  :face 'font-lock-misc-punctuation-face                                   
-  :category 'scratch-org
-  :annotate salesforce-org-user-prompt--annotate
-  :items (lambda ()
-           (salesforce-org--consult-candidates 'scratchOrgs (nerd-icons-faicon "nf-fa-cloud")))
-  :keymap salesforce-org--consult-keymap)
+                                   :name "scratch"
+                                   :narrow ?S
+                                   :face 'font-lock-misc-punctuation-face                                   
+                                   :category 'scratch-org
+                                   :annotate salesforce-org-read-user--annotate
+                                   :items (lambda ()
+                                            (salesforce-org--consult-candidates 'scratchOrgs (nerd-icons-faicon "nf-fa-cloud")))
+                                   :keymap salesforce-org--consult-keymap)
 
 (provide 'salesforce-org)

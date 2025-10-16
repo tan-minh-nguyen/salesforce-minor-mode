@@ -252,9 +252,15 @@ FINISH-FUNC is a function to call upon completion."
 (defun salesforce-project--ediff-add-actions ()
   "Add custom actions to the Ediff control panel."
   ;; TODO: add logic handle help menu for compare 3 files
-  (define-key ediff-mode-map (kbd "C-c C-p") #'(lambda () (interactive) (salesforce-project--ediff-push-changes salesforce-org-name)))
-  (define-key ediff-mode-map (kbd "C-c C-r") #'(lambda () (interactive) (salesforce-project--ediff-retrieve-changes salesforce-org-name)))
-  (define-key ediff-mode-map (kbd "C-c C-s") #'(lambda () (interactive) (salesforce-project--ediff-save-changes ediff-buffer-A))))
+  (define-key ediff-mode-map (kbd "C-c C-p")
+              #'(lambda () (interactive)
+                  (salesforce-project--ediff-push-changes salesforce-org-name)))
+  (define-key ediff-mode-map (kbd "C-c C-r")
+              #'(lambda () (interactive)
+                  (salesforce-project--ediff-retrieve-changes salesforce-org-name)))
+  (define-key ediff-mode-map (kbd "C-c C-s")
+              #'(lambda () (interactive)
+                  (salesforce-project--ediff-save-changes ediff-buffer-A))))
 
 (defun salesforce-project--ediff-push-changes (target-org)
   "Push changes from the Ediff buffer to the specified TARGET-ORG."

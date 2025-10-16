@@ -4,7 +4,7 @@
 ;; Keywords: salesforce, emacs
 ;; Homepage: https://github.com/tan-minh-nguyen/salesforce-minor-mode
 ;; Version: 1.0
-;; Package-Requires: ((request "0.1.3") (ctable "0.1.3") (nerd-icons 0.1.0) (nerd-icons 0.1.0) (consult 2.8))
+;; Package-Requires: ((request "0.1.3") (ctable "0.1.3") (nerd-icons "0.1.0") (nerd-icons "0.1.0") (consult "2.8"))
 
 (require 'salesforce-transient-menu)
 ;; (require 'salesforce-table)
