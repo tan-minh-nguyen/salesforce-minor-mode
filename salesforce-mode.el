@@ -18,10 +18,10 @@
 (require 'soql-ts-mode)
 (require 'ob-soql)
 
-(defcustom salesforce-mode-line-connect-icon ""
+(defcustom salesforce-mode-line-connect-icon (nerd-icons-octicon "nf-oct-dot_fill")
   "Icon display on mode-line when current org is active.")
 
-(defcustom salesforce-mode-line-disconnect-icon ""
+(defcustom salesforce-mode-line-disconnect-icon (nerd-icons-octicon "nf-oct-dot_fill")
   "Icon display on mode-line when current org is disconnect.")
 
 (defcustom salesforce-mode-line-current-org-status nil
@@ -47,13 +47,15 @@
   (let ((map (make-sparse-keymap)))
     (keymap-set map "q" (cons "Execute SOQL" #'salesforce-data-query))
     (keymap-set map "s" (cons "Execute SOQL" #'salesforce-data-search))
-    (keymap-set map "a" (cons "Execute Apex code" #'salesforce-apex-execute-code))))
+    (keymap-set map "a" (cons "Execute Apex code" #'salesforce-apex-execute-code))
+
+    map))
 
 (defun salesforce-mode--initialize-resource-keymap ()
   "Initialize the keymap for resource features."
   (let ((map (make-sparse-keymap)))
-    (keymap-set map "SPC" (cons "create salesforce resource" #'salesforce-apex--transient:generate-resource))
-    (keymap-set map "L" (cons "clear log data" #'salesforce-org-delete-logs))
+    (keymap-set map "c" (cons "create salesforce resource" #'salesforce-apex--transient:generate-resource))
+    (keymap-set map "l" (cons "clear log data" #'salesforce-org-delete-logs))
     ;;(keymap-set map "t" (cons "Source Tracker" #'salesforce-source-tracker))
     map))
 

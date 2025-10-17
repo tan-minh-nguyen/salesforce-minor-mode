@@ -26,42 +26,46 @@
   :narrow ?p
   :category 'Field
   :face 'font-lock-variable-name-face
-  :action #'salesforce-consult--imenu-action
-  :state #'salesforce-consult--imenu-state
-  :annotate #'salesforce-consult--imenu-annotate
-  :items (lambda ()
-           (salesforce-consult--search-candidates "p" "\\`field_declaration\\'" apex--consult-icon-field nil #'apex-ts-mode--variable-name)))
+  :action salesforce-consult--imenu-action
+  :state salesforce-consult--imenu-state
+  :annotate salesforce-consult--imenu-annotate
+  :items
+  (lambda ()
+    (salesforce-consult--search-candidates "p" "\\`field_declaration\\'" apex--consult-icon-field nil #'apex-ts-mode--variable-name)))
 
 (salesforce-consult--define-source "apex" :name "Method"
   :narrow ?f
   :category 'Method
   :face 'font-lock-function-name-face
-  :action #'salesforce-consult--imenu-action
-  :state #'salesforce-consult--imenu-state
-  :annotate #'salesforce-consult--imenu-annotate
-  :items (lambda ()
-           (salesforce-consult--search-candidates "f" "\\`method_declaration\\'" apex--consult-icon-method)))
+  :action salesforce-consult--imenu-action
+  :state salesforce-consult--imenu-state
+  :annotate salesforce-consult--imenu-annotate
+  :items
+  (lambda ()
+    (salesforce-consult--search-candidates "f" "\\`method_declaration\\'" apex--consult-icon-method)))
 
 (salesforce-consult--define-source "apex" :name "Class"
   :narrow ?c
   :category 'Class
   :face 'font-lock-type-face
-  :action #'salesforce-consult--imenu-action
-  :state #'salesforce-consult--imenu-state
-  :annotate #'salesforce-consult--imenu-annotate
-  :items (lambda ()
-           (salesforce-consult--search-candidates "c" "\\`class_declaration\\'" apex--consult-icon-class nil #'apex-ts-mode--declaration-name)))
+  :action salesforce-consult--imenu-action
+  :state salesforce-consult--imenu-state
+  :annotate salesforce-consult--imenu-annotate
+  :items
+  (lambda ()
+    (salesforce-consult--search-candidates "c" "\\`class_declaration\\'" apex--consult-icon-class nil #'apex-ts-mode--declaration-name)))
 
 (salesforce-consult--define-source "apex" :name "Sobject"
   :narrow ?s
   :category 'o
   :face 'font-lock-type-face
-  :action #'salesforce-consult--imenu-action
-  :state #'salesforce-consult--imenu-state
-  :annotate #'salesforce-consult--imenu-annotate
-  :items (lambda ()
-           (salesforce-consult--search-candidates "o" "\\`storage_identifier\\'" apex--consult-icon-sobject nil #'(lambda (NODE)
-                                                                                                                    (treesit-node-text NODE)))))
+  :action salesforce-consult--imenu-action
+  :state salesforce-consult--imenu-state
+  :annotate salesforce-consult--imenu-annotate
+  :items
+  (lambda ()
+    (salesforce-consult--search-candidates "o" "\\`storage_identifier\\'" apex--consult-icon-sobject nil #'(lambda (NODE)
+                                                                                                             (treesit-node-text NODE)))))
 ;; (apex--consult-define-source :name "Enum"
 ;;                              :narrow ?e
 ;;                              :category 'v

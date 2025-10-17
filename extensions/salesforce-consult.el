@@ -32,7 +32,7 @@ ARGS: arguments apply for `consult--multi'."
    (when (plist-get args :state)
      `(:state ,(plist-get args :state)))))
 
-(defun salesforce-consult---imenu-annotate (cand)
+(defun salesforce-consult--imenu-annotate (cand)
   "Annotate for consult source."
   (pcase-let ((`(text . marker) cand))
     (propertize (concat "@" (car cand)) 'face 'font-lock-keyword-face)))
