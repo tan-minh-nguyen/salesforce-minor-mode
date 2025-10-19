@@ -89,15 +89,17 @@
 (defvar apex-ts-mode--indent-rules
   `((apex
      ((parent-is "parser_output") column-0 0)
-     ((node-is "}") column-0 c-ts-common-statement-offset)
+     ((node-is "}") parent-bol 0)
      ((node-is ")") parent-bol 0)
      ((node-is "else") parent-bol 0)
      ((node-is "]") parent-bol 0)
      ((and (parent-is "comment") c-ts-common-looking-at-star)
       c-ts-common-comment-start-after-first-star -1)
      ((parent-is "comment") prev-adaptive-prefix 0)
+     ((parent-is "block") parent-bol apex-ts-mode-indent-offset)
      ((parent-is "text_block") no-indent)
      ((parent-is "class_body") column-0 c-ts-common-statement-offset)
+     ((parent-is "accessor_list") parent-bol apex-ts-mode-indent-offset)
      ((parent-is "array_initializer") parent-bol apex-ts-mode-indent-offset)
      ((parent-is "annotation_type_body") column-0 c-ts-common-statement-offset)
      ((parent-is "interface_body") column-0 c-ts-common-statement-offset)
@@ -127,8 +129,7 @@
      ((parent-is "while_statement") parent-bol apex-ts-mode-indent-offset)
      ((parent-is "switch_statement") parent-bol apex-ts-mode-indent-offset)
      ((parent-is "case_statement") parent-bol apex-ts-mode-indent-offset)
-     ((parent-is "do_statement") parent-bol apex-ts-mode-indent-offset)
-     ((parent-is "block") column-0 c-ts-common-statement-offset)))
+     ((parent-is "do_statement") parent-bol apex-ts-mode-indent-offset)))
   "Tree-sitter indent rules.")
 
 (defvar apex-ts-mode--apex-keywords
