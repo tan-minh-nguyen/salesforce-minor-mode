@@ -29,8 +29,7 @@ instruction for indentation: following indentation property in prompt to apply i
 \n\n
 output JSON format follow below contructs: [{\"name\": \"{replace as class name or method name}\", \"comment\": \"{replace as comment context}\", \"position\": {replace with position in prompt}}] 
 \n\n"
-                                         :queries (
-                                                   (class . apex-ai-query-class)
+                                         :queries ((class . apex-ai-query-class)
                                                    (method . apex-ai-query-method)))
   "Comment Instruction for apex."
   :type '(or listp functionp)
@@ -45,7 +44,9 @@ output JSON format follow below contructs: [{\"name\": \"{replace as class name 
                                   "Name: %s\nType: %s\nParameters: %s\nPosition: %s\nIndentation: %s\n\n"
                                   (treesit-node-text (treesit-node-child-by-field-name node "name") t)
                                   (treesit-node-text (treesit-node-child-by-field-name node "type") t)
-                                  (apex-ai-remove-break-lines (treesit-node-text (treesit-node-child-by-field-name node "parameters") t))
+                                  (apex-ai-remove-break-lines
+                                   (treesit-node-text
+                                    (treesit-node-child-by-field-name node "parameters") t))
                                   (treesit-node-start node)
                                   (save-excursion (goto-char (treesit-node-start node))
                                                   (current-column))))))

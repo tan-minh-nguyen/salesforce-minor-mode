@@ -367,12 +367,11 @@ FINISH-FUNC is a function to call upon completion."
                                      :sync t)))
                     (async-wait proc)
                     (if (eq (process-exit-status proc) 1)
-                        `(
-                          :status 1
-                          :error ,(salesforce--async-when-done proc))
-                      `(
-                        :status 0
-                        :json-instance ,(salesforce-core-parse-buffer-json (process-buffer proc))))))
+                        (list :status 1
+                           :error (salesforce--async-when-done proc))
+                      (list :status 0
+                         :json-instance (salesforce-core-parse-buffer-json
+                                         (process-buffer proc))))))
                (lambda (result)
                  (when (eq (plist-get result :status) 0)
                    (salesforce-core--alert (concat "Success " command " files"))))))

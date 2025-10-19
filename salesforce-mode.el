@@ -93,8 +93,9 @@
 (defun salesforce-mode--initialize ()
   "Initialize Salesforce mode."
   (when (and (bound-and-true-p salesforce-mode)
-           (not (string-blank-p salesforce-org-name))
+           salesforce-org-name
            (null salesforce-mode-line-current-org-status))
+
     (salesforce-org-status :org salesforce-org-name
                            :finish-func #'salesforce-mode--set-mode-line-status)))
 
