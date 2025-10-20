@@ -44,7 +44,7 @@
 
     (salesforce-org-read-user 
      "Select Org: "
-     (salesforce-org--web-authorize url org))))
+     (salesforce-org--web-authorize url (car candidate)))))
 
 (defun salesforce-org--web-authorize (url alias)
   "Authorize a Salesforce org through the web login flow.
@@ -61,10 +61,12 @@ ALIAS is the name to assign to the authorized org."
   (interactive)
   (salesforce-org-read-user
    "Select Org: "
-   (salesforce-core--config-process
-    :args `("set" "target-org" ,org "--json")
-    (let ((org-name (salesforce-core--get-data-json "result.successes.0.value" json-instance)))
-      (salesforce-core--alert (format "Change to %s success" (setq salesforce-org-name org-name)))))))
+   (let ((org (car candidate)))
+
+     (salesforce-core--config-process
+      :args `("set" "target-org" ,org "--json")
+      (let ((org-name (salesforce-core--get-data-json "result.successes.0.value" json-instance)))
+        (salesforce-core--alert (format "Change to %s success" (setq salesforce-org-name org-name))))))))
 
 ;; TODO: Refactor this, maybe use export to get a list of logs and convert to an org-table for selection.
 (defun salesforce-org-find-log-file ()
@@ -147,19 +149,25 @@ BODY: The forms run after get user."
   `(salesforce-org--collect
     :finish-func 
     (lambda (_)
-      (cl-loop for symbol in (list org--consult-other-source
-                             org--consult-sandbox-source
-                             org--consult-devhub-source
-                             org--consult-scratch-source
-                             org--consult-nonscratch-source)
-               do (plist-put symbol :action #'(lambda (candidate)
-                                                ,@body)))
-      
-      (consult--multi '(org--consult-other-source
-                        org--consult-sandbox-source
-                        org--consult-devhub-source
-                        org--consult-scratch-source
-                        org--consult-nonscratch-source)))))
+      (let ((action #'(lambda (candidate)
+                        ,@body))
+            new-input)
+        (cl-loop for symbol in (list org--consult-other-source
+                               org--consult-sandbox-source
+                               org--consult-devhub-source
+                               org--consult-scratch-source
+                               org--consult-nonscratch-source)
+                 do (plist-put symbol :action action))
+        
+        (setq new-input
+              (consult--multi '(org--consult-other-source
+                                org--consult-sandbox-source
+                                org--consult-devhub-source
+                                org--consult-scratch-source
+                                org--consult-nonscratch-source)
+                              :require-match nil))
+        (when new-input
+          (funcall action new-input))))))
 
 (defun salesforce-org--list-build-format (data)
   "Build a list of orgs from the JSON DATA response and update the cache."
