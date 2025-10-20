@@ -1,4 +1,6 @@
 ;;; apex-dap.el --- configuration Debug adapter protocol for Apex mode -*- lexical-binding: t -*-
+;; Version: 1.0
+;; Package-Requires: ((dape "0.25.0"))
 
 (require 'dape)
 

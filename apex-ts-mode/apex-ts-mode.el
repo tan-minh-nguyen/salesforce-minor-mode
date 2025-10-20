@@ -62,7 +62,10 @@
   '((t :foreground "red" :underline t))
   "Face used for highlight syntax errors in `apex-ts-mode'")
 
-(defvar font-lock-apex-error-face 'font-lock-apex-error)
+(defvar font-lock-apex-error-face 'font-lock-apex-error
+  "Apex error face.")
+(defvar apex-load-directory (file-name-directory load-file-name)
+  "Root directory.")
 
 (defvar apex-ts-mode--syntax-table
   (let ((table (make-syntax-table)))

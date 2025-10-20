@@ -1,6 +1,6 @@
 ;;; apex-ts-mode-tempel.el --- configuration tempel for Apex mode -*- lexical-binding: t -*-
 
-(defvar apex-ts-mode-tempel-file (expand-file-name "snippets/templates" load-file-name)
+(defvar apex-ts-mode-tempel-file (expand-file-name "snippets/templates" apex-load-directory)
   "Snippets file for Tempel.")
 
 ;;;###autoload
