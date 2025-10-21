@@ -224,28 +224,6 @@ This function is currently a placeholder and does not perform any actions.")
   "Convert an elisp VAR into a string of Apex source code specifying a var of the same value."
   (format "%s" var))
 
-;; Hints value based on value of header arguments
-;; FIXME: Trigger eglot in specific workspace
-(when (require 'company-org-header nil 'noerror)
-  (defcustom ob-apex-header-completions `((:workspace . salesforce-core--projects)
-                                          (:org . salesforce-core--orgs))
-    "Handles completions for org headers."
-    :type 'alist
-    :group 'ob-apex)
-
-  (defcustom ob-apex-src-code-hook '(ob-apex-initialize-completion)
-    "List of hooks to run when editing SOQL source code blocks."
-    :type '(repeat function)
-    :group 'ob-apex)
-
-  (defun ob-apex-initialize-completion ()
-    "Initialize the SOQL completion hook."
-    (when-let ((default-directory (assoc-default :workspace company-header-args)))))
-      ;; (call-interactively #'eglot)
-      
-  (add-to-list 'company-header-src-block-hooks `(apex-ts-mode . ,ob-apex-src-code-hook))
-  (add-to-list 'company-header-handles `(apex-ts . ,ob-apex-header-completions)))
-
 (defun org-babel-template-table-or-string (results)
   "Convert RESULTS into an Emacs-lisp table if they look like a table, otherwise return as a string.")
 

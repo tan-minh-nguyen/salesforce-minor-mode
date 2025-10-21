@@ -172,28 +172,6 @@ ORG-ATTR is a list: (ORG URL). Returns results as an org-table string."
            finally return soql))
 
 ;; Hints value base on value of header arguments 
-;; FIXME: trigger eglot in specfic workspace
-(when (require 'company-org-header nil 'noerror)
-  (defcustom ob-soql-header-completions `((:workspace . salesforce-core--projects)
-                                          (:org . salesforce-core--org))
-    "Handles completions for org headers."
-    :type 'alist
-    :group 'ob-soql)
-
-  (defcustom ob-soql-src-code-hook '(ob-soql-initialize-completion)
-    "List of hooks to run when editing SOQL source code blocks."
-    :type '(repeat function)
-    :group 'ob-soql)
-
-  (defun ob-soql-initialize-completion ()
-    "Initialize the SOQL completion hook."
-    (when-let ((default-directory (assoc-default :workspace company-header-args)))))
-      ;; (call-interactively #'eglot)
-      
-
-  (add-to-list 'company-header-src-block-hooks `(soql-ts-mode . ,ob-soql-src-code-hook))
-  (add-to-list 'company-header-handles `(soql-ts . ,ob-soql-header-completions)))
-
 (defun org-babel-prep-session:soql (session params)
   "Prepare SESSION according to the header arguments specified in PARAMS.")
 

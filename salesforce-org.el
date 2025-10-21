@@ -68,40 +68,59 @@ ALIAS is the name to assign to the authorized org."
       (let ((org-name (salesforce-core--get-data-json "result.successes.0.value" json-instance)))
         (salesforce-core--alert (format "Change to %s success" (setq salesforce-org-name org-name))))))))
 
-;; TODO: Refactor this, maybe use export to get a list of logs and convert to an org-table for selection.
-(defun salesforce-org-find-log-file ()
+(defun salesforce-org-get-log-file ()
   "View specific log."
   (interactive)
+  (salesforce-org-read-log
+   "Select log file: "
+   (salesforce-core--apex-process
+    :args `("get" "log" "--log-id" ,log-file "--json")
+    (let ((file-name (concat (salesforce--get-log-dir-path) read-log ".log"))
+          (file (create-file-buffer file-name)))
+      (with-current-buffer file
+        (with-silent-modifications
+          (setf (buffer-string) (salesforce-core--get-data-json "result.0.log" json-instance))))
+      (salesforce-core--alert (format "Fetch log %s success" read-log))))))
+
+(defmacro salesforce-org-read-log (prompt &rest body)
+  "Read available logs on Salesforce.
+
+PROMPT: label of input candidate.
+BODY: The forms run after get user."
   (salesforce-core--apex-process
    :args '("log" "list" "--json")
-   (let* ((logs (salesforce-core--get-data-json "result" json-instance))
-          (log-map (cl-loop for data in log-list
-                            with log-map = (make-hash-table :test #'equal)
-                            do (puthash (salesforce-core--get-data-json "Id" data) data log-map)
-                            finally return log-map))
-          (read-log (consult--read (hash-table-keys log--map)
-                                   :prompt "Log: "
-                                   :require-match t
-                                   :annotate (lambda (item)
-                                               (funcall #'salesforce-org--annotation item log-map)))))
+   (let* ((raw-results (salesforce-core--get-data-json "result" json-instance))
+          (callback (lambda (log-file)
+                      ,@body))
+          (candidates (cl-loop for data in raw-results
+                               collect `(,(salesforce-core--get-data-json "Id" data)
+                                         :id (salesforce-core--get-data-json "Id" data)
+                                         :start-time (salesforce-core--get-data-json "startTime" data)
+                                         :length (salesforce-core--get-data-json "logLength" data)
+                                         :operation (salesforce-core--get-data-json "operation" data)
+                                         :request (salesforce-core--get-data-json "request" data)
+                                         :status (salesforce-core--get-data-json "status" data)))))
 
-     (salesforce-core--apex-process
-      :args `("get" "log" "--log-id" ,read-log "--json")
-      (let ((file (create-file-buffer (format "%s%s.log" (salesforce--get-log-dir-path) read-log))))
-        (with-current-buffer file
-          (with-silent-modifications
-            (setf (buffer-string) (salesforce-core--get-data-json "result.0.log" json-instance))))
-        (salesforce-core--alert (format "Fetch log %s success" read-log)))))))
+     (funcall callback
+              (consult--read candidates
+                             :prompt prompt
+                             :require-match t
+                             :lookup (lambda (candidate)
+                                       (car candidate))
+                             :annotate #'salesforce-org-log-prompt--annotate)))))
 
 ;; TODO: rebuild it use as default for package
-(defun salesforce-org--annotation (item log-map)
-  "Build log annotate"
-  (let* ((data (gethash item log-map))
-         (size (/ (salesforce-core--get-data-json "LogLength" data) (* 1024 1024)))
-         (op (salesforce-core--get-data-json "Operation" data))
-         (time (format-time-string "%Y-%m-%d" (parse-time-string (salesforce-core--get-data-json "StartTime" data)))))
+(defun salesforce-org-log-prompt--annotate (candidate)
+  "Annotate CANDIDATE for log prompt."
+  (let* ((data (cdr candidate))
+         (size (/ (plist-get data :log-length)
+                  (* 1024 1024)))
+         (operator (plist-get data :operator))
+         (time (format-time-string "%Y-%m-%d" (parse-time-string (plist-get data :start-time)))))
 
-    (list (propertize item 'face '(:width 10 :foreground "yellow")) nil (format "%s:%s" size time))))
+    `(,(propertize item 'face '(:width 10 :foreground "#FFC400"))
+      ,(nerd-icons-octicon "nf-oct-log")
+      ,(format "%s\t%s" size time))))
 
 ;; TODO: Clear log with input date condition
 (defun salesforce-org-delete-logs ()
@@ -235,7 +254,7 @@ Options:
 (defun salesforce-org--consult-open (candidate)
   "Open org CANDIDATE selected with browser."
   (salesforce-core--org-process
-   :args `("org" "open" "--json" "-o" ,(car candidate) "-r")
+   :args `("open" "--json" "-o" ,(car candidate) "-r")
    (browse-url-generic (salesforce-core--get-data-json "result.url" json-instance))))
 
 (defun salesforce-org--collect-orgs (org-type)

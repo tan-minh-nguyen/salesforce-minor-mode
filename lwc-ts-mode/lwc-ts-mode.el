@@ -46,6 +46,6 @@
                                                      (:language "typescript" :scheme "file")])))))
 
 
-;;(add-to-list 'auto-mode-alist '("\\.\\(js\\|html\\)\\'" . lwc-ts-mode-auto))
+(add-to-list 'auto-mode-alist '("\\.\\(js\\|html\\)\\'" . lwc-ts-mode-auto))
 
 (provide 'lwc-ts-mode)
