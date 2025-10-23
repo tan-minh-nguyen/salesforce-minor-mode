@@ -116,9 +116,9 @@
 
   (treesit-parser-create 'soql)
 
-  ;;Hooks
-  (add-hook 'eglot-managed-mode-hook #'soql-company-setup)
-  (add-hook 'soql-ts-mode-hook #'soql-company-setup)
+  ;; ;;Hooks
+  ;; (add-hook 'eglot-managed-mode-hook #'soql-company-setup)
+  ;; (add-hook 'soql-ts-mode-hook #'soql-company-setup)
 
   (soql-ts-mode--setup))
 
