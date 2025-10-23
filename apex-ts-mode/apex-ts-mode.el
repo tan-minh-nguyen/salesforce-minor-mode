@@ -474,7 +474,6 @@ Return nil if there is no name or if NODE is not a defun node."
   (add-to-list 'org-src-lang-modes '("apex" . apex-ts))
   (add-to-list 'org-babel-load-languages '("apex" . t)))
 
-;;;###autoload
 (add-to-list 'auto-mode-alist '("\\.\\(apex\\|cls\\|trigger\\)\\'" . apex-ts-mode))
 
 (add-hook 'apex-ts-mode-hook #'apex-ts-mode--soql-embeded)

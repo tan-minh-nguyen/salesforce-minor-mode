@@ -230,12 +230,12 @@ This function is currently a placeholder and does not perform any actions.")
 (defun org-babel-template-initiate-session (&optional session)
   "Create and return an initialized SESSION if there is not a current inferior-process-buffer.")
 
-(when (require 'apex-company nil :noerror)
-  (defun ob-apex-company ()
-    "Enable company mode for Apex org-babel integration."
-    (when (apex-ts-mode-p)
-      (apex-company-setup)))
-
-  (add-hook 'org-src-mode-hook #'ob-apex-company))
+;; (when (require 'apex-company nil :noerror)
+;;   (defun ob-apex-company ()
+;;     "Enable company mode for Apex org-babel integration."
+;;     (when (apex-ts-mode-p)
+;;       (apex-company-setup)))
+;; 
+;;   (add-hook 'org-src-mode-hook #'ob-apex-company))
 
 (provide 'ob-apex)

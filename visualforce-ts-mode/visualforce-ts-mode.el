@@ -575,7 +575,6 @@
 
   (visualforce-ts-mode--html-setup))
 
-;;;###autoload
 (add-to-list 'auto-mode-alist '("\\.\\(page\\|component\\)\\'" . visualforce-ts-mode))
 
 (provide 'visualforce-ts-mode)
