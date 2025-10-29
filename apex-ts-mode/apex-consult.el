@@ -22,6 +22,11 @@
   :group 'apex-consult
   :type 'string)
 
+(defcustom apex--consult-icon-enum (nerd-icons-codicon "nf-cod-symbol_enum")
+  "Nerd icon for enum consult source."
+  :group 'apex-consult
+  :type 'string)
+
 (salesforce-consult--define-source "apex" :name "Field"
   :narrow ?p
   :category 'Field
@@ -42,7 +47,7 @@
   :annotate salesforce-consult--imenu-annotate
   :items
   (lambda ()
-    (salesforce-consult--search-candidates "f" "\\`method_declaration\\'" apex--consult-icon-method)))
+    (salesforce-consult--search-candidates "f" "\\`method_declaration\\'" apex--consult-icon-method nil #'apex-ts-mode--method-name)))
 
 (salesforce-consult--define-source "apex" :name "Class"
   :narrow ?c
@@ -57,7 +62,7 @@
 
 (salesforce-consult--define-source "apex" :name "Sobject"
   :narrow ?s
-  :category 'o
+  :category 'SObject
   :face 'font-lock-type-face
   :action salesforce-consult--imenu-action
   :state salesforce-consult--imenu-state
@@ -66,17 +71,22 @@
   (lambda ()
     (salesforce-consult--search-candidates "o" "\\`storage_identifier\\'" apex--consult-icon-sobject nil #'(lambda (NODE)
                                                                                                              (treesit-node-text NODE)))))
-;; (apex--consult-define-source :name "Enum"
-;;                              :narrow ?e
-;;                              :category 'v
-;;                              :face 'font-lock-constant-face
-;;                              :items (lambda ()
-;;                                       (apex--consult-search-candidates '("c" "\\`enum_declaration\\'" nil apex-ts-mode--declaration-name))))
+(salesforce-consult--define-source "apex" :name "Enum"
+  :narrow ?e
+  :category 'Enum
+  :face 'font-lock-constant-face
+  :action salesforce-consult--imenu-action
+  :state salesforce-consult--imenu-state
+  :annotate salesforce-consult--imenu-annotate
+  :items
+  (lambda ()
+    (salesforce-consult--search-candidates "c" "\\`enum_declaration\\'" apex--consult-enum-sobject nil #'apex-ts-mode--enum-name)))
 
 (salesforce-consult-make-multi-imenu "apex"
                                      apex--consult-field-source
                                      apex--consult-method-source
                                      apex--consult-class-source
-                                     apex--consult-sobject-source)
+                                     apex--consult-sobject-source
+                                     apex--consult-enum-source)
 
 (provide 'apex-consult)

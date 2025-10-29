@@ -145,21 +145,21 @@
   "Open the transient menu for creating an Apex class."
   (interactive)
   (let ((salesforce-apex--transient:template "DefaultApexClass")
-        (salesforce--transient-menu:output-dir (salesforce-core--metadata-path salesforce-apex-dir)))
+        (salesforce--transient-menu:output-dir salesforce-apex-dir))
     (salesforce-apex--transient:apex-resource)))
 
 (defun salesforce-apex--create-trigger-menu ()
   "Open the transient menu for creating an Apex trigger."
   (interactive)
   (let ((salesforce-apex--transient:template "ApexTrigger")
-        (salesforce--transient-menu:output-dir (salesforce-core--metadata-path salesforce-trigger-dir)))
+        (salesforce--transient-menu:output-dir salesforce-trigger-dir))
     (salesforce-apex--transient:trigger-resource)))
 
 (defun salesforce-apex--create-lightning-app-menu ()
   "Open the transient menu for generating a Lightning app."
   (interactive)
   (let ((salesforce-apex--lightning-organize "app")
-        (salesforce--transient-menu:output-dir (salesforce-core--metadata-path salesforce-lwc-dir)))
+        (salesforce--transient-menu:output-dir salesforce-lwc-dir))
     (salesforce-apex--transient:lightning-resource)))
 
 (defun salesforce-apex--create-lightning-component-menu ()
@@ -167,7 +167,7 @@
   (interactive)
   (let ((salesforce-apex--lightning-organize "component")
         (salesforce-apex--transient:template "default")
-        (salesforce--transient-menu:output-dir (salesforce-core--join-path salesforce-lwc-dir)))
+        (salesforce--transient-menu:output-dir salesforce-lwc-dir))
     (salesforce-apex--transient:lightning-resource)))
 
 (defun salesforce-apex-execute-code (content)
@@ -266,14 +266,15 @@
     (salesforce-core--apex-process
      :args `("get" "test" "-i" ,job-id "-o" ,salesforce-org-name "--code-coverage" "--json")
      ;; (salesforce-core--alert (format "Tests class run success with coverage"))
-     (let ((summary (salesforce-core--get-data-json "result.summary" json-instance)))
-       (salesforce-core--pop-box-table
-        (cons "Ran" (salesforce-core--get-data-json "testsRan" summary))
-        (cons "Passed" (salesforce-core--get-data-json "passing" summary))
-        (cons "Failed" (salesforce-core--get-data-json "failing" summary)))
+     (let* ((summary (salesforce-core--get-data-json "result.summary" json-instance))
+            (alert-message (format "Unit Tests Run %s"
+                                   (salesforce-core--get-data-json "outcome" summary))))
+       ;; (salesforce-core--pop-box-table
+       ;;  (cons "Ran" (salesforce-core--get-data-json "testsRan" summary))
+       ;;  (cons "Passed" (salesforce-core--get-data-json "passing" summary))
+       ;;  (cons "Failed" (salesforce-core--get-data-json "failing" summary)))
        
-       (salesforce-core--alert (format "Unit Tests Run %s"
-                                       (salesforce-core--get-data-json "outcome" summary))))
+       (salesforce-core--alert alert-message))
      (with-current-buffer buffer
        (setq-local salesforce-apex--test-coverage
                    (salesforce-core--get-data-json "result.coverage" json-instance)))

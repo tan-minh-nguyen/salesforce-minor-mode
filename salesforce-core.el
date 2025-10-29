@@ -369,14 +369,10 @@ Handles INPUT, PRED, ACTION according to `completing-read' contract."
 (defun salesforce-core--box-table (&rest rows)
   "Pretty print ROWS as a box-drawing table with headers on left."
   (let* ((width-col1 (apply #'max (mapcar (lambda (row) (string-width (car row))) rows)))
-         (width-col2 (apply #'max (mapcar (lambda (row) (string-width (cadr row))) rows)))
+         (width-col2 (apply #'max (mapcar (lambda (row) (string-width (format "%s" (cdr row)))) rows)))
          (hline (concat "╠" (make-string (+ width-col1 2) ?═) "╬" (make-string (+ width-col2 2) ?═) "╣"))
          (top   (concat "╔" (make-string (+ width-col1 2) ?═) "╦" (make-string (+ width-col2 2) ?═) "╗"))
-         (bot   (concat "╚" (make-string (+ width-col1 2) ?═) "╩" (make-string (+ width-col2 2) ?═) "╝"))
-         (content (cl-loop for (col . val) in rows
-                           concat (concat (format "║ %-*s ║ %-*s ║\n" width-col1 col width-col2 val)
-                                          (unless (eq col (car (last rows)))
-                                            (concat hline "\n"))))))
+         (bot   (concat "╚" (make-string (+ width-col1 2) ?═) "╩" (make-string (+ width-col2 2) ?═) "╝")))
 
     (concat top "\n"
             content "\n"
@@ -399,7 +395,7 @@ Handles INPUT, PRED, ACTION according to `completing-read' contract."
 (defun salesforce-core--pop-box-table (&rest rows)
   "Popup ROWS as table by using `salesforce-core--box-table'."
   (with-output-to-temp-buffer "*Salesforce Box Table*"
-    (insert (salesforce-core--box-table rows))))
+    (insert (apply #'salesforce-core--box-table rows))))
 
 (defun salesforce-core--alert (message &rest args)
   "Display an alert with MESSAGE and optional ARGS.

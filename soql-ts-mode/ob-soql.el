@@ -87,7 +87,8 @@
 (defun org-babel-execute:soql (body params)
   "Execute a block of SOQL code with org-babel.
 BODY is the SOQL query, PARAMS are header arguments."
-  (let* ((processed-params (org-babel-process-params params))
+  (let* ((async-debug t)
+         (processed-params (org-babel-process-params params))
          (full-body (org-babel-expand-body:soql body params processed-params))
          (file-temp (make-temp-file "soql"))
          (org (ob-soql--get-param :org processed-params))
@@ -107,6 +108,7 @@ ORG-ATTR is a list: (ORG URL). Returns results as an org-table string."
                                 :sync t
                                 `("query" "-f" ,file "-o" ,org "--result-format=csv"))))
                (buf (process-buffer process)))
+
     (unwind-protect
         (with-current-buffer buf
           (let ((content (string-trim (buffer-string))))
@@ -118,7 +120,6 @@ ORG-ATTR is a list: (ORG URL). Returns results as an org-table string."
                 (buffer-string)))))
       (when (buffer-live-p buf)
         (kill-buffer buf)))))
-
 
 (defun ob-soql--org-url (org)
   "Return the Salesforce instance URL for ORG."

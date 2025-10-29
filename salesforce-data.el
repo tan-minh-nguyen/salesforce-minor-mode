@@ -338,69 +338,6 @@ ARGS is a list of parameters passed to the Salesforce CLI."
             (or (salesforce-core--get-data-json "result.successfulRecords" json-instance) 0)
             (or (salesforce-core--get-data-json "result.failedRecords" json-instance) 0)))))
 
-(defun salesforce-data-link-import (url)
-  "Import data from the specified URL."
-  (interactive (list (read-string "URL: ")))
-  (async-start `(lambda ()
-                  (let ((default-directory ,(projectile-project-root)))
-                    ;; Load required libraries
-                    ,(async-inject-variables "\\`load-path\\'")
-                    (require 'async nil t)
-                    (require 'process nil t)
-                    (require 'request nil t)
-                    (require 'salesforce-core nil t)
-
-                    ;; Create temporary file for the imported data
-                    (let* ((file (make-temp-file "salesforce-import-data"))
-                           (request-done nil)
-                           (response-error nil))
-
-                      ;; Make the asynchronous HTTP request
-                      (request ,url
-                        :parser 'buffer-string
-                        :async t
-                        :success (cl-function
-                                  (lambda (&key data &allow-other-keys)
-                                    (when data
-                                      (write-region data nil file)
-                                      (setq request-done t))))
-                        :error (cl-function
-                                (lambda (&key error-thrown &allow-other-keys)
-                                  (setq response-error error-thrown))))
-
-                      ;; Handle request error
-                      (when response-error
-                        (error "Request failed with error: %s" response-error))
-
-                      ;; Execute the import command
-                      (let ((proc (apply #'salesforce-core--data-process 
-                                         :args `("import"
-                                                 "bulk"
-                                                 "--file"
-                                                 ,file
-                                                 "--target-org"
-                                                 ,salesforce-org-name
-                                                 "--json")
-                                         :sync t)))
-                        (async-wait proc)
-                        (if (eq (process-exit-status proc) 1)
-                            (list :status 1 :error (salesforce--async-when-done proc))
-                          (list :status 0 :json-instance (salesforce-core-parse-buffer-json (process-buffer proc))))))))
-               (lambda (result)
-                 (if (eq (plist-get result :status) 0)
-                     ;; Schedule periodic resume processing
-                     (let ((poll-id (run-at-time 10 t
-                                                 (lambda ()
-                                                   (salesforce-core--data-process
-                                                    :args `("export" "resume" "--json"
-                                                            "-i" ,(salesforce-core--get-data-json "result.jobId" result))
-                                                    (salesforce-core-alert "Import process resumed successfully.")
-                                                    ;; clear poll event
-                                                    (cancel-timer poll-id))))))
-                       (salesforce-core--alert "Import data is running."))
-                   ;; Handle import error
-                   (salesforce-core--alert (format "Data import failed: %s" (plist-get result :error)))))))
-
 (defun salesforce-data--read-content ()
   "Read content that sf support for SOQL."
   (cond ((use-region-p)
@@ -520,26 +457,90 @@ ARGS: Parameters are passed to the search record process."
    :lookup (lambda (candidate)
              (car candidate))))
 
-;;;###autoload
-(defun salesforce-data-org-table-export ()
-  "Import data from org table."
-  (interactive)
-  (let ((file (org-entry-get (point) "TABLE_EXPORT_FILE" t))
-        (export-format (org-entry-get (point) "TABLE_EXPORT_FORMAT" t)))
-    (unless (org-at-table-p) (error "No table at point")) 
-    (unless file (error "Missing file name"))
-    (unless export-format (error "Missing file format"))
-    (org-table-export file export-format)))
+(defun salesforce-data-link-import (url)
+  "Import data from the specified URL."
+  (interactive (list (read-string "URL: ")))
+  (async-start
+   `(lambda ()
+      (let ((default-directory ,(projectile-project-root)))
+        ;; Load required libraries
+        ,(async-inject-variables "\\`load-path\\'")
+        (require 'async nil t)
+        (require 'process nil t)
+        (require 'request nil t)
+        (require 'salesforce-core nil t)
+
+        ;; Create temporary file for the imported data
+        (let* ((file (make-temp-file "salesforce-import-data"))
+               (request-done nil)
+               (response-error nil))
+
+          ;; Make the asynchronous HTTP request
+          (request ,url
+            :parser 'buffer-string
+            :async t
+            :success (cl-function
+                      (lambda (&key data &allow-other-keys)
+                        (when data
+                          (write-region data nil file)
+                          (setq request-done t))))
+            :error (cl-function
+                    (lambda (&key error-thrown &allow-other-keys)
+                      (setq response-error error-thrown))))
+
+          ;; Handle request error
+          (when response-error
+            (error "Request failed with error: %s" response-error))
+
+          ;; Execute the import command
+          (let ((proc (apply #'salesforce-core--data-process 
+                             :args `("import"
+                                     "bulk"
+                                     "--file"
+                                     ,file
+                                     "--target-org"
+                                     ,salesforce-org-name
+                                     "--json")
+                             :sync t)))
+            (async-wait proc)
+            (if (eq (process-exit-status proc) 1)
+                (list :status 1 :error (salesforce--async-when-done proc))
+              (list :status 0 :json-instance (salesforce-core-parse-buffer-json (process-buffer proc))))))))
+   (lambda (result)
+     (if (eq (plist-get result :status) 0)
+         ;; Schedule periodic resume processing
+         (let ((poll-id (run-at-time 10 t
+                                     (lambda ()
+                                       (salesforce-core--data-process
+                                        :args `("export" "resume" "--json"
+                                                "-i" ,(salesforce-core--get-data-json "result.jobId" result))
+                                        (salesforce-core-alert "Import process resumed successfully.")
+                                        ;; clear poll event
+                                        (cancel-timer poll-id))))))
+           (salesforce-core--alert "Import data is running."))
+       ;; Handle import error
+       (salesforce-core--alert (format "Data import failed: %s" (plist-get result :error)))))))
+
 
 ;;;###autoload
-(defun salesforce-data-org-table-import ()
+(defun salesforce-data-org-table-export (file export-format)
+  "Import data from org table."
+  (interactive (list (org-entry-get (point) "TABLE_EXPORT_FILE" t)
+                  (org-entry-get (point) "TABLE_EXPORT_FORMAT" t)))
+  (unless (org-at-table-p) (error "No table at point")) 
+  (unless file (error "Missing file name"))
+  (unless export-format (error "Missing file format"))
+  (org-table-export file export-format))
+
+;;;###autoload
+(defun salesforce-data-org-table-import (&optional sobject-name org-name)
   "Import data from org table."
   (interactive)
   (unless (org-at-table-p) (error "No table at point")) 
   (let ((salesforce-data-export-file-default (make-temp-file "export"))
         (salesforce-data--sobject-value (org-entry-get (point) "SALESFORCE_SOBJECT_NAME" t))
         (salesforce-org-name (org-entry-get (point) "SALESFORCE_ORG_NAME" t)))
-    (salesforce-data-org-table-export salesforce-data-export-file-default "orgtbl-to-csv")
+    (org-table-export salesforce-data-export-file-default "orgtbl-to-csv")
     (salesforce-data--transient:import-bulk)))
 
 (provide 'salesforce-data)
