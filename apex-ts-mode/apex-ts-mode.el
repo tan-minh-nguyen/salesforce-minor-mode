@@ -35,9 +35,7 @@
 (require 'c-ts-common) ; For comment indent and filling.
 (require 'cl-macs)
 (require 'apex-ai)
-(require 'apex-eglot)
-(when (require 'lsp-bridge nil :noerror)
- (require 'apex-lsp-bridge))
+(require 'apex-language-server)
 (when (require 'treesit-fold nil :noerror)
   (require 'apex-fold))
 (when (require 'dape nil :noerror)
