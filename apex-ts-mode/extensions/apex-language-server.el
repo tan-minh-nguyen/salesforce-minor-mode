@@ -5,7 +5,7 @@
 (defcustom apex-lsp-install-path (expand-file-name "lsp/apex-lsp.jar" user-emacs-directory)
   "Path install Apex LSP.")
 
-(defcustom apex-lsp-link-download "https://github.com/forcedotcom/salesforcedx-vscode/blob/develop/packages/salesforcedx-vscode-apex/jars/apex-jorje-lsp.jar"
+(defcustom apex-lsp-link-download "https://raw.githubusercontent.com/forcedotcom/salesforcedx-vscode/develop/packages/salesforcedx-vscode-apex/jars/apex-jorje-lsp.jar"
   "Link download Apex LSP.")
 
 (defcustom apex-lsp-path (expand-file-name "lsp/apex-lsp.jar" user-emacs-directory)
