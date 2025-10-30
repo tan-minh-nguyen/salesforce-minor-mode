@@ -337,6 +337,16 @@ Return nil if there is no name or if NODE is not a defun node."
   "Return the variable name of NODE."
   (treesit-node-text (apex-ts-mode--field-name-recursion "declarator.name" node)))
 
+(defun apex-ts-mode--method-name (node)
+  "Return the variable name of NODE."
+  (concat (treesit-node-text (apex-ts-mode--field-name-recursion "name" node))
+          (treesit-node-text (apex-ts-mode--field-name-recursion "parameters" node))))
+
+(defun apex-ts-mode--enum-name (node)
+  "Get name of class NODE."
+  (concat (treesit-node-text (apex-ts-mode--field-name-recursion "name" node))
+          (treesit-node-text (apex-ts-mode--field-name-recursion "enum_body" node))))
+
 (defun apex-ts-mode--declaration-name (node)
   "Get name of class NODE."
   (let ((declaration-name (treesit-node-text (treesit-node-child-by-field-name node "name") t))

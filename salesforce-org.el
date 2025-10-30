@@ -18,21 +18,10 @@
 (defun salesforce-org-open ()
   "Open selection org."
   (interactive)
-  (salesforce-org--collect
-   :finish-func
-   (lambda (_)
-     (cl-loop for symbol in (list org--consult-other-source
-                            org--consult-sandbox-source
-                            org--consult-devhub-source
-                            org--consult-scratch-source
-                            org--consult-nonscratch-source)
-              do (plist-put symbol :action #'salesforce-org--consult-open))
-     
-     (consult--multi '(org--consult-other-source
-                       org--consult-sandbox-source
-                       org--consult-devhub-source
-                       org--consult-scratch-source
-                       org--consult-nonscratch-source)))))
+  (salesforce-org-read-user
+   "Select Org: "
+   (funcall #'salesforce-org--consult-open candidate)
+   :require-match t))
 
 (defun salesforce-org-authorize ()
   "Using web login to authorize to org."
@@ -61,12 +50,11 @@ ALIAS is the name to assign to the authorized org."
   (interactive)
   (salesforce-org-read-user
    "Select Org: "
-   (let ((org (car candidate)))
-
+   (let ((org-name (car candidate)))
      (salesforce-core--config-process
-      :args `("set" "target-org" ,org "--json")
-      (let ((org-name (salesforce-core--get-data-json "result.successes.0.value" json-instance)))
-        (salesforce-core--alert (format "Change to %s success" (setq salesforce-org-name org-name))))))))
+      :args `("set" "target-org" ,org-name "--json")
+      (salesforce-core--alert (format "Change to %s success" (setq salesforce-org-name org-name)))))
+   :require-match t))
 
 (defun salesforce-org-get-log-file ()
   "View specific log."
@@ -160,7 +148,7 @@ BODY: The forms run after get user."
 
     postfix))
 
-(defmacro salesforce-org-read-user (prompt &rest body)
+(cl-defmacro salesforce-org-read-user (prompt &rest body &key require-match &allow-other-keys)
   "Selection available orgs that authorized.
 
 PROMPT: label of input candidate.
@@ -168,9 +156,10 @@ BODY: The forms run after get user."
   `(salesforce-org--collect
     :finish-func 
     (lambda (_)
-      (let ((action #'(lambda (candidate)
-                        ,@body))
-            new-input)
+      (let* ((atoms (seq-difference ',body '(:require-match ,require-match)))
+             (action `(lambda (candidate)
+                        ,@atoms))
+             new-input)
         (cl-loop for symbol in (list org--consult-other-source
                                org--consult-sandbox-source
                                org--consult-devhub-source
@@ -184,8 +173,8 @@ BODY: The forms run after get user."
                                 org--consult-devhub-source
                                 org--consult-scratch-source
                                 org--consult-nonscratch-source)
-                              :require-match nil))
-        (when new-input
+                              :require-match ,require-match))
+        (when ,require-match
           (funcall action new-input))))))
 
 (defun salesforce-org--list-build-format (data)

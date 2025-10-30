@@ -240,7 +240,7 @@ BODY contains the process handling code."
                                                     (salesforce-core-parse-buffer-json (process-buffer proc))
                                                   (process-buffer proc))))
                              ,@body))))
-          (message "%s" (cons ,action ,args))
+
           (apply #'async-start-process salesforce-process-buffer
                  salesforce-program-bin 
                  (unless ,sync (apply-partially callback))
