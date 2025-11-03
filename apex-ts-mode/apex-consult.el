@@ -80,7 +80,7 @@
   :annotate salesforce-consult--imenu-annotate
   :items
   (lambda ()
-    (salesforce-consult--search-candidates "c" "\\`enum_declaration\\'" apex--consult-enum-sobject nil #'apex-ts-mode--enum-name)))
+    (salesforce-consult--search-candidates "c" "\\`enum_declaration\\'" apex--consult-icon-field nil #'apex-ts-mode--enum-name)))
 
 (salesforce-consult-make-multi-imenu "apex"
                                      apex--consult-field-source
