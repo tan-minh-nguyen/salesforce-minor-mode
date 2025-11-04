@@ -156,9 +156,8 @@ BODY: The forms run after get user."
   `(salesforce-org--collect
     :finish-func 
     (lambda (_)
-      (let* ((atoms (seq-difference ',body '(:require-match ,require-match)))
-             (action `(lambda (candidate)
-                        ,@atoms))
+      (let* ((action (lambda (candidate)
+                       ,@(seq-difference body (list :require-match require-match))))
              new-input)
         (cl-loop for symbol in (list org--consult-other-source
                                org--consult-sandbox-source
