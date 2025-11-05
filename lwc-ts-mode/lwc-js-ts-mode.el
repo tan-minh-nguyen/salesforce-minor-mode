@@ -188,8 +188,12 @@
                     index))))
             treesit-simple-imenu-settings)))
 
-;;;###autoload
-(defun lwc-js-ts-mode--js-file ()
+(defun lwc-js-mode-auto ()
+  "Auto enable majore-mode for file in Salesforce project."
+  (when (lwc-ts-mode--lwc-file-p)
+    (lwc-js-ts-mode)))
+
+(defun lwc-ts-mode--js ()
   "JS settings of tree-sitter for `lwc-js-ts-mode'."
 
   (treesit-parser-create 'javascript)
@@ -234,5 +238,22 @@
 
   ;; (setq treesit--indent-verbose t)
   )
+
+;;;###autoload
+(define-derived-mode lwc-js-ts-mode fundamental-mode "lwc js"
+  "Major mode use tree-sitter for Visualforce page, powered by tree-sitter."
+  :group 'lwc
+  (unless (treesit-ready-p 'javascript t)
+    (error "Tree-sitter for html isn't available."))
+  (lwc-ts-mode--js)
+
+  (treesit-major-mode-setup)
+
+  (setq-local eglot-workspace-configuration
+              '(:lwc-ts-mode (:documentSelector [(:language "html" :scheme "file")
+                                                 (:language "javascript" :scheme "file")
+                                                 (:language "typescript" :scheme "file")]))))
+
+(add-to-list 'auto-mode-alist '("\\.js\\'" . lwc-js-mode-auto))
 
 (provide 'lwc-js-ts-mode)

@@ -189,4 +189,11 @@ the tag name with CSS selectors from id and class attributes."
                                 attr-nodes)))
     (concat (lwc-ts-mode--recursion-children-node-text node '("tag_name")) formatted-attributes)))
 
+(defun lwc-ts-mode--lwc-file-p ()
+  "Check file is LWC."
+  (require 'salesforce-project nil 'noerror)
+  (and (salesforce-project-p)
+     (string-prefix-p (salesforce-core--join-path salesforce-metadata-root-dir salesforce-lwc-dir)
+                      (buffer-file-name))))
+
 (provide 'lwc-ts-common)

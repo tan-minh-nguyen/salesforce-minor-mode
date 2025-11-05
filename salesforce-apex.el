@@ -233,7 +233,7 @@
   (interactive (list (transient-args 'salesforce-apex--transient:lightning-resource)))
   (salesforce-core--lightning-process
    :args `("generate" "component" ,@args "--json")
-   (salesforce-core--alert (format message-success component-name))))
+   (salesforce-core--alert (format "Successfully created component: %s" component-name))))
 
 ;;TODO: use salesforce-apex--generate-class instead
 (defun salesforce-apex-generate-test-class ()

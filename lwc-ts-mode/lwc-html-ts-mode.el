@@ -138,7 +138,12 @@
 ;;      :host 'html
 ;;      '((script_element (raw_text) @capture)))))
 
-(defun lwc-html-ts-mode--html-file ()
+(defun lwc-html-mode-auto ()
+  "Auto enable major-mode for file in Salesforce project."
+  (when (lwc-ts-mode--lwc-file-p)
+    (lwc-html-ts-mode)))
+
+(defun lwc-ts-mode--html ()
   "HTML settings of tree-sitter for `lwc-html-ts-mode'."
 
   (treesit-parser-create 'html)
@@ -176,6 +181,21 @@
   ;; (setq treesit--indent-verbose t)
   (treesit-major-mode-setup))
 
+;;;###autoload
+(define-derived-mode lwc-html-ts-mode fundamental-mode "lwc html"
+  "Major mode use tree-sitter for Visualforce page, powered by tree-sitter."
+  :group 'lwc
+  (unless (treesit-ready-p 'html t)
+    (error "Tree-sitter for html isn't available."))
+  (lwc-ts-mode--html)
+
+  (treesit-major-mode-setup)
+
+  (setq-local eglot-workspace-configuration
+              '(:lwc-ts-mode (:documentSelector [(:language "html" :scheme "file")
+                                                 (:language "javascript" :scheme "file")
+                                                 (:language "typescript" :scheme "file")]))))
+
 ;; configuration lsp bridge
 ;; (defvar lwc-lsp-mode--root-dir (file-name-directory load-file-name)
 ;;   "Root directory.")
@@ -193,5 +213,7 @@
 ;;     (setq-local lsp-bridge-user-langserver-dir langserver-dir)
 
 ;;     (lsp-bridge-mode)))
+
+(add-to-list 'auto-mode-alist '("\\.html\\'" . lwc-html-mode-auto))
 
 (provide 'lwc-html-ts-mode)
