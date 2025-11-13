@@ -96,8 +96,9 @@
            salesforce-org-name
            (null salesforce-mode-line-current-org-status))
 
-    (salesforce-org-status :org salesforce-org-name
-                           :finish-func #'salesforce-mode--set-mode-line-status)))
+    ;; (salesforce-org-status :org salesforce-org-name
+    ;;                        :finish-func #'salesforce-mode--set-mode-line-status)
+    ))
 
 ;;;###autoload
 (define-minor-mode salesforce-mode
