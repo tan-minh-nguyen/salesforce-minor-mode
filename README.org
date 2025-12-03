@@ -129,7 +129,7 @@ salesforce-minor-mode/
 ├── salesforce-org.el                     # Org management and authentication
 ├── salesforce-apex.el                    # Apex operations and code generation
 ├── salesforce-data.el                    # Data import/export operations
-├── salesforce-transient-menu.el          # Transient menu definitions
+├── salesforce-menu.el                    # Transient menu definitions
 ├── apex-ts-mode/
 │   ├── apex-ts-mode.el                  # Apex major mode with tree-sitter
 │   ├── apex-consult.el                  # Consult integration for Apex

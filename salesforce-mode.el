@@ -27,7 +27,7 @@
 ;;
 ;;; Code:
 
-(require 'salesforce-transient-menu)
+(require 'salesforce-menu)
 (require 'salesforce-core)
 (require 'salesforce-apex)
 (require 'salesforce-org)
@@ -137,7 +137,7 @@ Updates `salesforce-mode-line-current-org-status' with appropriate icon and face
 (defun salesforce-mode--check-org-status ()
   "Check the current org connection status and update mode line."
   (when (and (bound-and-true-p salesforce-mode)
-             salesforce-org-name)
+           salesforce-org-name)
     (salesforce-org--check-live-connect 
      :org salesforce-org-name
      :then #'salesforce-mode--set-mode-line-status)))
@@ -159,7 +159,7 @@ Updates `salesforce-mode-line-current-org-status' with appropriate icon and face
   "Initialize Salesforce mode.
 Checks org connection status immediately and starts periodic checks every 10 minutes."
   (when (and (bound-and-true-p salesforce-mode)
-             salesforce-org-name)
+           salesforce-org-name)
     ;; Check status immediately on initialization
     (unless salesforce-status-check
       (salesforce-mode--check-org-status))

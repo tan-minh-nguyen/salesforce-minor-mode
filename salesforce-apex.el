@@ -8,7 +8,7 @@
 
 (require 'salesforce-core)
 (require 'alert)
-(require 'salesforce-transient-menu)
+(require 'salesforce-menu)
 
 ;;; Variables
 
@@ -44,19 +44,19 @@
 (transient-define-prefix salesforce-apex--transient:apex-resource ()
   "Menu select apex resource to generate."
   ["Arguments"
-   (salesforce--transient-menu:-d)
+   (salesforce--menu:-d)
    (salesforce-apex--transient:-t)
    (salesforce-apex--transient:-n)
-   (salesforce--transient-menu:--api-version)]
+   (salesforce--menu:--api-version)]
   [""
    ("RET" "Generate class" salesforce-apex--generate-class)])
 
 (transient-define-prefix salesforce-apex--transient:trigger-resource ()
   "Menu select apex trigger resource to generate."
   ["Arguments"
-   [(salesforce--transient-menu:-d)
+   [(salesforce--menu:-d)
     (salesforce-apex--transient:-n)
-    (salesforce--transient-menu:--api-version)]
+    (salesforce--menu:--api-version)]
    [(salesforce-apex--trigger-transient:-e)
     (salesforce-apex--trigger-transient:-s)
     (salesforce-apex--trigger-transient:-t)]]
@@ -66,11 +66,11 @@
 (transient-define-prefix salesforce-apex--transient:lightning-resource ()
   "Menu select lightning resource to generate."
   ["Arguments"
-   (salesforce--transient-menu:-d)
+   (salesforce--menu:-d)
    (salesforce-apex--lightning-cmp-transient:-t)
    (salesforce-apex--lightning-transient:--type)
    (salesforce-apex--transient:-n)
-   (salesforce--transient-menu:--api-version)]
+   (salesforce--menu:--api-version)]
   [""
    ("RET" "Generate lightning component" salesforce-apex--generate-lightning-component)])
 
@@ -83,7 +83,7 @@
   :key "-n"
   :shortarg "-n"
   :argument "--name="
-  :reader #'salesforce--transient-menu:read-string)
+  :reader #'salesforce--menu:read-string)
 
 (transient-define-argument salesforce-apex--transient:-t ()
   :class 'transient-switches
@@ -115,7 +115,7 @@
   :shortarg "-s"
   :argument "--sobject="
   :init-value #'salesforce-apex--trigger-transient:--sobject-handler
-  :reader #'salesforce--transient-menu:read-string)
+  :reader #'salesforce--menu:read-string)
 
 (transient-define-argument salesforce-apex--trigger-transient:-t ()
   :class 'transient-switches
@@ -175,21 +175,21 @@
   "Open the transient menu for creating an Apex class."
   (interactive)
   (let ((salesforce-apex--transient:template "DefaultApexClass")
-        (salesforce--transient-menu:output-dir salesforce-apex-dir))
+        (salesforce--menu:output-dir salesforce-apex-dir))
     (salesforce-apex--transient:apex-resource)))
 
 (defun salesforce-apex--create-trigger-menu ()
   "Open the transient menu for creating an Apex trigger."
   (interactive)
   (let ((salesforce-apex--transient:template "ApexTrigger")
-        (salesforce--transient-menu:output-dir salesforce-trigger-dir))
+        (salesforce--menu:output-dir salesforce-trigger-dir))
     (salesforce-apex--transient:trigger-resource)))
 
 (defun salesforce-apex--create-lightning-app-menu ()
   "Open the transient menu for generating a Lightning app."
   (interactive)
   (let ((salesforce-apex--lightning-organize "app")
-        (salesforce--transient-menu:output-dir salesforce-lwc-dir))
+        (salesforce--menu:output-dir salesforce-lwc-dir))
     (salesforce-apex--transient:lightning-resource)))
 
 (defun salesforce-apex--create-lightning-component-menu ()
@@ -197,7 +197,7 @@
   (interactive)
   (let ((salesforce-apex--lightning-organize "component")
         (salesforce-apex--transient:template "default")
-        (salesforce--transient-menu:output-dir salesforce-lwc-dir))
+        (salesforce--menu:output-dir salesforce-lwc-dir))
     (salesforce-apex--transient:lightning-resource)))
 
 ;;; Code Execution

@@ -7,7 +7,7 @@
 ;;; Code:
 
 (require 'salesforce-core)
-(require 'salesforce-transient-menu)
+(require 'salesforce-menu)
 
 ;;; Customization
 
@@ -47,8 +47,8 @@
    [""
     (salesforce-data--transient:-r)
     (salesforce-data--transient:--use-tooling-api)
-    (salesforce--transient-menu:-o)
-    (salesforce--transient-menu:--api-version)]]
+    (salesforce--menu:-o)
+    (salesforce--menu:--api-version)]]
   [""
    ("RET" "Execute SOQL" salesforce-data-query)
    ("M-RET" "Execute SOSL" salesforce-data-search)])
@@ -60,8 +60,8 @@
   :incompatible '(("--wait" "--async"))
   ["Arguments"
    [""
-    (salesforce--transient-menu:-o)
-    (salesforce--transient-menu:--api-version)
+    (salesforce--menu:-o)
+    (salesforce--menu:--api-version)
     (salesforce-data--transient:--sobject)
     (salesforce-data--transient:-f)]
    [""
@@ -76,8 +76,8 @@
   :incompatible '(("--wait" "--async"))
   ["Arguments"
    [""
-    (salesforce--transient-menu:-o)
-    (salesforce--transient-menu:--api-version)
+    (salesforce--menu:-o)
+    (salesforce--menu:--api-version)
     (salesforce-data--transient:-p)
     (salesforce-data--transient:-f)]]
   [""
@@ -102,8 +102,8 @@
   :incompatible '(("--wait" "--async") ("--query-file" "--query"))
   ["Arguments"
    [""
-    (salesforce--transient-menu:-o)
-    (salesforce--transient-menu:--api-version)
+    (salesforce--menu:-o)
+    (salesforce--menu:--api-version)
     (salesforce-data--transient:--query-file)
     (salesforce-data--transient:-q)
     (salesforce-data--transient:--async)
@@ -119,13 +119,13 @@
   "Menu configuration export tree."
   ["Arguments"
    [""
-    (salesforce--transient-menu:-o)
-    (salesforce--transient-menu:--api-version)
+    (salesforce--menu:-o)
+    (salesforce--menu:--api-version)
     (salesforce-data--transient:-q)]
    [""
     (salesforce-data--transient:-x)
     (salesforce-data--transient:-p)
-    (salesforce--transient-menu:-d)]]
+    (salesforce--menu:-d)]]
   [""
    ("RET" "Export tree" salesforce-data--export-tree)])
 
@@ -133,8 +133,8 @@
   "Menu configuration export resume."
   ["Arguments"
    [""
-    (salesforce--transient-menu:-o)
-    (salesforce--transient-menu:--api-version)
+    (salesforce--menu:-o)
+    (salesforce--menu:--api-version)
     (salesforce-data--transient:-i)
     (salesforce-data--transient:--use-most-recent)]]
   [""
@@ -178,7 +178,7 @@
   :key "-i"
   :shortarg "-i"
   :argument "--job-id="
-  :reader #'salesforce--transient-menu:read-file)
+  :reader #'salesforce--menu:read-file)
 
 (transient-define-argument salesforce-data--transient:--use-most-recent ()
   :description "Use job id that was most recently run"
@@ -232,7 +232,7 @@
   :key "-F"
   :shortarg "--output-file"
   :argument "--output-file="
-  :reader #'salesforce--transient-menu:read-file)
+  :reader #'salesforce--menu:read-file)
 
 (transient-define-argument salesforce-data--transient:-r ()
   :class 'transient-switches
@@ -283,35 +283,35 @@
 (defun salesforce-data--transient:-q-reader (prompt initial-input history)
   "Read a SOQL string and return value.
 PROMPT, INITIAL-INPUT, and HISTORY are standard minibuffer arguments."
-  (salesforce--transient-menu:read-string prompt initial-input history 
-                                          "Please enter a SOQL."))
+  (salesforce--menu:read-string prompt initial-input history 
+                                "Please enter a SOQL."))
 
 (defun salesforce-data--transient:-x-reader (prompt initial-input history)
   "Read a prefix string and return value.
 PROMPT, INITIAL-INPUT, and HISTORY are standard minibuffer arguments."
-  (salesforce--transient-menu:read-string prompt initial-input history 
-                                          "Please enter a prefix files name."))
+  (salesforce--menu:read-string prompt initial-input history 
+                                "Please enter a prefix files name."))
 
 (defun salesforce-data--transient:-f-reader (prompt initial-input history)
   "Read a file string and return value.
 PROMPT, INITIAL-INPUT, and HISTORY are standard minibuffer arguments."
-  (salesforce--transient-menu:read-file prompt 
-                                        (or initial-input salesforce-data--file) 
-                                        history))
+  (salesforce--menu:read-file prompt 
+                              (or initial-input salesforce-data--file) 
+                              history))
 
 (defun salesforce-data--transient:--sobject-reader (prompt initial-input history)
   "Read a sobject string and return value.
 PROMPT, INITIAL-INPUT, and HISTORY are standard minibuffer arguments."
-  (salesforce--transient-menu:read-string prompt initial-input history 
-                                          "Please enter a sobject."))
+  (salesforce--menu:read-string prompt initial-input history 
+                                "Please enter a sobject."))
 
 (defun salesforce-data--transient:--wait-reader (prompt initial-input history)
   "Read a wait time number and return value.
 PROMPT, INITIAL-INPUT, and HISTORY are standard minibuffer arguments."
-  (salesforce--transient-menu:read-number prompt 
-                                          (or initial-input salesforce-data-wait-value) 
-                                          history 
-                                          "Please enter a number."))
+  (salesforce--menu:read-number prompt 
+                                (or initial-input salesforce-data-wait-value) 
+                                history 
+                                "Please enter a number."))
 
 ;;; Data Operations - Delete
 
@@ -379,7 +379,7 @@ ARGS is a list of parameters passed to the Salesforce CLI."
 (defun salesforce-data-import-from-url (url sobject)
   "Import SOBJECT data from the specified URL."
   (interactive (list (read-string "URL: ")
-                     (read-string "SObject: ")))
+                  (read-string "SObject: ")))
   (async-start
    `(lambda ()
       (let ((default-directory ,(projectile-project-root)))
@@ -414,10 +414,10 @@ ARGS is a list of parameters passed to the Salesforce CLI."
           (let ((async-debug t)
                 (proc (salesforce-core--data-process 
                        :args (list "import" "bulk"
-                                   "-f" file
-                                   "-o" ,salesforce-org-name
-                                   "-s" ,sobject
-                                   "--json")
+                                "-f" file
+                                "-o" ,salesforce-org-name
+                                "-s" ,sobject
+                                "--json")
                        :sync t)))
             (async-wait proc)
             (let ((data (salesforce-core-parse-buffer-json (process-buffer proc))))
@@ -479,7 +479,7 @@ ARGS: Parameters are passed to the search record process."
   "Ensure COMMANDS includes a result format argument."
   (unless (cl-some (lambda (arg)
                      (or (string-prefix-p "-r" arg)
-                         (string-prefix-p "--result-format" arg)))
+                        (string-prefix-p "--result-format" arg)))
                    commands)
     (append commands '("--result-format=csv")))
   commands)
@@ -554,7 +554,7 @@ SYNC: Run the process in sync."
 (defun salesforce-data-org-table-export (file export-format)
   "Export data from org table to FILE using EXPORT-FORMAT."
   (interactive (list (org-entry-get (point) "TABLE_EXPORT_FILE" t)
-                     (org-entry-get (point) "TABLE_EXPORT_FORMAT" t)))
+                  (org-entry-get (point) "TABLE_EXPORT_FORMAT" t)))
   (unless (org-at-table-p) 
     (error "No table at point"))
   (unless file 
