@@ -4,7 +4,9 @@
 
 ;; Author: Tan Nguyen <tan.nguyen.w.information@gmail.com>
 ;; Version: 0.1
-;; Package-Requires: ((emacs "27.1"))
+;; This file is part of salesforce-mode.
+;; Package requirements are defined in salesforce-mode.el
+
 ;; Keywords: salesforce, apex, consult
 ;; URL: https://github.com/your/repo
 

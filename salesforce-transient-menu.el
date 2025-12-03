@@ -1,13 +1,5 @@
 ;;; salesforce-transient-menu.el --- Transient menu definitions for Salesforce -*- lexical-binding: t -*-
 
-;; Copyright (C) 2025 Tan Nguyen
-
-;; Author: Tan Nguyen <tan.nguyen.w.information@gmail.com>
-;; Version: 0.1
-;; Package-Requires: ((emacs "27.1") (transient "0.1.0"))
-;; Keywords: salesforce, transient, menu
-;; URL: https://github.com/your/repo
-
 ;;; Commentary:
 ;; This package provides transient menu definitions and utilities for
 ;; Salesforce minor mode, including common argument definitions and

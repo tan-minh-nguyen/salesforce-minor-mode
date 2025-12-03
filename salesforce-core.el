@@ -1,13 +1,5 @@
 ;;; salesforce-core.el --- Core functionality for Salesforce integration -*- lexical-binding: t; no-byte-compile: t; -*-
 
-;; Copyright (C) 2025 Tan Nguyen
-
-;; Author: Tan Nguyen <tan.nguyen.w.information@gmail.com>
-;; Version: 0.1
-;; Package-Requires: ((emacs "27.1") (alert "1.2") (json "1.5") (async "1.9") (consult "0.35"))
-;; Keywords: salesforce, tools
-;; URL: https://github.com/your/repo
-
 ;;; Commentary:
 ;; This package provides core functionality for Salesforce integration in Emacs,
 ;; including process management, configuration, and utility functions.

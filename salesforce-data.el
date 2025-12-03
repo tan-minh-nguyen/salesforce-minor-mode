@@ -1,13 +1,5 @@
 ;;; salesforce-data.el --- Import/export data on org -*- lexical-binding: t -*-
 
-;; Copyright (C) 2025 Tan Nguyen
-
-;; Author: Tan Nguyen <tan.nguyen.w.information@gmail.com>
-;; Version: 0.1
-;; Package-Requires: ((emacs "27.1"))
-;; Keywords: salesforce, data
-;; URL: https://github.com/your/repo
-
 ;;; Commentary:
 ;; This package provides data import/export functionality for Salesforce,
 ;; including SOQL/SOSL queries, bulk operations, and org-mode table integration.

@@ -1,13 +1,5 @@
 ;;; salesforce-apex.el --- Apex features -*- lexical-binding: t -*-
 
-;; Copyright (C) 2025 Tan Nguyen
-
-;; Author: Tan Nguyen <tan.nguyen.w.information@gmail.com>
-;; Version: 0.1
-;; Package-Requires: ((emacs "27.1"))
-;; Keywords: salesforce, apex
-;; URL: https://github.com/your/repo
-
 ;;; Commentary:
 ;; This package provides Apex-related functionality for Salesforce development,
 ;; including class generation, test execution, and Lightning component creation.

@@ -4,7 +4,9 @@
 
 ;; Author: Tan Nguyen <tan.nguyen.w.information@gmail.com>
 ;; Version: 0.01
-;; Package-Requires: ((emacs "27.1") (org "9.0"))
+;; This file is part of salesforce-mode.
+;; Package requirements are defined in salesforce-mode.el
+
 ;; Keywords: literate programming, reproducible research, salesforce, apex
 ;; Homepage: https://github.com/your/repo
 

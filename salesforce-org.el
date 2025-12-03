@@ -1,13 +1,5 @@
 ;;; salesforce-org.el --- Salesforce org management -*- lexical-binding: t; no-byte-compile: t; no-native-compile: t -*-
 
-;; Copyright (C) 2025 Tan Nguyen
-
-;; Author: Tan Nguyen <tan.nguyen.w.information@gmail.com>
-;; Version: 0.1
-;; Package-Requires: ((emacs "27.1"))
-;; Keywords: salesforce, org
-;; URL: https://github.com/your/repo
-
 ;;; Commentary:
 ;; This package provides Salesforce org management functionality including
 ;; authentication, org switching, and log management.

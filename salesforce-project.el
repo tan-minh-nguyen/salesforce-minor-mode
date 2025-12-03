@@ -1,13 +1,5 @@
 ;;; salesforce-project.el --- Salesforce SALESFORCE Project Management -*- lexical-binding: t; no-byte-compile: t; -*-
 
-;; Copyright (C) 2025 Tan Nguyen
-
-;; Author: Tan Nguyen <tan.nguyen.w.information@gmail.com> 
-;; Version: 0.1
-;; Package-Requires: ((emacs "27.1") (projectile "0.14.0") (transient "0.1.0") (taxy "0.10.2"))
-;; Keywords: salesforce, salesforce, project
-;; URL: https://github.com/your/repo
-
 ;;; Commentary:
 ;; This package provides Salesforce SALESFORCE project management functionality for Emacs.
 
