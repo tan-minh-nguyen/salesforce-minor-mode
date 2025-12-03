@@ -1,22 +1,41 @@
-;;; salesforce-transient-menu.el --- define transient menu for salesforce-minor-mode -*- lexical-binding: t -*-
+;;; salesforce-transient-menu.el --- Transient menu definitions for Salesforce -*- lexical-binding: t -*-
+
+;; Copyright (C) 2025 Tan Nguyen
+
+;; Author: Tan Nguyen <tan.nguyen.w.information@gmail.com>
+;; Version: 0.1
+;; Package-Requires: ((emacs "27.1") (transient "0.1.0"))
+;; Keywords: salesforce, transient, menu
+;; URL: https://github.com/your/repo
+
+;;; Commentary:
+;; This package provides transient menu definitions and utilities for
+;; Salesforce minor mode, including common argument definitions and
+;; input readers for various data types.
+
+;;; Code:
 
 (require 'transient)
 
+;;; Variables
+
 (defvar-local salesforce--transient-menu:output-dir ""
-  "Default path for generate resources.")
+  "Default path for generating resources.")
+
+;;; Transient Argument Definitions
 
 (transient-define-argument salesforce--transient-menu:-o ()
   :class 'transient-option
-  :description "set target org for command"
+  :description "Target org for command"
   :key "-o"
   :shortarg "-o"
   :argument "--target-org="
-  :reader #'salesforce-core--transient-menu:--target-org-reader
-  :init-value #'salesforce--transient-menu:--target-org-handler)   
+  :reader #'salesforce--transient-menu:--target-org-reader
+  :init-value #'salesforce--transient-menu:--target-org-handler)
 
 (transient-define-argument salesforce--transient-menu:--api-version ()
   :class 'transient-option
-  :description "set api version for command"
+  :description "API version for command"
   :key "-v"
   :shortarg "--api-version"
   :argument "--api-version="
@@ -25,77 +44,115 @@
 
 (transient-define-argument salesforce--transient-menu:-d ()
   :class 'transient-option
-  :description "file save export result"
+  :description "Output directory"
   :key "-d"
   :shortarg "-d"
   :argument "--output-dir="
   :reader #'salesforce--transient-menu:read-directory
   :init-value #'salesforce--transient-menu:--output-dir-handler)
 
-(defun salesforce--transient-menu:--api-version-reader (prompt initial-input history)
-  "Read a org alias and return org string."
-  (salesforce--transient-menu:read-string prompt initial-input history "Please enter a API Version."))
+;;; Reader Functions
 
-(defun salesforce--transient-menu:read-string (prompt initial-input history &optional message-error)
-  "Read input string in transient menu."
+(defun salesforce--transient-menu:read-string (prompt initial-input history 
+                                                       &optional message-error)
+  "Read a non-empty string from the minibuffer with validation.
+PROMPT is displayed to the user.
+INITIAL-INPUT is the default value.
+HISTORY is the history list to use.
+MESSAGE-ERROR is shown when input is empty (defaults to generic message)."
   (save-match-data
     (cl-block nil
       (while t
         (let ((str (read-from-minibuffer prompt initial-input nil nil history)))
-          (unless (string-equal str "")
+          (unless (string-empty-p str)
             (cl-return str)))
-        (message (or message-error "Please input value."))
+        (message (or message-error "Please input a value."))
         (sit-for 1)))))
 
-(defun salesforce--transient-menu:read-directory (prompt initial-input history &optional message-error)
-  "Read input directory in transient menu."
+(defun salesforce--transient-menu:read-directory (prompt initial-input history 
+                                                          &optional message-error)
+  "Read a directory path from the minibuffer with validation.
+PROMPT is displayed to the user.
+INITIAL-INPUT is the default directory.
+HISTORY is the history list to use.
+MESSAGE-ERROR is shown when no directory is selected."
   (save-match-data
     (cl-block nil
       (while t
         (let ((str (read-directory-name prompt initial-input)))
-          (unless (string-equal str "")
+          (unless (string-empty-p str)
             (cl-return (expand-file-name str))))
-        (message (or message-error "Please select a directory name."))
+        (message (or message-error "Please select a directory."))
         (sit-for 1)))))
 
-(defun salesforce--transient-menu:read-file (prompt initial-input history &optional message-error)
-  "Read input file in transient menu."
+(defun salesforce--transient-menu:read-file (prompt initial-input history 
+                                                     &optional message-error)
+  "Read a file path from the minibuffer with validation.
+PROMPT is displayed to the user.
+INITIAL-INPUT is the default file.
+HISTORY is the history list to use.
+MESSAGE-ERROR is shown when no file is selected."
   (save-match-data
     (cl-block nil
       (while t
         (let ((str (read-file-name prompt nil initial-input)))
-          (unless (string-equal str "")
+          (unless (string-empty-p str)
             (cl-return str)))
-        (message (or message-error "Please select a file name."))
+        (message (or message-error "Please select a file."))
         (sit-for 1)))))
 
-(defun salesforce--transient-menu:read-number (prompt initial-input history &optional message-error)
-  "Read input file in transient menu."
+(defun salesforce--transient-menu:read-number (prompt initial-input history 
+                                                       &optional message-error)
+  "Read a number from the minibuffer with validation.
+PROMPT is displayed to the user.
+INITIAL-INPUT is the default number.
+HISTORY is the history list to use.
+MESSAGE-ERROR is shown when input is not a valid number."
   (save-match-data
     (cl-block nil
       (while t
-        (let ((str (read-number prompt nil initial-input)))
-          (unless (null str)
-            (cl-return str)))
+        (let ((num (read-number prompt initial-input)))
+          (when num
+            (cl-return num)))
         (message (or message-error "Please input a number."))
         (sit-for 1)))))
 
+;;; Specialized Readers
+
 (defun salesforce--transient-menu:--target-org-reader (prompt initial-input history)
-  "Read a org alias and return org string."
-  (completing-read "Org name: " nil))
+  "Read an org alias/name from available orgs.
+PROMPT is displayed to the user.
+INITIAL-INPUT is the default value.
+HISTORY is the history list to use."
+  (completing-read prompt nil))
+
+(defun salesforce--transient-menu:--api-version-reader (prompt initial-input history)
+  "Read an API version string.
+PROMPT is displayed to the user.
+INITIAL-INPUT is the default value.
+HISTORY is the history list to use."
+  (salesforce--transient-menu:read-string prompt initial-input history 
+                                          "Please enter an API version."))
+
+;;; Init Value Handlers
 
 (defun salesforce--transient-menu:--api-version-handler (obj)
-  "Set default value for --api-version param."
+  "Set default value for --api-version parameter in OBJ.
+Uses the value from `salesforce-api-version'."
   (when salesforce-api-version
     (transient-infix-set obj (format "%s" salesforce-api-version))))
 
 (defun salesforce--transient-menu:--target-org-handler (obj)
-  "Set default value for --api-version param."
+  "Set default value for --target-org parameter in OBJ.
+Uses the value from `salesforce-org-name'."
   (when salesforce-org-name
     (transient-infix-set obj (format "%s" salesforce-org-name))))
 
 (defun salesforce--transient-menu:--output-dir-handler (obj)
-  "Set default value for --output-api param."
+  "Set default value for --output-dir parameter in OBJ.
+Uses the value from `salesforce--transient-menu:output-dir'."
   (transient-infix-set obj (format "%s" salesforce--transient-menu:output-dir)))
 
 (provide 'salesforce-transient-menu)
+
+;;; salesforce-transient-menu.el ends here

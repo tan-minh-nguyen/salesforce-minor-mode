@@ -7,7 +7,6 @@
 ;; Package-Requires: ((request "0.1.3") (ctable "0.1.3") (nerd-icons "0.1.0") (nerd-icons "0.1.0") (consult "2.8"))
 
 (require 'salesforce-transient-menu)
-;; (require 'salesforce-table)
 (require 'salesforce-core)
 (require 'salesforce-apex)
 (require 'salesforce-org)
@@ -46,7 +45,7 @@
   "Initialize the keymap for run features."
   (let ((map (make-sparse-keymap)))
     (keymap-set map "q" (cons "Execute SOQL" #'salesforce-data-query))
-    (keymap-set map "s" (cons "Execute SOQL" #'salesforce-data-search))
+    (keymap-set map "s" (cons "Execute SOSL" #'salesforce-data-search))
     (keymap-set map "a" (cons "Execute Apex code" #'salesforce-apex-execute-code))
 
     map))
@@ -74,21 +73,21 @@
     ;; leader map
     (keymap-set map "M-o o" (cons "org" salesforce-mode-org-keymap))
     (keymap-set map "M-o R" (cons "resource" salesforce-mode-resource-keymap))
-    (keymap-set map "M-o r" (cons "execute" salesforce-mode-run-keymap))
+    (keymap-set map "M-o r" (cons "code" salesforce-mode-run-keymap))
     (keymap-set map "M-o A" (cons "authorize org" #'salesforce-org-authorize))
     
     map)
   "Keymap for `salesforce-minor-mode'.")
 
 (defun salesforce-mode--set-mode-line-status (json-instance)
-  "Set the mode line status based on JSON-INSTANCE."
-  (setq salesforce-mode-line-current-org-status
-        (if (string= (salesforce-core--get-data-json "result.connectedStatus" json-instance)
-                     "Connected")
-            (propertize salesforce-mode-line-connect-icon 'face 'success)
-          (propertize salesforce-mode-line-disconnect-icon 'face 'error))
-        salesforce-project-token (salesforce-core--get-data-json "result.accessToken" json-instance)
-        salesforce-project-url (salesforce-core--get-data-json "result.instanceUrl" json-instance)))
+  "Set mode line status from JSON-INSTANCE."
+  (let* ((connected-p (string= (map-nested-elt json-instance '("result" "connectedStatus"))
+                               "Connected"))
+         (icon (if connected-p
+                   salesforce-mode-line-connect-icon
+                 salesforce-mode-line-disconnect-icon))
+         (face (if connected-p 'success 'error)))
+    (setq salesforce-mode-line-current-org-status (propertize icon 'face face))))
 
 (defun salesforce-mode--initialize ()
   "Initialize Salesforce mode."
@@ -96,9 +95,9 @@
            salesforce-org-name
            (null salesforce-mode-line-current-org-status))
 
-    ;; (salesforce-org-status :org salesforce-org-name
-    ;;                        :finish-func #'salesforce-mode--set-mode-line-status)
-    ))
+    (unless salesforce-status-check
+      (salesforce-org--check-live-connect :org salesforce-org-name
+                                          :then #'salesforce-mode--set-mode-line-status))))
 
 ;;;###autoload
 (define-minor-mode salesforce-mode

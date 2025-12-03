@@ -1,6 +1,20 @@
-;;; apex-consult --- integrate apex to consult -*- lexical-binding: t -*-
+;;; apex-consult.el --- Integrate apex to consult -*- lexical-binding: t -*-
 
-(require 'salesforce-consult)
+;; Copyright (C) 2025 Tan Nguyen
+
+;; Author: Tan Nguyen <tan.nguyen.w.information@gmail.com>
+;; Version: 0.1
+;; Package-Requires: ((emacs "27.1"))
+;; Keywords: salesforce, apex, consult
+;; URL: https://github.com/your/repo
+
+;;; Commentary:
+;; This package provides consult integration for Apex mode,
+;; enabling quick navigation through Apex code structures.
+
+;;; Code:
+
+(require 'salesforce-core)
 
 (defcustom apex--consult-icon-field (nerd-icons-codicon "nf-cod-symbol_variable")
   "Nerd icon for field consult source."
@@ -90,3 +104,5 @@
                                      apex--consult-enum-source)
 
 (provide 'apex-consult)
+
+;;; apex-consult.el ends here

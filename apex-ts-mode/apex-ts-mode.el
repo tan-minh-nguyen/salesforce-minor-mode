@@ -34,7 +34,6 @@
 (eval-when-compile (require 'rx))
 (require 'c-ts-common) ; For comment indent and filling.
 (require 'cl-macs)
-(require 'apex-ai)
 (require 'apex-language-server)
 (when (require 'treesit-fold nil :noerror)
   (require 'apex-fold))

@@ -36,7 +36,7 @@
 (require 'ob-comint)
 (require 'ob-eval)
 (require 'salesforce-data)
-(require 'salesforce-org)
+(require 'salesforce-project)
 
 (add-to-list 'org-babel-tangle-lang-exts '("soql" . "soql"))
 
@@ -123,13 +123,7 @@ ORG-ATTR is a list: (ORG URL). Returns results as an org-table string."
 
 (defun ob-soql--org-url (org)
   "Return the Salesforce instance URL for ORG."
-  (when-let* ((process (async-get
-                        (salesforce-core--org-process
-                         :args `("display" "-o" ,org "--json")
-                         :sync t)))
-              (_ (processp process))
-              (json-instance (salesforce-core-parse-buffer-json (process-buffer process))))
-    (salesforce-core--get-data-json "result.instanceUrl" json-instance)))
+  (salesforce-project--get-user-data org "instanceUrl"))
 
 (defun ob-soql--modify-csv (csv org-hyperlink)
   "Return CSV after converting 'Id' field values into ORG-HYPERLINK."
