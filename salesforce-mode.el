@@ -25,11 +25,6 @@
 ;; - Consult integration for unified search
 ;; - Transient menus for complex operations
 ;;
-;; Usage:
-;;   (require 'salesforce-mode)
-;;   (add-hook 'apex-ts-mode-hook #'salesforce-mode)
-;;   (add-hook 'soql-ts-mode-hook #'salesforce-mode)
-
 ;;; Code:
 
 (require 'salesforce-transient-menu)
@@ -136,16 +131,45 @@ Updates `salesforce-mode-line-current-org-status' with appropriate icon and face
 
 ;;; Mode Initialization
 
+(defvar salesforce-mode--status-check-timer nil
+  "Timer for periodic org connection status checks.")
+
+(defun salesforce-mode--check-org-status ()
+  "Check the current org connection status and update mode line."
+  (when (and (bound-and-true-p salesforce-mode)
+             salesforce-org-name)
+    (salesforce-org--check-live-connect 
+     :org salesforce-org-name
+     :then #'salesforce-mode--set-mode-line-status)))
+
+(defun salesforce-mode--start-status-check-timer ()
+  "Start a timer to check org connection status every 10 minutes."
+  (when salesforce-mode--status-check-timer
+    (cancel-timer salesforce-mode--status-check-timer))
+  (setq salesforce-mode--status-check-timer
+        (run-at-time t 600 #'salesforce-mode--check-org-status)))
+
+(defun salesforce-mode--stop-status-check-timer ()
+  "Stop the org connection status check timer."
+  (when salesforce-mode--status-check-timer
+    (cancel-timer salesforce-mode--status-check-timer)
+    (setq salesforce-mode--status-check-timer nil)))
+
 (defun salesforce-mode--initialize ()
   "Initialize Salesforce mode.
-Checks org connection status if enabled and updates mode line."
+Checks org connection status immediately and starts periodic checks every 10 minutes."
   (when (and (bound-and-true-p salesforce-mode)
-             salesforce-org-name
-             (null salesforce-mode-line-current-org-status))
+             salesforce-org-name)
+    ;; Check status immediately on initialization
     (unless salesforce-status-check
-      (salesforce-org--check-live-connect 
-       :org salesforce-org-name
-       :then #'salesforce-mode--set-mode-line-status))))
+      (salesforce-mode--check-org-status))
+    ;; Start periodic status checks
+    (salesforce-mode--start-status-check-timer)))
+
+(defun salesforce-mode--cleanup ()
+  "Cleanup Salesforce mode resources.
+Stops the periodic status check timer."
+  (salesforce-mode--stop-status-check-timer))
 
 ;;; Minor Mode Definition
 
@@ -156,13 +180,24 @@ Checks org connection status if enabled and updates mode line."
 This mode provides integration with Salesforce CLI and various development
 tools for working with Salesforce projects.
 
+When enabled:
+- Checks org connection status immediately
+- Starts a timer to check status every 10 minutes
+- Updates mode line with connection status
+
+When disabled:
+- Stops the status check timer
+- Cleans up resources
+
 Key bindings:
 \\{salesforce-mode-map}"
   :init-value nil
   :group 'salesforce
   :lighter salesforce-mode-lighter
   :keymap salesforce-mode-map
-  :after-hook (salesforce-mode--initialize))
+  :after-hook (if salesforce-mode
+                  (salesforce-mode--initialize)
+                (salesforce-mode--cleanup)))
 
 ;; Add mode line indicator
 (add-to-list 'mode-line-misc-info 
