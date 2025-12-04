@@ -112,38 +112,63 @@ it will be displayed with a critical/error face."
 
 (defvar apex-log-ts-mode--font-lock-settings
   (treesit-font-lock-rules
+   ;; Log header - version information
    :language 'apex-log
    :feature 'version
-   '((log_header (version)) @font-lock-constant-face)
+   :override t
+   '((log_header (version)) @font-lock-preprocessor-face)
+   
+   ;; Log entries - timestamps, events, and details
+   :language 'apex-log
+   :feature 'timestamp
+   :override t
+   '((log_entry
+      (timestamp
+       (time) @font-lock-doc-face
+       (duration) @font-lock-number-face)))
    
    :language 'apex-log
    :feature 'event
+   :override t
    '((log_entry
-      (timestamp
-       (time) @font-lock-comment-face
-       (duration) @font-lock-number-face)
-      (event_identifier) @font-lock-constant-face)
-     (location [(number) "EXTERNAL"] @font-lock-type-face)
-     (event_detail) @font-lock-variable-name-face
+      (event_identifier) @font-lock-function-name-face)
+     (location [(number) @font-lock-constant-face
+                "EXTERNAL" @font-lock-type-face])
+     (event_detail) @font-lock-property-name-face
      (event_detail_value) @font-lock-string-face)
 
+   ;; Governor limits - make them stand out
    :language 'apex-log
    :feature 'limit
-   '((limit
-      (identifier) @font-lock-builtin-face
-      (number) @font-lock-regexp-face
-      (number) @font-lock-constant-face))
-
-   :language 'apex-log
    :override t
+   '((limit
+      (identifier) @font-lock-variable-name-face
+      (number) @font-lock-number-face))
+
+   ;; Keywords - log categories
+   :language 'apex-log
    :feature 'keyword
+   :override t
    `([,@apex-log-ts-mode--keywords] @font-lock-keyword-face)
 
+   ;; Delimiters
    :language 'apex-log
-   :override t
    :feature 'delimiter
+   :override t
    '(["|" ":"] @font-lock-delimiter-face))
-  "Tree-sitter font-lock settings for `apex-log-ts-mode'.")
+  "Tree-sitter font-lock settings for `apex-log-ts-mode'.
+
+Visual hierarchy:
+  - Version: Preprocessor face (typically gray/muted)
+  - Timestamps: Doc face (typically lighter, less distracting)
+  - Durations: Number face (bold/highlighted)
+  - Events: Function name face (prominent, easy to scan)
+  - Locations: Constant face (distinct)
+  - Details: Property name face (clear but not too bold)
+  - Values: String face (traditional string coloring)
+  - Limits: Variable name face for labels, number face for values
+  - Keywords: Keyword face (traditional keyword coloring)
+  - Delimiters: Delimiter face (subtle)")
 
 ;;; Helper Functions
 
@@ -231,8 +256,10 @@ in a compact format in the header line with color-coding based on usage."
   ;; Font-lock
   (setq-local treesit-font-lock-settings apex-log-ts-mode--font-lock-settings)
   (setq-local treesit-font-lock-feature-list
-              '((event keyword limit)
-                (delimiter version)))
+              '(;; Level 1: Essential highlighting
+                (version timestamp event keyword)
+                ;; Level 2: Additional context
+                (limit delimiter)))
 
   ;; Finalize tree-sitter setup
   (treesit-major-mode-setup))
@@ -247,12 +274,20 @@ in a compact format in the header line with color-coding based on usage."
 (define-derived-mode apex-log-ts-mode prog-mode "Apex Log"
   "Major mode for viewing Salesforce Apex debug log files.
 
-This mode provides syntax highlighting for Apex log files using
-tree-sitter, including:
-  - Log events and timestamps with duration
-  - Governor limits and resource usage (color-coded)
-  - Debug statements and categories
-  - Stack traces and code locations
+This mode provides enhanced syntax highlighting for Apex log files using
+tree-sitter with a clear visual hierarchy:
+
+Syntax Highlighting:
+  - Version info: Muted (preprocessor face)
+  - Timestamps: Subtle, less distracting (doc face)
+  - Durations: Prominent numbers for performance analysis
+  - Event names: Bold and clear (function name face)
+  - Locations: Distinct coloring (constant face)
+  - Event details: Property names with clear hierarchy
+  - Values: Traditional string coloring
+  - Governor limits: Clear labels with numeric values
+  - Log categories: Standard keyword highlighting
+  - Delimiters: Subtle visual guides
 
 Governor Limit Header:
   The header line displays a summary of all governor limits with
