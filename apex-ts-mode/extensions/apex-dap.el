@@ -40,7 +40,7 @@
 
 (with-eval-after-load 'dape
   (apex-dap-initialize))
-  ;; (define-key sflog-ts-mode-map "M-d" #'apex-dap-start-replay-debugger)
+;; (define-key apex-log-ts-mode-map "M-d" #'apex-dap-start-replay-debugger)
 
 (provide 'apex-dap)
 ;;; apex-dap.el ends here

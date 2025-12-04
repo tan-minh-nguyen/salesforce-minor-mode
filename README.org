@@ -138,7 +138,7 @@ salesforce-minor-mode/
 │   ├── language-server/                 # LSP configurations
 │   └── snippets/                        # Code snippets
 ├── apex-ts-log/
-│   ├── sflog-ts-mode.el                 # Salesforce log file mode
+│   ├── apex-log-ts-mode.el              # Apex log file mode with tree-sitter
 │   └── ob-apex-log.el                   # Org-babel for Apex logs
 ├── soql-ts-mode/
 │   ├── soql-ts-mode.el                  # SOQL major mode with tree-sitter
