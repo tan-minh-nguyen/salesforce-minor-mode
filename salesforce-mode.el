@@ -44,12 +44,17 @@
   :group 'tools
   :prefix "salesforce-")
 
-(defcustom salesforce-mode-line-connect-icon (nerd-icons-octicon "nf-oct-dot_fill")
+(defcustom salesforce-mode-line-connect-icon
+  (if (require 'nerd-icons nil :noerror)
+      (nerd-icons-octicon "nf-oct-dot_fill")
+    "✓")
   "Icon displayed on mode-line when current org is connected."
   :type 'string
   :group 'salesforce)
 
-(defcustom salesforce-mode-line-disconnect-icon (nerd-icons-octicon "nf-oct-dot_fill")
+(defcustom salesforce-mode-line-disconnect-icon  (if (require 'nerd-icons nil :noerror)
+                                                     (nerd-icons-octicon "nf-oct-dot_fill")
+                                                   "⛌")
   "Icon displayed on mode-line when current org is disconnected."
   :type 'string
   :group 'salesforce)
@@ -92,8 +97,8 @@
 (defun salesforce-mode--initialize-resource-keymap ()
   "Initialize the keymap for resource management features."
   (let ((map (make-sparse-keymap)))
-    (keymap-set map "c" (cons "Create Salesforce resource" #'salesforce-apex--transient:generate-resource))
-    (keymap-set map "l" (cons "Clear log data" #'salesforce-org-delete-logs))
+    (keymap-set map "c" (cons "Create resource" #'salesforce-apex--transient:generate-resource))
+    (keymap-set map "l" (cons "Delete Log" #'salesforce-org-delete-logs))
     map))
 
 ;;; Keymaps

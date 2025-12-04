@@ -89,17 +89,20 @@
 (defvar apex-ts-mode--indent-rules
   `((apex
      ((parent-is "parser_output") column-0 0)
-     ((node-is "}") parent-bol 0)
+     ((node-is "}") column-0 apex-ts-statement-offset)
      ((node-is ")") parent-bol 0)
      ((node-is "else") parent-bol 0)
      ((node-is "]") parent-bol 0)
+     ((node-is "map_initializer") parent-bol apex-ts-mode-indent-offset)
      ((and (parent-is "comment") c-ts-common-looking-at-star)
       c-ts-common-comment-start-after-first-star -1)
      ((parent-is "comment") prev-adaptive-prefix 0)
+     ((parent-is "accessor_list") parent-bol apex-ts-mode-indent-offset)
+     ((parent-is "accessor_declaration") parent-bol apex-ts-mode-indent-offset)
      ((parent-is "block") parent-bol apex-ts-mode-indent-offset)
      ((parent-is "text_block") no-indent)
      ((parent-is "class_body") column-0 c-ts-common-statement-offset)
-     ((parent-is "accessor_list") parent-bol apex-ts-mode-indent-offset)
+     ((parent-is "map_initializer") parent-bol apex-ts-mode-indent-offset)
      ((parent-is "array_initializer") parent-bol apex-ts-mode-indent-offset)
      ((parent-is "annotation_type_body") column-0 c-ts-common-statement-offset)
      ((parent-is "interface_body") column-0 c-ts-common-statement-offset)
@@ -252,9 +255,9 @@ te available version of Tree-sitter for Apex."
      (formal_parameter
       name: (identifier) @font-lock-variable-name-face))
 
-     ;; (catch_formal_parameter
-     ;;  name: (identifier) @font-lock-variable-name-face)
-     
+   ;; (catch_formal_parameter
+   ;;  name: (identifier) @font-lock-variable-name-face)
+   
 
    :language 'apex
    :override t
@@ -391,12 +394,12 @@ Return nil if there is no name or if NODE is not a defun node."
   ;; Indent.
   (setq-local c-ts-common-indent-type-regexp-alist
               `((block . ,(rx (or "class_body"
-                                  "array_initializer"
-                                  "constructor_body"
-                                  "interface_body"
-                                  "enum_body"
-                                  "switch_block"
-                                  "block")))
+                                 "array_initializer"
+                                 "constructor_body"
+                                 "interface_body"
+                                 "enum_body"
+                                 "switch_block"
+                                 "block")))
                 (close-bracket . "}")
                 (if . "if_statement")
                 (else . ("if_statement" . "alternative"))
@@ -440,6 +443,88 @@ Return nil if there is no name or if NODE is not a defun node."
                                                             (treesit-node-text NODE)))))
   (treesit-major-mode-setup))
 
+(defun apex-ts-statement-offset (node parent &rest args)
+  "Calculate indentation offset for NODE with PARENT.
+Optimized version with fast path for common cases.
+For closing braces in accessor_list, align with the field declaration start.
+Otherwise, delegate to `c-ts-common-statement-offset'.
+ARGS are additional arguments passed to the fallback function."
+  ;; Cache parent type since we use it multiple times
+  (let ((parent-type (treesit-node-type parent)))
+    (cond
+     ;; Fast path: accessor_list - closing brace of the property
+     ((string= parent-type "accessor_list")
+      ;; Simple case: just return indent offset
+      apex-ts-mode-indent-offset)
+
+     ;; custom handle indentation for these parent type, because c-ts-common-indent-offset can't handle it
+     ((member parent-type '("map_initializer"))
+      (save-excursion
+        (goto-char (treesit-node-start parent))
+        (back-to-indentation)
+        (current-column)))
+     ;; Check if we're inside an accessor_declaration (for statements inside get/set)
+     ;; This needs to come before other cases because accessors can contain if/for/while
+     ((apex-ts--in-accessor-declaration-p parent)
+      (apex-ts--accessor-inner-statement-offset node parent))
+     
+     ;; Check for block inside accessor_declaration
+     ((string= parent-type "block")
+      (let* ((grandparent (treesit-node-parent parent))
+             (grandparent-type (and grandparent (treesit-node-type grandparent))))
+        (if (string= grandparent-type "accessor_declaration")
+            ;; Closing brace of accessor block - calculate based on accessor position
+            (let ((column (save-excursion
+                            (goto-char (treesit-node-start grandparent))
+                            (current-column))))
+              column)
+          ;; Regular block - use default
+          (apply #'c-ts-common-statement-offset node parent args))))
+     
+     ;; Fast path: Common non-accessor cases (these can't contain accessors)
+     ((member parent-type '("class_body" "interface_body" "enum_body" 
+                            "method_declaration" "constructor_body"
+                            "annotation_type_body"))
+      (apply #'c-ts-common-statement-offset node parent args))
+     
+     ;; Default fallback
+     (t (apply #'c-ts-common-statement-offset node parent args)))))
+
+(defun apex-ts--in-accessor-declaration-p (parent)
+  "Check if PARENT is inside an accessor_declaration.
+Optimized to check only up to class/method boundaries."
+  (let ((parent-type (treesit-node-type parent)))
+    ;; Quick negative checks - these are boundaries, can't be inside accessor
+    (and (not (member parent-type '("class_body" "interface_body" "enum_body"
+                                 "method_declaration" "constructor_body"
+                                 "parser_output" "accessor_list")))
+       ;; Walk up tree to find accessor_declaration or hit boundary
+       (let ((ancestor parent))
+         (catch 'found
+           (while ancestor
+             (let ((ancestor-type (treesit-node-type ancestor)))
+               (cond
+                ;; Found it!
+                ((string= ancestor-type "accessor_declaration")
+                 (throw 'found t))
+                ;; Hit boundary - stop searching
+                ((member ancestor-type '("class_body" "method_declaration" 
+                                         "constructor_body" "field_declaration"))
+                 (throw 'found nil))
+                ;; Keep looking
+                (t (setq ancestor (treesit-node-parent ancestor))))))
+           nil)))))
+
+(defun apex-ts--accessor-inner-statement-offset (node parent)
+  "Calculate indentation offset for statements inside accessor_declaration.
+This handles statements like 'return prop;' inside get/set blocks."
+  (save-excursion
+    (goto-char (treesit-node-start parent))
+    (if (bolp)
+        0
+      (back-to-indentation)
+      (current-column))))
+
 ;;;###autoload
 (define-derived-mode apex-ts-mode prog-mode "Apex"
   "Major mode for editing Apex, powered by tree-sitter."
@@ -459,10 +544,10 @@ Return nil if there is no name or if NODE is not a defun node."
   `(lambda (cand)
      (let* (;; Return type display
             (type-text (propertize (or (plist-get cand :type)
-                                       "Void")
+                                      "Void")
                                    'face 'font-lock-type-face)))
        type-text)))
-             
+
 (defmacro apex-ts-mode--define-source-action ()
   "Define action for consult source."
   `(lambda (cand) 
