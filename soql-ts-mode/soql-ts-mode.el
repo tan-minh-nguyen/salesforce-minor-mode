@@ -3,7 +3,6 @@
 ;; Code
 (require 'cl)
 (require 'treesit)
-(require 'soql-company)
 (require 'soql-lsp)
 
 (defvar apex-ts-mode--soql-keywords
@@ -115,10 +114,6 @@
     (error "Tree-sitter for Apex isn't available"))
 
   (treesit-parser-create 'soql)
-
-  ;; ;;Hooks
-  ;; (add-hook 'eglot-managed-mode-hook #'soql-company-setup)
-  ;; (add-hook 'soql-ts-mode-hook #'soql-company-setup)
 
   (soql-ts-mode--setup))
 

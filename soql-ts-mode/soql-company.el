@@ -123,13 +123,9 @@ FIELD: contains all data about that field."
   (cl-case command
     (interactive (company-begin-backend 'company-soql))
     (prefix (and (soql-company--statement-p)
-                 (company-grab-symbol)))
+               (company-grab-symbol)))
     (candidates (soql-company--candidates arg))
     (annotation (soql-company--annotation arg))
     (meta (soql-company--meta arg))))
-
-(defun soql-company-setup ()
-  "Setup SQOL company backend."
-  (add-to-list (make-local-variable 'company-backends) 'company-soql))
 
 (provide 'soql-company)
