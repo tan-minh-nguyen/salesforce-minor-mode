@@ -143,7 +143,7 @@ Updates `salesforce-mode-line-current-org-status' with appropriate icon and face
   "Check the current org connection status and update mode line."
   (when (and (bound-and-true-p salesforce-mode)
            salesforce-org-name)
-    (salesforce-org--check-live-connect 
+    (salesforce-org--check-status
      :org salesforce-org-name
      :then #'salesforce-mode--set-mode-line-status)))
 
