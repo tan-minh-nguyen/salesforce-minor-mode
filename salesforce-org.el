@@ -27,6 +27,7 @@ ALIAS is the name to assign to the authorized org."
    (setq salesforce-org-name alias
          salesforce-project-url (salesforce-project--get-user-data alias "instanceUrl")
          salesforce-project-token (salesforce-project--get-user-data alias "accessToken"))
+   (salesforce-project--update-dir-local-config salesforce-org-name alias)
    (salesforce-core--alert (format "Authorize to %s success"
                                    (map-nested-elt json-instance '("result" "username"))))))
 
@@ -191,14 +192,15 @@ REQUIRE-MATCH: Whether to require a match."
   "Change default connection org."
   (interactive)
   (salesforce-org-read-user "Select Org: "
-                            (let ((org-name (car candidate)))
-                              (salesforce-core--config-process
-                               :args `("set" "target-org" ,org-name "--json")
-                               (setq salesforce-org-name org-name
-                                     salesforce-project-url (salesforce-project--get-user-data org-name "instanceUrl")
-                                     salesforce-project-token (salesforce-project--get-user-data org-name "accessToken"))
-                               (salesforce-core--alert (format "Change to %s success" org-name))))
-                            :require-match t))
+    (let ((org-name (car candidate)))
+      (salesforce-core--config-process
+       :args `("set" "target-org" ,org-name "--json")
+       (setq salesforce-org-name org-name
+             salesforce-project-url (salesforce-project--get-user-data org-name "instanceUrl")
+             salesforce-project-token (salesforce-project--get-user-data org-name "accessToken"))
+       (salesforce-project--update-dir-local-config salesforce-org-name org-name)
+       (salesforce-core--alert (format "Change to %s success" org-name))))
+    :require-match t))
 
 ;;; Log management
 
