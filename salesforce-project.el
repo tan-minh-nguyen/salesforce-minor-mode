@@ -371,7 +371,7 @@ FILE1-REF and FILE2-REF should be symbols holding file paths."
            1 1
            (lambda ()
              (when (and (symbol-value file1-ref) 
-                      (symbol-value file2-ref))
+                        (symbol-value file2-ref))
                (cancel-timer poll-timer)
                (funcall callback 
                         (symbol-value file1-ref) 
@@ -652,7 +652,7 @@ TABLE should be a hash table mapping aliases to usernames."
    [""
     (salesforce-project--transient:--picklist-values)
     (salesforce-project--transient:--decimal-places)
-    (salesforce--menu:-d)]]
+    (salesforce--transient-menu:-d)]]
   [""
    ("RET" "Generate Field" salesforce-data--transient:import-bulk)])
 
@@ -662,7 +662,7 @@ TABLE should be a hash table mapping aliases to usernames."
   :key "-n"
   :shortarg "-n"
   :argument "--name="
-  :reader #'salesforce--menu:read-string)
+  :reader #'salesforce--transient-menu:read-string)
 
 (transient-define-argument salesforce-project--transient:--label ()
   :class 'transient-option
@@ -670,7 +670,7 @@ TABLE should be a hash table mapping aliases to usernames."
   :key "-l"
   :shortarg "-l"
   :argument "--label="
-  :reader #'salesforce--menu:read-string)
+  :reader #'salesforce--transient-menu:read-string)
 
 (transient-define-argument salesforce-project--transient:--field-type ()
   :class 'transient-switches
@@ -680,7 +680,7 @@ TABLE should be a hash table mapping aliases to usernames."
   :argument-regexp "\\(Checkbox\\|Date\\|DateTime\\|Email\\|Number\\|Percent\\|Phone\\|Picklist\\|Text\\|TextArea\\)"
   :choices '("Checkbox" "Date" "DateTime" "Email" "Number" 
              "Percent" "Phone" "Picklist" "Text" "TextArea")
-  :reader #'salesforce--menu:read-string)
+  :reader #'salesforce--transient-menu:read-string)
 
 (transient-define-argument salesforce-project--transient:--picklist-values ()
   :class 'transient-option
@@ -693,7 +693,7 @@ TABLE should be a hash table mapping aliases to usernames."
                   "--type=" 
                   (transient-args salesforce-project--transient:custom-metadata-field-menu)) 
                  "Picklist"))
-  :reader #'salesforce--menu:read-string)
+  :reader #'salesforce--transient-menu:read-string)
 
 (transient-define-argument salesforce-project--transient:--decimal-places ()
   :class 'transient-option
@@ -701,7 +701,7 @@ TABLE should be a hash table mapping aliases to usernames."
   :key "-s"
   :shortarg "-s"
   :argument "--decimal-places="
-  :reader #'salesforce--menu:read-number)
+  :reader #'salesforce--transient-menu:read-number)
 
 (defun salesforce-project-create-cmdt-field ()
   "Create custom field on Custom Metadata object."

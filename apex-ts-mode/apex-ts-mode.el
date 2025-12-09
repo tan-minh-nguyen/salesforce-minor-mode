@@ -378,8 +378,9 @@ Return nil if there is no name or if NODE is not a defun node."
 
 (defun apex-ts-mode--soql-embeded ()
   "Auto hints for embedded SOQL statement."
-  (require 'soql-company nil 'noerror)
-  (add-hook 'eglot-managed-mode-hook #'soql-company-setup))
+  ;; (require 'soql-company nil 'noerror)
+  ;; (add-hook 'eglot-managed-mode-hook #'soql-company-setup)
+  )
 
 (defun apex-ts-mode-p ()
   "Check current context is apex."

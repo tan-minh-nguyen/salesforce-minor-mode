@@ -521,7 +521,8 @@ This function uses the `alert` package to show notifications."
     (plist-put args :title (projectile-project-name)))
   (unless (plist-member args :icon)
     (plist-put args :icon "apex"))
-  (apply #'alert message args))
+  (unless (string-empty-p message)
+    (apply #'alert message args)))
 
 (provide 'salesforce-core)
 

@@ -180,11 +180,4 @@ specifying a var of the same value."
 Return the initialized session."
   (unless (string= session "none")))
 
-(defun ob-soql-company ()
-  "Enable company for SOQL org babel."
-  (when (soql-ts-mode-p)
-    (soql-company-setup)))
-
-(add-hook 'org-src-mode-hook #'ob-soql-company)
-
 (provide 'ob-soql)
