@@ -33,6 +33,7 @@
 (require 'salesforce-org)
 (require 'salesforce-project)
 (require 'salesforce-data)
+(require 'salesforce-sobject)
 (require 'apex-ts-mode)
 (require 'soql-ts-mode)
 (require 'ob-soql)

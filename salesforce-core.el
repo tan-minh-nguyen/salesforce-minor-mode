@@ -258,6 +258,7 @@ This generates a macro that can execute Salesforce CLI commands."
 (salesforce-core--make-process "lightning")
 (salesforce-core--make-process "config")
 (salesforce-core--make-process "cmdt")
+(salesforce-core--make-process "sobject")
 
 ;;; API Request
 
