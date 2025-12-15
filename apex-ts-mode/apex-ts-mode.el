@@ -329,8 +329,8 @@ te available version of Tree-sitter for Apex."
 Return nil if there is no name or if NODE is not a defun node."
   (pcase (treesit-node-type node)
     ((or "method_declaration"
-        "class_declaration"
-        "interface_declaration")
+         "class_declaration"
+         "interface_declaration")
      (treesit-node-text
       (treesit-node-child-by-field-name node "name")
       t))))
@@ -377,10 +377,10 @@ Return nil if there is no name or if NODE is not a defun node."
            (treesit-node-child-by-field-name node (car path-splited))))))
 
 (defun apex-ts-mode--soql-embeded ()
-  "Auto hints for embedded SOQL statement."
-  ;; (require 'soql-company nil 'noerror)
-  ;; (add-hook 'eglot-managed-mode-hook #'soql-company-setup)
-  )
+  "Setup completion for embedded SOQL/SOSL statements.
+Works with Eglot by adding SOQL completion before Eglot's CAPF."
+  (when (require 'apex-soql-capf nil t)
+    (apex-soql-capf-setup)))
 
 (defun apex-ts-mode-p ()
   "Check current context is apex."
@@ -395,12 +395,12 @@ Return nil if there is no name or if NODE is not a defun node."
   ;; Indent.
   (setq-local c-ts-common-indent-type-regexp-alist
               `((block . ,(rx (or "class_body"
-                                 "array_initializer"
-                                 "constructor_body"
-                                 "interface_body"
-                                 "enum_body"
-                                 "switch_block"
-                                 "block")))
+                                  "array_initializer"
+                                  "constructor_body"
+                                  "interface_body"
+                                  "enum_body"
+                                  "switch_block"
+                                  "block")))
                 (close-bracket . "}")
                 (if . "if_statement")
                 (else . ("if_statement" . "alternative"))
@@ -497,24 +497,24 @@ Optimized to check only up to class/method boundaries."
   (let ((parent-type (treesit-node-type parent)))
     ;; Quick negative checks - these are boundaries, can't be inside accessor
     (and (not (member parent-type '("class_body" "interface_body" "enum_body"
-                                 "method_declaration" "constructor_body"
-                                 "parser_output" "accessor_list")))
-       ;; Walk up tree to find accessor_declaration or hit boundary
-       (let ((ancestor parent))
-         (catch 'found
-           (while ancestor
-             (let ((ancestor-type (treesit-node-type ancestor)))
-               (cond
-                ;; Found it!
-                ((string= ancestor-type "accessor_declaration")
-                 (throw 'found t))
-                ;; Hit boundary - stop searching
-                ((member ancestor-type '("class_body" "method_declaration" 
-                                         "constructor_body" "field_declaration"))
-                 (throw 'found nil))
-                ;; Keep looking
-                (t (setq ancestor (treesit-node-parent ancestor))))))
-           nil)))))
+                                    "method_declaration" "constructor_body"
+                                    "parser_output" "accessor_list")))
+         ;; Walk up tree to find accessor_declaration or hit boundary
+         (let ((ancestor parent))
+           (catch 'found
+             (while ancestor
+               (let ((ancestor-type (treesit-node-type ancestor)))
+                 (cond
+                  ;; Found it!
+                  ((string= ancestor-type "accessor_declaration")
+                   (throw 'found t))
+                  ;; Hit boundary - stop searching
+                  ((member ancestor-type '("class_body" "method_declaration" 
+                                           "constructor_body" "field_declaration"))
+                   (throw 'found nil))
+                  ;; Keep looking
+                  (t (setq ancestor (treesit-node-parent ancestor))))))
+             nil)))))
 
 (defun apex-ts--accessor-inner-statement-offset (node parent)
   "Calculate indentation offset for statements inside accessor_declaration.
@@ -545,7 +545,7 @@ This handles statements like 'return prop;' inside get/set blocks."
   `(lambda (cand)
      (let* (;; Return type display
             (type-text (propertize (or (plist-get cand :type)
-                                      "Void")
+                                       "Void")
                                    'face 'font-lock-type-face)))
        type-text)))
 
