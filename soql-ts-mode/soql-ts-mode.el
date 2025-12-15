@@ -106,6 +106,19 @@
   "Enable SOQL major mode in minibuffer."
   (setq-local minibuffer-allow-text-properties t))
 
+(defun soql-ts-mode--setup-completion ()
+  "Setup completion backend based on available packages.
+Prefers completion-at-point (Corfu compatible), falls back to Company."
+  (cond
+   ;; Prefer capf (works with Corfu, Company-capf, built-in)
+   ((require 'soql-capf nil t)
+    (soql-capf-setup))
+   
+   ;; Fallback to Company backend
+   ((and (require 'company nil t)
+         (require 'soql-company nil t))
+    (soql-company-setup))))
+
 ;;;###autoload
 (define-derived-mode soql-ts-mode prog-mode "SOQL"
   "Major mode for editing SOQL, powered by tree-sitter."
@@ -115,7 +128,10 @@
 
   (treesit-parser-create 'soql)
 
-  (soql-ts-mode--setup))
+  (soql-ts-mode--setup)
+  
+  ;; Setup completion
+  (soql-ts-mode--setup-completion))
 
 (add-to-list 'org-src-lang-modes '("soql" . soql-ts))
 
