@@ -162,14 +162,19 @@ Updates `salesforce-mode-line-current-org-status' with appropriate icon and face
 
 (defun salesforce-mode--initialize ()
   "Initialize Salesforce mode.
-Checks org connection status immediately and starts periodic checks every 10 minutes."
-  (when (and (bound-and-true-p salesforce-mode)
-           salesforce-org-name)
-    ;; Check status immediately on initialization
-    (unless salesforce-status-check
-      (salesforce-mode--check-org-status))
-    ;; Start periodic status checks
-    (salesforce-mode--start-status-check-timer)))
+Ensures org name is populated and starts status checks."
+  (when (bound-and-true-p salesforce-mode)
+    ;; Ensure org name is populated from config file
+    (salesforce-project--ensure-org-name)
+    
+    ;; Only proceed with status check if we have org name
+    (when (and salesforce-org-name 
+               (not (string-empty-p salesforce-org-name)))
+      ;; Check status immediately on initialization
+      (unless salesforce-status-check
+        (salesforce-mode--check-org-status))
+      ;; Start periodic status checks
+      (salesforce-mode--start-status-check-timer))))
 
 (defun salesforce-mode--cleanup ()
   "Cleanup Salesforce mode resources.

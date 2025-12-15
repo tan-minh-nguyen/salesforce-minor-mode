@@ -81,11 +81,16 @@ Checks both .sf/config.json and legacy .sfdx/sfdx-config.json."
      (t nil))))
 
 (defun salesforce-project--read-org-from-config (config-file)
-  "Read the org alias from CONFIG-FILE using shell commands."
+  "Read the org alias from CONFIG-FILE using native JSON parsing."
   (when (and config-file (file-exists-p config-file))
-    (let ((command (format "grep -Po '(?<=\"target-org\": )\"[^\"]+\"' %s | sed -E 's/\"([^\"]+)\"/\\1/' || grep -Po '(?<=\"defaultusername\": )\"[^\"]+\"' %s | sed -E 's/\"([^\"]+)\"/\\1/'"
-                           config-file config-file)))
-      (string-trim (shell-command-to-string command)))))
+    (condition-case nil
+        (with-temp-buffer
+          (insert-file-contents config-file)
+          (let* ((json (json-parse-buffer :object-type 'alist))
+                 (org-name (or (alist-get 'target-org json)
+                               (alist-get 'defaultusername json))))
+            (if (stringp org-name) org-name "")))
+      (error ""))))
 
 (defun salesforce-project--fetch-org-name ()
   "Return the current Salesforce org alias for the project.
@@ -94,13 +99,25 @@ Checks config files or falls back to cached value."
          (config-file (salesforce-project--get-config-file-path root)))
     (if config-file
         (or (ignore-errors (salesforce-project--read-org-from-config config-file))
-           "")
+            "")
       "")))
+
+(defun salesforce-project--ensure-org-name ()
+  "Ensure salesforce-org-name is populated from config file.
+Updates dir-locals if value has changed. Returns the org name or nil."
+  (when-let* ((root (salesforce-core--find-root-dir))
+              (org-name (salesforce-project--fetch-org-name))
+              ((not (string-empty-p org-name))))
+    ;; Only update if different from current value
+    (unless (equal salesforce-org-name org-name)
+      (salesforce-project--update-dir-local-config 'salesforce-org-name org-name)
+      (salesforce-project--apply-dir-locals))
+    org-name))
 
 (defun salesforce-project--get-root-config (root)
   "Retrieve the project configuration for ROOT directory."
   (or (alist-get root salesforce-metadata-define-roots)
-     (alist-get 'default salesforce-metadata-define-roots)))
+      (alist-get 'default salesforce-metadata-define-roots)))
 
 (defun salesforce-project--set-local-metadata-dir (root config)
   "Set `salesforce-metadata-root-dir' by searching from ROOT for CONFIG."
@@ -147,7 +164,7 @@ If MODE is nil, check the default project entry."
 Configuration is stored in `salesforce-project-configuration'.
 If FORCE is non-nil, update even if value hasn't changed."
   (when (or (not (eq (cdr (salesforce-project-symbol-dir-local-p symbol)) value))
-           force)
+            force)
     (if (assoc nil salesforce-project-configuration)
         (setf (alist-get nil salesforce-project-configuration)
               `(,@(assoc-default nil salesforce-project-configuration)
@@ -188,7 +205,7 @@ If FORCE is non-nil, update even if value hasn't changed."
     (make-directory project-dir 'parents)
     (salesforce-core--project-process 
      :args (list "generate" "--name" project-name 
-              "--template" project-template "--json")
+                 "--template" project-template "--json")
      (salesforce-core--alert "Create Project Success"))))
 
 ;;; Source Push/Retrieve Operations
@@ -244,7 +261,7 @@ FINISH-FUNC is a function to call upon completion."
      
      (funcall finish-func 
               (or target-path
-                 (expand-file-name file-name temporary-file-directory))))))
+                  (expand-file-name file-name temporary-file-directory))))))
 
 ;;; Ediff Integration
 
@@ -463,10 +480,10 @@ Optionally specify a TARGET-ORG."
         (async-wait proc)
         (if (eq (process-exit-status proc) 1)
             (list :status 1
-               :error (salesforce--async-when-done proc))
+                  :error (salesforce--async-when-done proc))
           (list :status 0
-             :json-instance (salesforce-core-parse-buffer-json
-                             (process-buffer proc))))))
+                :json-instance (salesforce-core-parse-buffer-json
+                                (process-buffer proc))))))
    (lambda (result)
      (when (eq (plist-get result :status) 0)
        (salesforce-core--alert (concat "Success " command " files"))))))
@@ -603,19 +620,25 @@ TABLE should be a hash table mapping aliases to usernames."
   "Check if USERNAME-OR-ALIAS exists as a connected user."
   (when-let ((table (salesforce-project--users)))
     (or (member username-or-alias (hash-table-keys table))
-       (member username-or-alias (hash-table-values table)))))
+        (member username-or-alias (hash-table-values table)))))
 
 ;;; Mode Line
 
 (defun salesforce-project--mode-line-format ()
   "Compose the mode-line for Salesforce mode."
-  (when (and (bound-and-true-p salesforce-mode)
-           salesforce-org-name)
-    (concat (propertize (concat salesforce-project-mode-line-icon 
-                                " " 
-                                salesforce-org-name)
-                        'face 'salesforce-mode-line-face)
-            salesforce-mode-line-current-org-status)))
+  (when (bound-and-true-p salesforce-mode)
+    ;; Ensure org name is populated (won't update if already correct)
+    (when (or (null salesforce-org-name)
+              (string-empty-p salesforce-org-name))
+      (salesforce-project--ensure-org-name))
+    
+    (when (and salesforce-org-name 
+               (not (string-empty-p salesforce-org-name)))
+      (concat (propertize (concat salesforce-project-mode-line-icon 
+                                  " " 
+                                  salesforce-org-name)
+                          'face 'salesforce-mode-line-face)
+              salesforce-mode-line-current-org-status))))
 
 ;;; Utility Functions
 
