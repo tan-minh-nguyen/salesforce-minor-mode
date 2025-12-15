@@ -102,16 +102,21 @@ Checks config files or falls back to cached value."
             "")
       "")))
 
+(defvar salesforce-project--updating-org-name nil
+  "Guard to prevent recursion when updating org name.")
+
 (defun salesforce-project--ensure-org-name ()
   "Ensure salesforce-org-name is populated from config file.
 Updates dir-locals if value has changed. Returns the org name or nil."
   (when-let* ((root (salesforce-core--find-root-dir))
               (org-name (salesforce-project--fetch-org-name))
               ((not (string-empty-p org-name))))
-    ;; Only update if different from current value
-    (unless (equal salesforce-org-name org-name)
-      (salesforce-project--update-dir-local-config 'salesforce-org-name org-name)
-      (salesforce-project--apply-dir-locals))
+    ;; Only update if different from current value and not already updating
+    (unless (or (equal salesforce-org-name org-name)
+                salesforce-project--updating-org-name)
+      (let ((salesforce-project--updating-org-name t))
+        (salesforce-project--update-dir-local-config 'salesforce-org-name org-name)
+        (salesforce-project--apply-dir-locals)))
     org-name))
 
 (defun salesforce-project--get-root-config (root)
@@ -627,10 +632,10 @@ TABLE should be a hash table mapping aliases to usernames."
 (defun salesforce-project--mode-line-format ()
   "Compose the mode-line for Salesforce mode."
   (when (bound-and-true-p salesforce-mode)
-    ;; Ensure org name is populated (won't update if already correct)
+    ;; Lazy load org name if empty (without triggering dir-locals update)
     (when (or (null salesforce-org-name)
               (string-empty-p salesforce-org-name))
-      (salesforce-project--ensure-org-name))
+      (setq salesforce-org-name (salesforce-project--fetch-org-name)))
     
     (when (and salesforce-org-name 
                (not (string-empty-p salesforce-org-name)))
