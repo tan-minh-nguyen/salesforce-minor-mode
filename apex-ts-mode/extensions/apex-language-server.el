@@ -57,17 +57,19 @@
        ("finished\n" (message "install Apex LSP successfully."))
        (_ (message event))))))
 
+;;;#autoload
 (defun apex-language-server-bridge ()
   "Configures LSP Bridge"
   ;; Load Apex language server
   (add-to-list 'lsp-bridge-single-lang-server-mode-list '(apex-ts-mode . "apex"))
   (add-to-list 'lsp-bridge-formatting-indent-alist '(apex-ts-mode . apex-ts-mode-indent-offset)))
 
+;;;#autoload
 (defun apex-language-server-eglot ()
   "Configures LSP Eglot"
 
   (add-to-list 'eglot-server-programs
-               (cons apex-ts-mode `(,@(apex-lsp--generate-server-lsp-command)
-                                    ,@apex-lsp-eglot-config))))
+               (cons 'apex-ts-mode `(,@(apex-lsp--generate-server-lsp-command)
+                                     ,@apex-lsp-eglot-config))))
 
 (provide 'apex-language-server)
