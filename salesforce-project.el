@@ -169,13 +169,20 @@ If MODE is nil, check the default project entry."
 Configuration is stored in `salesforce-project-configuration'.
 If FORCE is non-nil, update even if value hasn't changed."
   (when (or (not (eq (cdr (salesforce-project-symbol-dir-local-p symbol)) value))
-            force)
-    (if (assoc nil salesforce-project-configuration)
-        (setf (alist-get nil salesforce-project-configuration)
-              `(,@(assoc-default nil salesforce-project-configuration)
-                (,symbol . ,value)))
-      (cl-pushnew 'salesforce-project-configuration 
-                  `(nil . ((,symbol . ,value)))))))
+           force)
+    (let ((mode-entry (assoc nil salesforce-project-configuration)))
+      (if mode-entry
+          ;; Mode entry exists, update or add symbol
+          (let ((symbol-list (cdr mode-entry)))
+            (if (assoc symbol symbol-list)
+                ;; Symbol exists, update its value
+                (setf (alist-get symbol symbol-list) value)
+              ;; Symbol doesn't exist, add it
+              (setf (alist-get nil salesforce-project-configuration)
+                    (cons (cons symbol value) symbol-list))))
+        ;; Mode entry doesn't exist, create it
+        (push (cons nil (list (cons symbol value)))
+              salesforce-project-configuration)))))
 
 (defun salesforce-project--apply-dir-locals ()
   "Apply directory local variables for the current project."

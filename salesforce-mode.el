@@ -75,6 +75,14 @@
   :type 'boolean
   :group 'salesforce)
 
+(defvar salesforce-mode--status-check-timer nil
+  "Timer for periodic org connection status checks.")
+
+(defcustom salesforce--mode-status-check-interval 1200
+  "Time interval, in seconds, between checks of the org status."
+  :type 'integer
+  :group 'salesforce)
+
 ;;; Keymap Initialization
 
 (defun salesforce-mode--initialize-org-keymap ()
@@ -137,13 +145,10 @@ Updates `salesforce-mode-line-current-org-status' with appropriate icon and face
 
 ;;; Mode Initialization
 
-(defvar salesforce-mode--status-check-timer nil
-  "Timer for periodic org connection status checks.")
-
 (defun salesforce-mode--check-org-status ()
   "Check the current org connection status and update mode line."
   (when (and (bound-and-true-p salesforce-mode)
-           salesforce-org-name)
+             salesforce-org-name)
     (salesforce-org--check-status
      :org salesforce-org-name
      :then #'salesforce-mode--set-mode-line-status)))
@@ -153,7 +158,7 @@ Updates `salesforce-mode-line-current-org-status' with appropriate icon and face
   (when salesforce-mode--status-check-timer
     (cancel-timer salesforce-mode--status-check-timer))
   (setq salesforce-mode--status-check-timer
-        (run-at-time t 600 #'salesforce-mode--check-org-status)))
+        (run-at-time t salesforce--mode-status-check-interval #'salesforce-mode--check-org-status)))
 
 (defun salesforce-mode--stop-status-check-timer ()
   "Stop the org connection status check timer."
@@ -170,10 +175,12 @@ Ensures org name is populated and starts status checks."
     
     ;; Only proceed with status check if we have org name
     (when (and salesforce-org-name 
-               (not (string-empty-p salesforce-org-name)))
+             (not (string-empty-p salesforce-org-name)))
       ;; Check status immediately on initialization
       (unless salesforce-status-check
-        (salesforce-mode--check-org-status))
+        (setq salesforce-status-check
+              (progn (salesforce-mode--check-org-status)
+                     t)))
       ;; Start periodic status checks
       (salesforce-mode--start-status-check-timer))))
 

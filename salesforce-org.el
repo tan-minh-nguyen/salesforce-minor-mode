@@ -35,9 +35,17 @@ ALIAS is the name to assign to the authorized org."
   "Check current org status.
 THEN is a callback function to handle the result.
 ORG specifies which org to check."
-  (salesforce-core--org-process
-   :args `("display" "-o" ,org "--json")
-   (funcall then json-instance)))
+  (cl-letf (((symbol-function 'salesforce-core--async-when-done)
+             (cl-function
+              (lambda (proc &optional _change)
+                (when-let ((_ (> (process-exit-status proc) 0))
+                           (_ (string-match-p salesforce-process-buffer 
+                                              (buffer-name (process-buffer proc)))))
+                  (funcall then (salesforce-core-parse-buffer-json (process-buffer proc))))))))
+
+    (salesforce-core--org-process
+     :args `("display" "-o" ,org "--json")
+     (funcall then json-instance))))
 
 ;;; Org list and caching
 
