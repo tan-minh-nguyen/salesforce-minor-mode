@@ -27,7 +27,7 @@ ALIAS is the name to assign to the authorized org."
    (setq salesforce-org-name alias
          salesforce-project-url (salesforce-project--get-user-data alias "instanceUrl")
          salesforce-project-token (salesforce-project--get-user-data alias "accessToken"))
-   (salesforce-project--update-dir-local-config salesforce-org-name alias)
+   (salesforce-project--update-dir-local-config 'salesforce-org-name alias)
    (salesforce-core--alert (format "Authorize to %s success"
                                    (map-nested-elt json-instance '("result" "username"))))))
 
@@ -206,7 +206,7 @@ REQUIRE-MATCH: Whether to require a match."
        (setq salesforce-org-name org-name
              salesforce-project-url (salesforce-project--get-user-data org-name "instanceUrl")
              salesforce-project-token (salesforce-project--get-user-data org-name "accessToken"))
-       (salesforce-project--update-dir-local-config salesforce-org-name org-name)
+       (salesforce-project--update-dir-local-config 'salesforce-org-name org-name)
        (salesforce-core--alert (format "Change to %s success" org-name))))
     :require-match t))
 
