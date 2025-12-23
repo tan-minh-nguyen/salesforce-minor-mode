@@ -37,7 +37,7 @@
 (require 'ob-eval)
 (require 'salesforce-data)
 (require 'salesforce-project)
-(require 'ob-soql-display)
+(require 'ob-soql-core nil t)
 
 (add-to-list 'org-babel-tangle-lang-exts '("soql" . "soql"))
 

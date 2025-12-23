@@ -62,7 +62,7 @@
 ;; Requirements:
 ;; - Salesforce CLI must be installed and configured
 ;; - Emacs major mode for Apex should be installed
-;; - ob-soql-vars.el for SOQL integration (optional)
+;; - ob-soql-core.el for SOQL integration (optional)
 ;;
 ;; TODO: Support org session for Apex
 
@@ -76,7 +76,7 @@
 (require 'apex-ts-mode)
 
 ;; Optional: SOQL query variable integration
-(require 'ob-soql-vars nil t)
+(require 'ob-soql-core nil t)
 
 ;;; Configuration
 
@@ -155,10 +155,10 @@
 PROCESSED-PARAMS can be provided to avoid reprocessing.
 This function prepares the Apex code by adding variable declarations
 based on the provided parameters.
-Supports SOQL query variables when ob-soql-vars is loaded."
+Supports SOQL query variables when ob-soql-core is loaded."
   (let ((vars (org-babel--get-vars
                (or processed-params
-                   (org-babel-process-params params)))))
+                  (org-babel-process-params params)))))
     (concat
      (mapconcat #'ob-apex--expand-variable vars "\n")
      (when vars "\n")
@@ -167,16 +167,16 @@ Supports SOQL query variables when ob-soql-vars is loaded."
 (defun ob-apex--expand-variable (pair)
   "Expand variable PAIR into Apex declaration.
 PAIR is (var-name . value).
-If ob-soql-vars is loaded and value references a SOQL query,
+If ob-soql-core is loaded and value references a SOQL query,
 generates type-safe query code. Otherwise uses standard declaration."
   (let* ((var-name (symbol-name (car pair)))
          (value (cdr pair)))
     (cond
-     ;; Check if ob-soql-vars loaded and value is SOQL query name
-     ((and (featurep 'ob-soql-vars)
-           (stringp value)
-           (fboundp 'ob-soql-vars-get-query)
-           (ob-soql-vars-get-query value))
+     ;; Check if ob-soql-core loaded and value is SOQL query name
+     ((and (featurep 'ob-soql-core)
+         (stringp value)
+         (fboundp 'ob-soql-vars-get-query)
+         (ob-soql-vars-get-query value))
       ;; It's a SOQL query - generate type-safe code
       (ob-soql-vars-to-apex-query var-name (ob-soql-vars-get-query value)))
      
@@ -266,7 +266,7 @@ and optionally contains VALUE."
     (if (and value (not (string-empty-p value)))
         (lambda (line) 
           (and (funcall base-filter-fn line) 
-               (string-match-p (regexp-quote value) line)))
+             (string-match-p (regexp-quote value) line)))
       base-filter-fn)))
 
 (defun ob-apex--get-base-filter-fn (type)
@@ -313,7 +313,7 @@ VALUE is the variable value."
 (defun ob-apex--get-apex-type (type)
   "Get the Apex type corresponding to internal TYPE."
   (or (cdr (assoc type ob-apex--type-mapping))
-      "Object"))
+     "Object"))
 
 (defun ob-apex--format-value (type value)
   "Format VALUE based on its TYPE for Apex variable declaration."
@@ -322,8 +322,6 @@ VALUE is the variable value."
     ("number" value)
     ("boolean" value)
     (_ (format "new %s()" value))))
-
-;;; Utility Functions
 
 (defun ob-apex--get-param (key param-list)
   "Extract the parameter value associated with KEY from PARAM-LIST."
