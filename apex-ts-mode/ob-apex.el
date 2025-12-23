@@ -36,12 +36,33 @@
 ;; Features:
 ;; - Execute Apex code blocks in Org-mode
 ;; - Variable binding and type inference
+;; - SOQL query integration with type-safe variables
 ;; - Log filtering by type (DEBUG, EXECUTABLE, SYSTEM, GOVERNOR)
 ;; - Automatic result insertion
+;;
+;; SOQL Query Integration:
+;; - Reference SOQL blocks by name using :var syntax
+;; - Generates type-safe Apex code with proper SObject types
+;; - Uses inline SOQL syntax [SELECT...] for clean code
+;;
+;; Example:
+;;   #+NAME: my-accounts
+;;   #+BEGIN_SRC soql
+;;   SELECT Id, Name, Industry FROM Account LIMIT 10
+;;   #+END_SRC
+;;
+;;   #+BEGIN_SRC apex :var accounts=my-accounts
+;;   // Generated: List<Account> accounts = [SELECT Id, Name, Industry FROM Account LIMIT 10];
+;;   for (Account acc : accounts) {
+;;       System.debug(acc.Name);  // Direct field access!
+;;       System.debug(acc.Industry);
+;;   }
+;;   #+END_SRC
 ;;
 ;; Requirements:
 ;; - Salesforce CLI must be installed and configured
 ;; - Emacs major mode for Apex should be installed
+;; - ob-soql-vars.el for SOQL integration (optional)
 ;;
 ;; TODO: Support org session for Apex
 
@@ -53,6 +74,9 @@
 (require 'ob-eval)
 (require 'salesforce-core)
 (require 'apex-ts-mode)
+
+;; Optional: SOQL query variable integration
+(require 'ob-soql-vars nil t)
 
 ;;; Configuration
 
@@ -130,14 +154,35 @@
   "Expand BODY according to PARAMS, return the expanded body.
 PROCESSED-PARAMS can be provided to avoid reprocessing.
 This function prepares the Apex code by adding variable declarations
-based on the provided parameters."
+based on the provided parameters.
+Supports SOQL query variables when ob-soql-vars is loaded."
   (let ((vars (org-babel--get-vars
                (or processed-params
-                  (org-babel-process-params params)))))
+                   (org-babel-process-params params)))))
     (concat
-     (mapconcat #'ob-apex--declare-variable vars "\n")
+     (mapconcat #'ob-apex--expand-variable vars "\n")
      (when vars "\n")
      body "\n")))
+
+(defun ob-apex--expand-variable (pair)
+  "Expand variable PAIR into Apex declaration.
+PAIR is (var-name . value).
+If ob-soql-vars is loaded and value references a SOQL query,
+generates type-safe query code. Otherwise uses standard declaration."
+  (let* ((var-name (symbol-name (car pair)))
+         (value (cdr pair)))
+    (cond
+     ;; Check if ob-soql-vars loaded and value is SOQL query name
+     ((and (featurep 'ob-soql-vars)
+           (stringp value)
+           (fboundp 'ob-soql-vars-get-query)
+           (ob-soql-vars-get-query value))
+      ;; It's a SOQL query - generate type-safe code
+      (ob-soql-vars-to-apex-query var-name (ob-soql-vars-get-query value)))
+     
+     ;; Standard variable - use existing logic
+     (t
+      (ob-apex--declare-variable pair)))))
 
 ;;; Code Execution
 
