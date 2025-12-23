@@ -41,8 +41,8 @@
                              :languages ["apex"]
                              :lineBreakpointInfo [])))
 
-(with-eval-after-load 'dape
-  (apex-dap-initialize))
+;; (with-eval-after-load 'dape
+;;   (apex-dap-initialize))
 ;; (define-key apex-log-ts-mode-map "M-d" #'apex-dap-start-replay-debugger)
 
 (provide 'apex-dap)
