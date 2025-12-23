@@ -37,6 +37,7 @@
 (require 'ob-eval)
 (require 'salesforce-data)
 (require 'salesforce-project)
+(require 'ob-soql-display)
 
 (add-to-list 'org-babel-tangle-lang-exts '("soql" . "soql"))
 
@@ -44,12 +45,18 @@
 (defvar org-babel-default-header-args:soql `((:results . "output raw table replace")
                                              (:org . "")
                                              (:workspace . "")
-                                             (:limit . "2000")))
+                                             (:limit . "2000")
+                                             (:output . "org-table")
+                                             (:sobject . "")
+                                             (:editable . nil)))
 
 (defvar org-babel-default-inline-header-args:soql `((:results . "output raw table replace")
                                                     (:org . "")
                                                     (:workspace . "")
-                                                    (:limit . "2000")))
+                                                    (:limit . "2000")
+                                                    (:output . "org-table")
+                                                    (:sobject . "")
+                                                    (:editable . nil)))
 
 ;; This function expands the body of a source code block by doing things like
 ;; prepending argument definitions to the body, it should be called by the
@@ -61,7 +68,7 @@
   "Expand BODY according to PARAMS, return the expanded body."
   (require 'inf-template nil t)
   (let ((vars (org-babel--get-vars (or processed-params
-                                      (org-babel-process-params params))))
+                                       (org-babel-process-params params))))
         (soql (if (string-match-p "LIMIT" body) body
                 (format "%s LIMIT %s" body (ob-soql--get-param :limit processed-params)))))
 
@@ -92,17 +99,21 @@ BODY is the SOQL query, PARAMS are header arguments."
          (full-body (org-babel-expand-body:soql body params processed-params))
          (file-temp (make-temp-file "soql"))
          (org (ob-soql--get-param :org processed-params))
-         (org-url (ob-soql--org-url org)))
+         (org-url (ob-soql--org-url org))
+         (output-format (intern (or (ob-soql--get-param :output processed-params) "org-table")))
+         (sobject (ob-soql--get-param :sobject processed-params))
+         (editable (ob-soql--get-param :editable processed-params)))
 
     (if (and org org-url)
         (progn (write-region full-body nil file-temp)
-               (ob-soql--data file-temp `(,org ,org-url)))
+               (ob-soql--data file-temp `(,org ,org-url ,full-body ,output-format ,sobject ,editable)))
       "Something error")))
 
 (defun ob-soql--data (file org-attr)
   "Execute SOQL query stored in FILE against ORG-ATTR.
-ORG-ATTR is a list: (ORG URL). Returns results as an org-table string."
-  (pcase-let* ((`(,org ,url) org-attr)
+ORG-ATTR is a list: (ORG URL QUERY OUTPUT-FORMAT SOBJECT EDITABLE).
+Returns results based on OUTPUT-FORMAT."
+  (pcase-let* ((`(,org ,url ,query ,output-format ,sobject ,editable) org-attr)
                (process (async-get
                          (apply #'salesforce-data--dispatch-search
                                 :sync t
@@ -113,11 +124,19 @@ ORG-ATTR is a list: (ORG URL). Returns results as an org-table string."
         (with-current-buffer buf
           (let ((content (string-trim (buffer-string))))
             (unless (string-empty-p content)
-              (let ((csv (ob-soql--modify-csv content url)))
-                (erase-buffer)
-                (insert csv)
-                (org-table-convert-region (point-min) (point-max))
-                (buffer-string)))))
+              (let* ((csv (ob-soql--modify-csv content url))
+                     (metadata (ob-soql--build-metadata query org url csv sobject)))
+                ;; If org-table format, return string for org-babel
+                (if (eq output-format 'org-table)
+                    (ob-soql--display-as-org-table csv metadata)
+                  ;; Otherwise, open interactive buffer and return link
+                  (let ((result-buffer (ob-soql-display-results csv metadata output-format)))
+                    (when editable
+                      (with-current-buffer result-buffer
+                        (ob-soql-edit-mode 1)))
+                    (format "[[buffer:%s][View Results in %s]]" 
+                            (buffer-name result-buffer)
+                            output-format)))))))
       (when (buffer-live-p buf)
         (kill-buffer buf)))))
 

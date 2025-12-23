@@ -1,0 +1,168 @@
+#+TITLE: SOQL Edit Feature Test File
+#+AUTHOR: Test User
+#+DATE: 2025-12-16
+
+* Introduction
+
+This file demonstrates the new editable SOQL query feature in ob-soql.
+
+* Setup
+
+Make sure you have:
+- A Salesforce org configured
+- The ob-soql-display, ob-soql-edit, and ob-soql-update modules loaded
+
+* Test 1: Basic Query with org-table Output (Default)
+
+This uses the traditional org-table format (read-only).
+
+#+begin_src soql :org myorg :limit 5
+SELECT Id, Name, Industry FROM Account
+#+end_src
+
+#+RESULTS:
+
+* Test 2: Query with vtable Output (Interactive)
+
+This opens an interactive vtable buffer. The results show as a link.
+
+#+begin_src soql :org myorg :output vtable :limit 5
+SELECT Id, Name, Industry, AnnualRevenue FROM Account
+#+end_src
+
+#+RESULTS:
+
+* Test 3: Query with Editable Mode Enabled
+
+This opens a vtable buffer with edit mode enabled.
+
+#+begin_src soql :org myorg :output vtable :editable t :limit 5 :sobject Account
+SELECT Id, Name, Industry, AnnualRevenue FROM Account
+#+end_src
+
+#+RESULTS:
+
+** How to Edit:
+1. Click the link in RESULTS to open the buffer
+2. Press 'e' to edit a field at point
+3. Press 'p' to preview changes
+4. Press 'c' to commit changes to Salesforce
+5. Press 'r' to revert changes
+
+* Test 4: Query with tabulated-list Output
+
+Good for Emacs < 29 or if you prefer the standard list interface.
+
+#+begin_src soql :org myorg :output tabulated-list :editable t :limit 5 :sobject Contact
+SELECT Id, FirstName, LastName, Email, Phone FROM Contact
+#+end_src
+
+#+RESULTS:
+
+* Test 5: Query with CSV Output
+
+Direct CSV editing mode.
+
+#+begin_src soql :org myorg :output csv :editable t :limit 5 :sobject Opportunity
+SELECT Id, Name, StageName, Amount, CloseDate FROM Opportunity
+#+end_src
+
+#+RESULTS:
+
+* Test 6: Complex Query with WHERE Clause
+
+#+begin_src soql :org myorg :output vtable :editable t :sobject Account
+SELECT Id, Name, Industry, AnnualRevenue, Rating
+FROM Account
+WHERE Industry = 'Technology'
+LIMIT 10
+#+end_src
+
+#+RESULTS:
+
+* Test 7: Query with Variables
+
+Variables are expanded before execution.
+
+#+NAME: industry-filter
+: Technology
+
+#+begin_src soql :org myorg :output vtable :var industry=industry-filter :sobject Account
+SELECT Id, Name, Industry, AnnualRevenue
+FROM Account
+WHERE Industry = :industry
+LIMIT 5
+#+end_src
+
+#+RESULTS:
+
+* Edit Mode Keybindings Reference
+
+When edit mode is enabled in a SOQL results buffer:
+
+| Key | Command                    | Description                           |
+|-----+----------------------------+---------------------------------------|
+| e   | ob-soql-edit-field         | Edit field at point                   |
+| m   | ob-soql-mark-record        | Mark record (for future bulk edit)    |
+| c   | ob-soql-commit-changes     | Commit pending changes to Salesforce  |
+| r   | ob-soql-revert-changes     | Discard all pending changes           |
+| p   | ob-soql-preview-changes    | Show preview of pending changes       |
+| g   | ob-soql-refresh-results    | Refresh results from Salesforce       |
+| M   | Load field metadata        | Load full SObject metadata from SF    |
+| ?   | ob-soql-edit-help          | Show help message                     |
+| q   | quit-window                | Close the results buffer              |
+
+* Customization Options
+
+#+begin_src emacs-lisp :results none
+;; Default output format
+(setq ob-soql-output-format 'auto)  ; or 'org-table, 'vtable, 'tabulated-list, 'csv
+
+;; Enable editing by default
+(setq ob-soql-enable-edit t)
+
+;; Bulk update threshold (5 or more changes uses bulk API)
+(setq ob-soql-bulk-update-threshold 5)
+
+;; Confirm before committing
+(setq ob-soql-confirm-before-commit t)
+
+;; Display settings
+(setq ob-soql-display-max-column-width 50)
+(setq ob-soql-display-truncate-strings t)
+
+;; Metadata cache TTL (1 hour)
+(setq ob-soql-metadata-cache-ttl 3600)
+#+end_src
+
+* Troubleshooting
+
+** SObject type not detected
+If you get "Cannot commit: SObject type unknown", add the ~:sobject~ header argument:
+
+#+begin_example
+#+begin_src soql :org myorg :output vtable :editable t :sobject Account
+SELECT Id, Name FROM Account LIMIT 5
+#+end_src
+#+end_example
+
+** Field is read-only
+Some fields cannot be edited (CreatedDate, LastModifiedDate, SystemModstamp, etc.).
+Press 'M' to load full metadata and see which fields are updateable.
+
+** Bulk update fails
+If bulk update fails, try reducing the number of changes or use single updates
+by setting ~ob-soql-bulk-update-threshold~ to nil.
+
+* Testing Checklist
+
+- [ ] Test 1: org-table output works (backward compatibility)
+- [ ] Test 2: vtable buffer opens
+- [ ] Test 3: Edit mode activates
+- [ ] Test 4: Can edit a field value
+- [ ] Test 5: Preview shows pending changes
+- [ ] Test 6: Revert discards changes
+- [ ] Test 7: Single record update commits successfully
+- [ ] Test 8: Bulk update (5+ records) commits successfully
+- [ ] Test 9: Read-only field prevents editing
+- [ ] Test 10: Refresh reloads data from Salesforce
