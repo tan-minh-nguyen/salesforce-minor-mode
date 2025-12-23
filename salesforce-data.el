@@ -548,6 +548,29 @@ SYNC: Run the process in sync."
    :lookup (lambda (candidate)
              (car candidate))))
 
+;;; Query Builder
+(cl-defstruct salesforce-data-soql-builder
+  "SOQL builder."
+  (select :type list :documentation "name for select fields.")
+  (from :type string :documentation "sobject name.")
+  (where :type string :documentation "filter conditions.")
+  (order-by :type string :documentation "sort order.") group-by having)
+
+(defmacro salesforce-data-define-soql (&rest exprs)
+  "Define SOQL fetcher from CONSTRUCTS."
+  (mapcar (lambda (expr)
+            ())
+          exprs))
+
+(cl-defun salesforce-data-soql-builder (soql-builder)
+  "Build SQOL for apex."
+  (let ((select (cl-struct-slot-value
+                 salesforce-data-soql-builder
+                 :select
+                 soql-builder)))
+    (string-join
+     (string-join ))))
+
 ;;; Org-mode Integration
 
 ;;;###autoload

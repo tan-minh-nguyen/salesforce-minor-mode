@@ -105,7 +105,7 @@ Options:
   "Authorize the Salesforce org at point using web login."
   (interactive)
   (let ((alias/username (or (get-text-property (point) 'alias)
-                            (get-text-property (point) 'username)))
+                           (get-text-property (point) 'username)))
         (url (get-text-property (point) 'instanceUrl)))
     (salesforce-org--web-authorize url alias/username)))
 
@@ -137,7 +137,7 @@ Options:
   (mapcar
    (lambda (candidate)
      (let* ((org-identity (or (map-elt candidate "alias")
-                              (map-elt candidate "username")))
+                             (map-elt candidate "username")))
             (display-text (if icon
                               (concat (propertize icon 'face 'salesforce-mode-line-face) " " org-identity)
                             org-identity)))
@@ -160,10 +160,10 @@ REQUIRE-MATCH: Whether to require a match."
             new-input)
         ;; Set action for all source types
         (cl-loop for symbol in (list org--consult-other-source
-                                     org--consult-sandbox-source
-                                     org--consult-devhub-source
-                                     org--consult-scratch-source
-                                     org--consult-nonscratch-source)
+                               org--consult-sandbox-source
+                               org--consult-devhub-source
+                               org--consult-scratch-source
+                               org--consult-nonscratch-source)
                  do (plist-put symbol :action action))
         
         (setq new-input
@@ -174,8 +174,17 @@ REQUIRE-MATCH: Whether to require a match."
                                 org--consult-nonscratch-source)
                               :prompt ,prompt
                               :require-match ,require-match))
-        (when ,require-match
-          (funcall action new-input))))))
+        ;; Handle both matched candidates and custom input
+        (cond
+         ;; If new-input is a cons (matched candidate), use it
+         ((consp new-input)
+          (funcall action new-input))
+         ;; If new-input is a string (custom input) and require-match is nil
+         ((and (stringp new-input) (not ,require-match))
+          (funcall action (cons new-input nil)))
+         ;; If require-match is t and we have input, use it as is
+         (,require-match
+          (funcall action new-input)))))))
 
 ;;; Interactive commands - Org management
 
@@ -183,8 +192,8 @@ REQUIRE-MATCH: Whether to require a match."
   "Open selected org."
   (interactive)
   (salesforce-org-read-user "Select Org: "
-                            (funcall #'salesforce-org--consult-open candidate)
-                            :require-match t))
+    (funcall #'salesforce-org--consult-open candidate)
+    :require-match t))
 
 (defun salesforce-org-authorize ()
   "Use web login to authorize to org."
@@ -194,7 +203,7 @@ REQUIRE-MATCH: Whether to require a match."
               '("https://test.salesforce.com"
                 "https://login.salesforce.com"))))
     (salesforce-org-read-user "Select Org: "
-                              (salesforce-org--web-authorize url (car candidate)))))
+      (salesforce-org--web-authorize url (car candidate)))))
 
 (defun salesforce-org-switch-connect ()
   "Change default connection org."

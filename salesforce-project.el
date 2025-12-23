@@ -88,7 +88,7 @@ Checks both .sf/config.json and legacy .sfdx/sfdx-config.json."
           (insert-file-contents config-file)
           (let* ((json (json-parse-buffer :object-type 'alist))
                  (org-name (or (alist-get 'target-org json)
-                               (alist-get 'defaultusername json))))
+                              (alist-get 'defaultusername json))))
             (if (stringp org-name) org-name "")))
       (error ""))))
 
@@ -99,7 +99,7 @@ Checks config files or falls back to cached value."
          (config-file (salesforce-project--get-config-file-path root)))
     (if config-file
         (or (ignore-errors (salesforce-project--read-org-from-config config-file))
-            "")
+           "")
       "")))
 
 (defvar salesforce-project--updating-org-name nil
@@ -113,7 +113,7 @@ Updates dir-locals if value has changed. Returns the org name or nil."
               ((not (string-empty-p org-name))))
     ;; Only update if different from current value and not already updating
     (unless (or (equal salesforce-org-name org-name)
-                salesforce-project--updating-org-name)
+               salesforce-project--updating-org-name)
       (let ((salesforce-project--updating-org-name t))
         (salesforce-project--update-dir-local-config 'salesforce-org-name org-name)
         (salesforce-project--apply-dir-locals)))
@@ -122,7 +122,7 @@ Updates dir-locals if value has changed. Returns the org name or nil."
 (defun salesforce-project--get-root-config (root)
   "Retrieve the project configuration for ROOT directory."
   (or (alist-get root salesforce-metadata-define-roots)
-      (alist-get 'default salesforce-metadata-define-roots)))
+     (alist-get 'default salesforce-metadata-define-roots)))
 
 (defun salesforce-project--set-local-metadata-dir (root config)
   "Set `salesforce-metadata-root-dir' by searching from ROOT for CONFIG."
@@ -168,6 +168,8 @@ If MODE is nil, check the default project entry."
   "Update project configuration for SYMBOL with VALUE.
 Configuration is stored in `salesforce-project-configuration'.
 If FORCE is non-nil, update even if value hasn't changed."
+  (unless (symbolp symbol)
+    (error (format "%s should be symbol" symbol)))
   (when (or (not (eq (cdr (salesforce-project-symbol-dir-local-p symbol)) value))
            force)
     (let ((mode-entry (assoc nil salesforce-project-configuration)))
@@ -217,7 +219,7 @@ If FORCE is non-nil, update even if value hasn't changed."
     (make-directory project-dir 'parents)
     (salesforce-core--project-process 
      :args (list "generate" "--name" project-name 
-                 "--template" project-template "--json")
+              "--template" project-template "--json")
      (salesforce-core--alert "Create Project Success"))))
 
 ;;; Source Push/Retrieve Operations
@@ -273,7 +275,7 @@ FINISH-FUNC is a function to call upon completion."
      
      (funcall finish-func 
               (or target-path
-                  (expand-file-name file-name temporary-file-directory))))))
+                 (expand-file-name file-name temporary-file-directory))))))
 
 ;;; Ediff Integration
 
@@ -400,7 +402,7 @@ FILE1-REF and FILE2-REF should be symbols holding file paths."
            1 1
            (lambda ()
              (when (and (symbol-value file1-ref) 
-                        (symbol-value file2-ref))
+                      (symbol-value file2-ref))
                (cancel-timer poll-timer)
                (funcall callback 
                         (symbol-value file1-ref) 
@@ -632,7 +634,7 @@ TABLE should be a hash table mapping aliases to usernames."
   "Check if USERNAME-OR-ALIAS exists as a connected user."
   (when-let ((table (salesforce-project--users)))
     (or (member username-or-alias (hash-table-keys table))
-        (member username-or-alias (hash-table-values table)))))
+       (member username-or-alias (hash-table-values table)))))
 
 ;;; Mode Line
 

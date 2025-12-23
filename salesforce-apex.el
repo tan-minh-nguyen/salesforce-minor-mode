@@ -443,18 +443,36 @@ TODO: Verify and possibly refactor this function."
   (let ((soql-re "^SELECT [A-Za-z]+ FROM ([A-Za-z0-9_]+) "))
     (string-match-p soql-re soql-string)))
 
-;;; Placeholder Functions
 ;; TODO: Implement these functions
+(defun salesforce-apex--make-suitest-builder (path)
+  "List unit test current project PATH."
+  (let* ((transform-input (shell-quote-argument input t))
+         (file-rule (format "--file=%s.el"
+                            transform-input))
+         (grep-args `(,@consult-grep-args
+                      ,file-rule "-l"
+                      "@istest" ,path))
+         (command (consult--build-args grep-args)))
+
+    (lambda (input)
+      (pcase-let*
+          ((`(,arg . ,opts) (consult--command-split input))
+           (`(,re . ,hl) (consult--compile-regexp arga 'emacs t))))
+
+      (cons command hl))))
 
 (defun salesforce-apex-select-classes ()
   "Selection of classes in the project.
-TODO: Implement this function.")
-
-(defun salesforce-apex-execute-selection-class (classes)
-  "Run the selection unit test class CLASSES.
-TODO: Implement multi-selection support for choosing classes to run tests."
-  (interactive (list (completing-read-multiple "Select classes: " nil))))
+TODO: Implement this function."
+  (interactive)
+  (let ((builder (salesforce-apex--make-suitest-builder salesforce-apex-dir)))
+    (consult--read
+     (consult--process-collection builder)
+     :prompt "Suitest: "
+     :lookup #'consult--lookup-member
+     :require-match t
+     :category 'salesforce-suitest
+     :sort nil)))
 
 (provide 'salesforce-apex)
-
 ;;; salesforce-apex.el ends here
