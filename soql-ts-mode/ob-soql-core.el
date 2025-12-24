@@ -365,7 +365,13 @@ Returns buffer displaying the table."
                                               (or sobject "Query")))))
     (with-current-buffer buffer
       (ob-soql-results-mode)
-      (setq ob-soql--query-metadata metadata)
+      
+      ;; Initialize metadata with state fields
+      (setq-local ob-soql--query-metadata
+                  (plist-put (plist-put (plist-put metadata
+                                                   :pending-updates nil)
+                                        :original-records (copy-tree records))
+                             :field-metadata nil))
       
       ;; Set up tabulated-list
       (setq tabulated-list-format
@@ -405,23 +411,67 @@ CSV-DATA: Raw CSV string
 METADATA: Query metadata plist
 Returns buffer displaying the CSV."
   (let* ((sobject (plist-get metadata :sobject))
+         (records (plist-get metadata :records))
          (buffer (generate-new-buffer (format "*SOQL Results: %s*" 
                                               (or sobject "Query")))))
     (with-current-buffer buffer
       (insert csv-data)
       (csv-mode)
-      (setq ob-soql--query-metadata metadata)
+      
+      ;; Initialize metadata with state fields and CSV data
+      (setq-local ob-soql--query-metadata
+                  (plist-put (plist-put (plist-put (plist-put metadata
+                                                              :pending-updates nil)
+                                                   :original-records (copy-tree records))
+                                        :field-metadata nil)
+                             :csv-data csv-data))
+      
+      ;; Activate SOQL minor mode
+      (ob-soql-csv-minor-mode 1)
+      
       (goto-char (point-min)))
     
     (pop-to-buffer buffer)
     buffer))
 
+;;; CSV Minor Mode
+
+(defvar ob-soql-csv-mode-map
+  (let ((map (make-sparse-keymap)))
+    ;; Same keys as results-mode
+    (define-key map (kbd "RET") #'ob-soql-open-record)
+    (define-key map (kbd "e")   #'ob-soql-edit-field)
+    (define-key map (kbd "c")   #'ob-soql-commit-changes)
+    (define-key map (kbd "r")   #'ob-soql-revert-changes)
+    (define-key map (kbd "p")   #'ob-soql-preview-changes)
+    (define-key map (kbd "g")   #'ob-soql-refresh-results)
+    (define-key map (kbd "M")   #'ob-soql-load-metadata)
+    (define-key map (kbd "?")   #'ob-soql-show-help)
+    (define-key map (kbd "q")   #'quit-window)
+    map)
+  "Keymap for `ob-soql-csv-minor-mode'.")
+
+(define-minor-mode ob-soql-csv-minor-mode
+  "Minor mode for SOQL results displayed in CSV format.
+Provides keybindings for editing and committing changes."
+  :keymap ob-soql-csv-mode-map
+  :lighter " SOQL")
+
 ;;; Results Mode
 
 (defvar ob-soql-results-mode-map
   (let ((map (make-sparse-keymap)))
-    (define-key map (kbd "q") #'quit-window)
-    (define-key map (kbd "g") #'ob-soql-refresh-results)
+    ;; Always available
+    (define-key map (kbd "RET") #'ob-soql-open-record)
+    (define-key map (kbd "g")   #'ob-soql-refresh-results)
+    (define-key map (kbd "?")   #'ob-soql-show-help)
+    (define-key map (kbd "q")   #'quit-window)
+    ;; Edit actions (check :editable at runtime)
+    (define-key map (kbd "e")   #'ob-soql-edit-field)
+    (define-key map (kbd "c")   #'ob-soql-commit-changes)
+    (define-key map (kbd "r")   #'ob-soql-revert-changes)
+    (define-key map (kbd "p")   #'ob-soql-preview-changes)
+    (define-key map (kbd "M")   #'ob-soql-load-metadata)
     map)
   "Keymap for `ob-soql-results-mode'.")
 
@@ -725,6 +775,403 @@ RECORD-UPDATES: List of failed updates"
   "Escape VALUE for Salesforce CLI command.
 Handles quotes and special characters."
   (replace-regexp-in-string "'" "\\\\'" (format "%s" value)))
+
+;;; ========================================
+;;; Shared Action Handlers
+;;; ========================================
+
+(defun ob-soql-open-record ()
+  "Open current record in Salesforce browser.
+Works in vtable, tabulated-list, and csv modes."
+  (interactive)
+  (unless ob-soql--query-metadata
+    (user-error "No SOQL query metadata available"))
+  
+  (let* ((metadata ob-soql--query-metadata)
+         (record (ob-soql-core--get-record-at-point metadata))
+         (org-url (plist-get metadata :org-url))
+         (id (assoc-default "Id" record (lambda (v1 v2)
+                                          (string= (downcase v1) (downcase v2))))))
+    (if id
+        (browse-url (concat org-url "/" id))
+      (message "Id field not found on record."))))
+
+(defun ob-soql-edit-field ()
+  "Edit field value at point.
+Works in vtable, tabulated-list, and csv modes."
+  (interactive)
+  (unless ob-soql--query-metadata
+    (user-error "No SOQL query metadata available"))
+  
+  (let ((metadata ob-soql--query-metadata))
+    ;; Check if editable
+    (unless (plist-get metadata :editable)
+      (user-error "Results are read-only. Use :editable t header argument"))
+    
+    (let* ((record (ob-soql-core--get-record-at-point metadata))
+           (field (ob-soql-core--get-field-at-point metadata))
+           (record-id (assoc-default "Id" record (lambda (v1 v2)
+                                                   (string= (downcase v1) (downcase v2)))))
+           (current-value (alist-get field record nil nil #'string=))
+           (field-info (ob-soql-core--get-field-info field metadata)))
+      
+      (unless record-id
+        (user-error "Cannot edit: record has no Id field"))
+      (unless field
+        (user-error "No field at point"))
+      
+      ;; Check if field is read-only
+      (when (and field-info (not (plist-get field-info :updateable)))
+        (user-error "Field '%s' is read-only" field))
+      
+      ;; Prompt for new value
+      (let ((new-value (read-string (format "New value for %s: " field) current-value)))
+        (ob-soql-core--track-change record-id field new-value current-value metadata)
+        (ob-soql-core--update-display-value record-id field new-value metadata)
+        (message "Field updated (not committed). Press 'c' to commit or 'r' to revert.")))))
+
+(defun ob-soql-commit-changes ()
+  "Commit pending changes to Salesforce.
+Works in all output modes."
+  (interactive)
+  (unless ob-soql--query-metadata
+    (user-error "No SOQL query metadata available"))
+  
+  (let* ((metadata ob-soql--query-metadata)
+         (pending-updates (plist-get metadata :pending-updates)))
+    (unless pending-updates
+      (user-error "No pending changes to commit"))
+    
+    (let* ((count (length pending-updates))
+           (sobject (plist-get metadata :sobject))
+           (org (plist-get metadata :org))
+           (use-bulk (and ob-soql-bulk-update-threshold
+                          (>= count ob-soql-bulk-update-threshold))))
+      
+      (unless sobject
+        (user-error "Cannot commit: SObject type unknown"))
+      
+      (when (or (not ob-soql-confirm-before-commit)
+                (yes-or-no-p (format "Commit %d change%s to Salesforce using %s? "
+                                     count
+                                     (if (= count 1) "" "s")
+                                     (if use-bulk "bulk API" "single updates"))))
+        
+        (message "Committing changes...")
+        (condition-case err
+            (progn
+              (if use-bulk
+                  (ob-soql-core--update-records-bulk pending-updates sobject org)
+                (ob-soql-core--update-records-sequential pending-updates sobject org))
+              
+              ;; Clear pending updates on success
+              (plist-put metadata :pending-updates nil)
+              ;; Update original records to current state
+              (plist-put metadata :original-records
+                         (copy-tree (plist-get metadata :records)))
+              (message "Changes committed successfully"))
+          (error
+           (message "Update failed: %s" (error-message-string err))))))))
+
+(defun ob-soql-revert-changes ()
+  "Revert all pending changes.
+Works in all output modes."
+  (interactive)
+  (unless ob-soql--query-metadata
+    (user-error "No SOQL query metadata available"))
+  
+  (let ((metadata ob-soql--query-metadata))
+    (when (or (not ob-soql-confirm-before-commit)
+              (yes-or-no-p "Revert all changes? "))
+      (plist-put metadata :pending-updates nil)
+      (plist-put metadata :records
+                 (copy-tree (plist-get metadata :original-records)))
+      
+      ;; Refresh display based on mode
+      (cond
+       ((and (boundp 'vtable-object) vtable-object)
+        (require 'vtable)
+        (vtable-revert-command))
+       ((derived-mode-p 'tabulated-list-mode)
+        (ob-soql-core--update-display-value nil nil nil metadata))
+       ((derived-mode-p 'csv-mode)
+        ;; Rebuild entire CSV buffer
+        (let ((csv-data (plist-get metadata :csv-data)))
+          (erase-buffer)
+          (insert csv-data)
+          (goto-char (point-min)))))
+      
+      (message "All changes reverted"))))
+
+(defun ob-soql-preview-changes ()
+  "Show pending changes preview.
+Works in all output modes."
+  (interactive)
+  (unless ob-soql--query-metadata
+    (user-error "No SOQL query metadata available"))
+  
+  (let ((pending-updates (plist-get ob-soql--query-metadata :pending-updates)))
+    (if (null pending-updates)
+        (message "No pending changes")
+      (ob-soql-core--show-changes-preview pending-updates ob-soql--query-metadata))))
+
+(defun ob-soql-load-metadata ()
+  "Load field metadata from Salesforce.
+Works in all output modes."
+  (interactive)
+  (unless ob-soql--query-metadata
+    (user-error "No SOQL query metadata available"))
+  
+  (let* ((metadata ob-soql--query-metadata)
+         (sobject (plist-get metadata :sobject))
+         (org (plist-get metadata :org)))
+    (if (and sobject org)
+        (progn
+          (message "Loading field metadata for %s..." sobject)
+          (let ((field-metadata (ob-soql-core--get-sobject-metadata sobject org t)))
+            (plist-put metadata :field-metadata field-metadata)
+            (message "Field metadata loaded: %d fields" (length field-metadata))))
+      (message "Cannot load metadata: sobject or org not specified"))))
+
+(defun ob-soql-show-help ()
+  "Show available actions for SOQL results.
+Works in all output modes."
+  (interactive)
+  (unless ob-soql--query-metadata
+    (user-error "No SOQL query metadata available"))
+  
+  (if (plist-get ob-soql--query-metadata :editable)
+      (message "Actions: [RET]Open [e]dit [c]ommit [r]evert [p]review [g]refresh [M]etadata [?]help [q]uit")
+    (message "Actions: [RET]Open [g]refresh [?]help [q]uit")))
+
+(defun ob-soql-core--track-change (record-id field new-value old-value metadata)
+  "Track a field change in metadata.
+RECORD-ID: Salesforce record ID
+FIELD: Field name
+NEW-VALUE: New value
+OLD-VALUE: Original value
+METADATA: Query metadata plist"
+  (let* ((pending-updates (plist-get metadata :pending-updates))
+         (record-updates (assoc-default record-id pending-updates nil #'string=)))
+    
+    ;; If new value equals original, remove the change
+    (if (string= new-value old-value)
+        (setq record-updates (assoc-delete-all field record-updates))
+      ;; Otherwise, add/update the change
+      (setf (alist-get field record-updates nil nil #'string=) new-value))
+    
+    ;; Update pending updates in metadata
+    (if record-updates
+        (setf (alist-get record-id pending-updates nil nil #'string=) record-updates)
+      ;; Remove record if no changes
+      (setq pending-updates (assoc-delete-all record-id pending-updates)))
+    
+    (plist-put metadata :pending-updates pending-updates)))
+
+(defun ob-soql-core--get-field-info (field metadata)
+  "Get field metadata info.
+FIELD: Field name
+METADATA: Query metadata plist
+Returns field info plist or nil"
+  (let ((field-metadata (plist-get metadata :field-metadata)))
+    (assoc-default field field-metadata nil #'string=)))
+
+;;; ========================================
+;;; Display Context Helpers
+;;; ========================================
+
+(defun ob-soql-core--get-record-at-point (metadata)
+  "Get record at point based on current buffer's display mode.
+METADATA: Query metadata plist containing :records.
+Returns record alist or nil if no record at point."
+  (let ((records (plist-get metadata :records)))
+    (cond
+     ;; VTable mode
+     ((and (boundp 'vtable-object) vtable-object)
+      (require 'vtable)
+      (when-let ((obj (vtable-current-object)))
+        obj))
+     
+     ;; Tabulated-list mode
+     ((derived-mode-p 'tabulated-list-mode)
+      (when-let ((id (tabulated-list-get-id)))
+        (nth (1- id) records)))
+     
+     ;; CSV mode  
+     ((derived-mode-p 'csv-mode)
+      (save-excursion
+        (beginning-of-line)
+        (unless (= (line-number-at-pos) 1)  ; Skip header line
+          (let* ((line (buffer-substring-no-properties (point) (line-end-position)))
+                 (values (split-string line ","))
+                 (fields (plist-get metadata :fields)))
+            (when (= (length values) (length fields))
+              (cl-mapcar #'cons fields values))))))
+     
+     (t nil))))
+
+(defun ob-soql-core--get-field-at-point (metadata)
+  "Get field name at point based on current buffer's display mode.
+METADATA: Query metadata plist containing :fields.
+Returns field name string or nil if no field at point."
+  (let ((fields (plist-get metadata :fields)))
+    (cond
+     ;; VTable mode
+     ((and (boundp 'vtable-object) vtable-object)
+      (require 'vtable)
+      (when-let ((col (vtable-current-column)))
+        (plist-get (nth col (vtable-columns vtable-object)) :name)))
+     
+     ;; Tabulated-list mode
+     ((derived-mode-p 'tabulated-list-mode)
+      (let* ((pos (point))
+             (bol (line-beginning-position))
+             (current-col 0))
+        ;; Calculate which column we're in based on point position
+        (save-excursion
+          (goto-char bol)
+          (catch 'found
+            (dotimes (i (length fields))
+              (let* ((col-spec (aref tabulated-list-format i))
+                     (col-width (cadr col-spec)))
+                (when (< pos (+ (point) col-width))
+                  (setq current-col i)
+                  (throw 'found nil))
+                (forward-char col-width)))))
+        (nth current-col fields)))
+     
+     ;; CSV mode
+     ((derived-mode-p 'csv-mode)
+      (let ((field-index (ob-soql-core--csv-current-field-index)))
+        (when (and field-index (< field-index (length fields)))
+          (nth field-index fields))))
+     
+     (t nil))))
+
+(defun ob-soql-core--csv-current-field-index ()
+  "Get 0-based index of field at point in CSV mode.
+Returns integer or nil if not in a field."
+  (when (derived-mode-p 'csv-mode)
+    (save-excursion
+      (let ((bol (line-beginning-position))
+            (pos (point))
+            (index 0))
+        (goto-char bol)
+        (while (and (< (point) pos)
+                    (not (eolp)))
+          (when (= (char-after) ?,)
+            (setq index (1+ index)))
+          (forward-char))
+        index))))
+
+(defun ob-soql-core--update-display-value (record-id field new-value metadata)
+  "Update display after editing a field value.
+RECORD-ID: Salesforce record ID
+FIELD: Field name
+NEW-VALUE: New value to display
+METADATA: Query metadata plist
+
+Updates the visual display based on current buffer's mode."
+  ;; First update metadata
+  (let ((records (plist-get metadata :records)))
+    (dolist (record records)
+      (when (string= (assoc-default "Id" record nil #'string=) record-id)
+        (setf (alist-get field record nil nil #'string=) new-value))))
+  
+  ;; Then refresh display
+  (cond
+   ;; VTable mode
+   ((and (boundp 'vtable-object) vtable-object)
+    (require 'vtable)
+    (vtable-revert-command))
+   
+   ;; Tabulated-list mode
+   ((derived-mode-p 'tabulated-list-mode)
+    (let* ((records (plist-get metadata :records))
+           (fields (plist-get metadata :fields)))
+      (setq tabulated-list-entries
+            (let ((id 0))
+              (mapcar (lambda (record)
+                        (setq id (1+ id))
+                        (list id
+                              (apply #'vector
+                                     (mapcar (lambda (field)
+                                               (ob-soql-core--truncate-string
+                                                (or (alist-get field record nil nil #'string=) "")
+                                                ob-soql-display-max-column-width))
+                                             fields))))
+                      records)))
+      (tabulated-list-print t)))  ; Keep cursor position
+   
+   ;; CSV mode
+   ((derived-mode-p 'csv-mode)
+    (let* ((records (plist-get metadata :records))
+           (fields (plist-get metadata :fields))
+           (record (ob-soql-core--get-record-at-point metadata)))
+      (when record
+        ;; Rebuild current line
+        (let ((line (mapconcat (lambda (field)
+                                 (or (alist-get field record nil nil #'string=) ""))
+                               fields
+                               ",")))
+          (save-excursion
+            (beginning-of-line)
+            (delete-region (point) (line-end-position))
+            (insert line))))))
+   
+   (t nil)))
+
+;;; Helper Macros and Functions
+
+(defun ob-soql-core--org-url (org)
+  "Return the Salesforce instance URL for ORG."
+  (salesforce-project--get-user-data org "instanceUrl"))
+
+(defun ob-soql-core--modify-csv (csv org-hyperlink)
+  "Return CSV after converting 'Id' field values into ORG-HYPERLINK."
+  (let* ((lines (string-split csv "\n" t))
+         (headers (car lines))
+         (rows (cdr lines))
+         (header-fields (string-split headers ","))
+         (id-pos (cl-position "id" header-fields
+                              :test (lambda (a b)
+                                      (string= (downcase a) (downcase b))))))
+    (if id-pos
+        (string-join
+         (cons headers
+               (mapcar (lambda (line)
+                         (let ((cols (string-split line ",")))
+                           (when (and (< id-pos (length cols)))
+                             (setf (nth id-pos cols)
+                                   (ob-soql-core--convert-id-to-hyperlink (nth id-pos cols) org-hyperlink)))
+                           (string-join cols ",")))
+                       rows))
+         "\n")
+      csv)))
+
+(defun ob-soql-core--convert-id-to-hyperlink (id org-hyperlink)
+  "Convert Salesforce ID into an ORG-HYPERLINK."
+  (format "[[%s][%s]]" (concat org-hyperlink "/" id) id))
+
+(cl-defmacro ob-soql-core-buffer-modifications (&rest body &key buffer append &allow-other-keys)
+  "Modification on read-only buffer.
+BUFFER: Target buffer
+APPEND: If non-nil, append instead of replace
+BODY: Code to execute with modifications allowed"
+  (let ((body (seq-difference body (list :buffer buffer :append append))))
+    `(with-current-buffer ,buffer
+       (with-silent-modifications
+         ,@body))))
+
+(defmacro ob-soql-core--with-temp-buffer (&rest body)
+  "Execute BODY in a temporary buffer and return the result.
+The buffer is automatically cleaned up."
+  `(let ((buf (generate-new-buffer " *ob-soql-temp*")))
+     (unwind-protect
+         (with-current-buffer buf
+           ,@body)
+       (when (buffer-live-p buf)
+         (kill-buffer buf)))))
 
 (provide 'ob-soql-core)
 
