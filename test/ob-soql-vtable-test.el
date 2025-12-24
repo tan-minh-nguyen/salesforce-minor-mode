@@ -13,6 +13,23 @@
 ;;; Code:
 
 (require 'ert)
+
+;; Mock dependencies to avoid requiring external packages
+(unless (featurep 'alert)
+  (provide 'alert))
+
+(unless (featurep 'salesforce-core)
+  (defvar salesforce-process-idle-time 30)
+  (defvar salesforce-process-error-handler nil)
+  (defmacro salesforce-with-process (&rest body) `(progn ,@body))
+  (provide 'salesforce-core))
+
+(unless (featurep 'salesforce-project)
+  (defun salesforce-project--get-user-data (org key) 
+    "Mock function."
+    "https://test.salesforce.com")
+  (provide 'salesforce-project))
+
 (require 'ob-soql-core)
 (require 'ob-soql-vtable)
 
