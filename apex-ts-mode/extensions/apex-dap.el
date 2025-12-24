@@ -31,7 +31,7 @@
   (add-to-list 'dape-configs
                `(apex-replay modes (apex-ts-mode)
                              command "node"
-                             command-args `(,(expand-file-name apex-ts-dap-replay-debugger-server ) "--stdout")
+                             command-args `(,(expand-file-name apex-ts-dap-replay-debugger-server) "--stdout")
                              :type "apex-replay"
                              :request "launch"
                              :logFile apex-dap-log-file

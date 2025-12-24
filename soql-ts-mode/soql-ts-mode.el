@@ -315,7 +315,8 @@ Prefers completion-at-point (Corfu compatible), falls back to Company."
 
 ;; Org Babel integration
 (with-eval-after-load 'org
-  (add-to-list 'org-src-lang-modes '("soql" . soql-ts)))
+  (add-to-list 'org-src-lang-modes '("soql" . soql-ts))
+  (add-to-list 'org-babel-load-languages '(soql . t)))
 
 ;; File association
 (when (treesit-ready-p 'soql)

@@ -153,38 +153,26 @@ BODY: The forms to run after getting user selection.
 REQUIRE-MATCH: Whether to require a match."
   (declare (indent 1))
   `(salesforce-org--collect
-    :finish-func 
+    :finish-func
     (lambda (_)
-      (let ((action (lambda (candidate)
+      (let ((sources (list org--consult-other-source
+                        org--consult-sandbox-source
+                        org--consult-devhub-source
+                        org--consult-scratch-source
+                        org--consult-nonscratch-source))
+            (action (lambda (candidate)
                       ,@(seq-difference body (list :require-match require-match))))
             new-input)
         ;; Set action for all source types
-        (cl-loop for symbol in (list org--consult-other-source
-                               org--consult-sandbox-source
-                               org--consult-devhub-source
-                               org--consult-scratch-source
-                               org--consult-nonscratch-source)
-                 do (plist-put symbol :action action))
-        
-        (setq new-input
-              (consult--multi '(org--consult-other-source
-                                org--consult-sandbox-source
-                                org--consult-devhub-source
-                                org--consult-scratch-source
-                                org--consult-nonscratch-source)
-                              :prompt ,prompt
-                              :require-match ,require-match))
-        ;; Handle both matched candidates and custom input
-        (cond
-         ;; If new-input is a cons (matched candidate), use it
-         ((consp new-input)
-          (funcall action new-input))
-         ;; If new-input is a string (custom input) and require-match is nil
-         ((and (stringp new-input) (not ,require-match))
-          (funcall action (cons new-input nil)))
-         ;; If require-match is t and we have input, use it as is
-         (,require-match
-          (funcall action new-input)))))))
+        (mapcan (lambda (source)
+                  (plist-put source :action action)
+                  (unless ,require-match
+                    (plist-put source :new action)))
+                sources)
+
+        (consult--multi sources
+                        :prompt ,prompt
+                        :require-match ,require-match)))))
 
 ;;; Interactive commands - Org management
 

@@ -37,7 +37,8 @@
 (require 'ob-eval)
 (require 'salesforce-data)
 (require 'salesforce-project)
-(require 'ob-soql-core nil t)
+(require 'ob-soql-core)
+(require 'ob-soql-vtable)
 
 (add-to-list 'org-babel-tangle-lang-exts '("soql" . "soql"))
 
@@ -99,9 +100,9 @@ BODY is the SOQL query, PARAMS are header arguments."
          (full-body (org-babel-expand-body:soql body params processed-params))
          (file-temp (make-temp-file "soql"))
          (org (ob-soql--get-param :org processed-params))
-         (org-url (ob-soql--org-url org))
+         (org-url (ob-soql-core--org-url org))
          (output-format (intern (or (ob-soql--get-param :output processed-params) "org-table")))
-         (sobject (ob-soql--get-param :sobject processed-params))
+         (sobject (ob-soql-core--extract-sobject full-body))
          (editable (ob-soql--get-param :editable processed-params)))
 
     (if (and org org-url)
@@ -122,15 +123,15 @@ Returns results based on OUTPUT-FORMAT."
 
     (unwind-protect
         (with-current-buffer buf
-          (let ((content (string-trim (buffer-string))))
-            (unless (string-empty-p content)
-              (let* ((csv (ob-soql--modify-csv content url))
-                     (metadata (ob-soql--build-metadata query org url csv sobject)))
+          (let ((raw-csv (string-trim (buffer-string))))
+            (unless (string-empty-p raw-csv)
+              (let* ((metadata (ob-soql--build-metadata query org url raw-csv sobject)))
                 ;; If org-table format, return string for org-babel
                 (if (eq output-format 'org-table)
-                    (ob-soql--display-as-org-table csv metadata)
+                    (let ((csv (ob-soql-core--modify-csv raw-csv url)))
+                      (ob-soql--display-as-org-table csv metadata))
                   ;; Otherwise, open interactive buffer and return link
-                  (let ((result-buffer (ob-soql-display-results csv metadata output-format)))
+                  (let ((result-buffer (ob-soql-display-results raw-csv metadata output-format)))
                     (when editable
                       (with-current-buffer result-buffer
                         (ob-soql-edit-mode 1)))
@@ -139,34 +140,6 @@ Returns results based on OUTPUT-FORMAT."
                             output-format)))))))
       (when (buffer-live-p buf)
         (kill-buffer buf)))))
-
-(defun ob-soql--org-url (org)
-  "Return the Salesforce instance URL for ORG."
-  (salesforce-project--get-user-data org "instanceUrl"))
-
-(defun ob-soql--modify-csv (csv org-hyperlink)
-  "Return CSV after converting 'Id' field values into ORG-HYPERLINK."
-  (let* ((lines (string-split csv "\n" t))
-         (headers (car lines))
-         (rows (cdr lines))
-         (header-fields (string-split headers ","))
-         (id-pos (cl-position "id" header-fields
-                              :test (lambda (a b)
-                                      (string= (downcase a) (downcase b))))))
-    (string-join
-     (cons headers
-           (mapcar (lambda (line)
-                     (let ((cols (string-split line ",")))
-                       (when (and id-pos (< id-pos (length cols)))
-                         (setf (nth id-pos cols)
-                               (ob-soql--convert-id-to-hyperlink (nth id-pos cols) org-hyperlink)))
-                       (string-join cols ",")))
-                   rows))
-     "\n")))
-
-(defun ob-soql--convert-id-to-hyperlink (id org-hyperlink)
-  "Convert Salesforce ID into an ORG-HYPERLINK."
-  (format "[[%s][%s]]" (concat org-hyperlink "/" id) id))
 
 (defun ob-soql--get-param (key param-list)
   "Extract param in list."
