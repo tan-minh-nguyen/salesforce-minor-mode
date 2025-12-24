@@ -75,7 +75,9 @@ Returns buffer displaying the vtable."
                                          :original-records (copy-tree records))
                               :field-metadata nil))
 
-       ;; Create vtable with complete actions
+       ;; Create vtable
+       ;; Note: We use ob-soql-results-mode-map for keybindings instead of vtable's :actions
+       ;; because the shared action handlers work across all display formats
        (let ((table (make-vtable
                      :columns (mapcar (lambda (field)
                                         `(:name ,field
@@ -89,7 +91,6 @@ Returns buffer displaying the vtable."
                                  (ob-soql-core--truncate-string
                                   (or value "")
                                   ob-soql-display-max-column-width)))
-                     :actions (ob-soql-vtable--create-actions ob-soql--query-metadata)
                      :use-header-line nil)))
          (setq-local vtable-object table))
 
