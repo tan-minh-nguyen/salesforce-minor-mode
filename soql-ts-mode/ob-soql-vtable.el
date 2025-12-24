@@ -284,13 +284,19 @@ METADATA: Query metadata plist"
 RECORD-ID: Salesforce record ID
 FIELD: Field name
 NEW-VALUE: New value
-OLD-VALUE: Original value
+OLD-VALUE: Original value (unused - we check against :original-records instead)
 METADATA: Query metadata plist"
   (let* ((pending-updates (plist-get metadata :pending-updates))
-         (record-updates (assoc-default record-id pending-updates nil #'string=)))
+         (record-updates (assoc-default record-id pending-updates nil #'string=))
+         (original-records (plist-get metadata :original-records))
+         (original-record (cl-find-if (lambda (r)
+                                        (string= (assoc-default "Id" r nil #'string=) record-id))
+                                      original-records))
+         (original-value (when original-record
+                          (assoc-default field original-record nil #'string=))))
 
-    ;; If new value equals original, remove the change
-    (if (string= new-value old-value)
+    ;; If new value equals original from database, remove the change
+    (if (and original-value (string= new-value original-value))
         (setq record-updates (assoc-delete-all field record-updates))
       ;; Otherwise, add/update the change
       (setf (alist-get field record-updates nil nil #'string=) new-value))

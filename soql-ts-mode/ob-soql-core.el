@@ -261,8 +261,9 @@ ORG: Target org name
 ORG-URL: Salesforce instance URL
 CSV-DATA: Raw CSV data string
 SOBJECT: Optional SObject type override"
-  (let* ((fields (ob-soql-core--extract-fields csv-data))
-         (records (ob-soql-core--parse-csv csv-data))
+  (let* ((parsed (ob-soql-core--parse-csv csv-data))
+         (fields (plist-get parsed :fields))
+         (records (plist-get parsed :records))
          (detected-sobject (or sobject (ob-soql-core--extract-sobject query))))
     (list :query query
           :org org
@@ -949,13 +950,19 @@ Works in all output modes."
 RECORD-ID: Salesforce record ID
 FIELD: Field name
 NEW-VALUE: New value
-OLD-VALUE: Original value
+OLD-VALUE: Original value (unused - we check against :original-records instead)
 METADATA: Query metadata plist"
   (let* ((pending-updates (plist-get metadata :pending-updates))
-         (record-updates (assoc-default record-id pending-updates nil #'string=)))
+         (record-updates (assoc-default record-id pending-updates nil #'string=))
+         (original-records (plist-get metadata :original-records))
+         (original-record (cl-find-if (lambda (r)
+                                        (string= (assoc-default "Id" r nil #'string=) record-id))
+                                      original-records))
+         (original-value (when original-record
+                          (assoc-default field original-record nil #'string=))))
     
-    ;; If new value equals original, remove the change
-    (if (string= new-value old-value)
+    ;; If new value equals original from database, remove the change
+    (if (and original-value (string= new-value original-value))
         (setq record-updates (assoc-delete-all field record-updates))
       ;; Otherwise, add/update the change
       (setf (alist-get field record-updates nil nil #'string=) new-value))
@@ -1127,27 +1134,44 @@ Updates the visual display based on current buffer's mode."
   "Return the Salesforce instance URL for ORG."
   (salesforce-project--get-user-data org "instanceUrl"))
 
+(defun ob-soql-core--parse-csv (csv)
+  "Parse CSV string into fields and records.
+Returns a plist with :fields (list of field names) and :records (list of alists)."
+  (if (or (null csv) (string-empty-p csv))
+      (list :fields nil :records nil)
+    (let* ((lines (string-split csv "\n" t))
+           (headers (car lines))
+           (rows (cdr lines))
+           (fields (when headers (string-split headers ",")))
+           (records (mapcar (lambda (row)
+                              (let ((values (string-split row ",")))
+                                (cl-mapcar #'cons fields values)))
+                            rows)))
+      (list :fields fields :records records))))
+
 (defun ob-soql-core--modify-csv (csv org-hyperlink)
   "Return CSV after converting 'Id' field values into ORG-HYPERLINK."
-  (let* ((lines (string-split csv "\n" t))
-         (headers (car lines))
-         (rows (cdr lines))
-         (header-fields (string-split headers ","))
-         (id-pos (cl-position "id" header-fields
-                              :test (lambda (a b)
-                                      (string= (downcase a) (downcase b))))))
-    (if id-pos
-        (string-join
-         (cons headers
-               (mapcar (lambda (line)
-                         (let ((cols (string-split line ",")))
-                           (when (and (< id-pos (length cols)))
-                             (setf (nth id-pos cols)
-                                   (ob-soql-core--convert-id-to-hyperlink (nth id-pos cols) org-hyperlink)))
-                           (string-join cols ",")))
-                       rows))
-         "\n")
-      csv)))
+  (if (or (null csv) (string-empty-p csv))
+      csv
+    (let* ((lines (string-split csv "\n" t))
+           (headers (car lines))
+           (rows (cdr lines))
+           (header-fields (string-split headers ","))
+           (id-pos (cl-position "id" header-fields
+                                :test (lambda (a b)
+                                        (string= (downcase a) (downcase b))))))
+      (if id-pos
+          (string-join
+           (cons headers
+                 (mapcar (lambda (line)
+                           (let ((cols (string-split line ",")))
+                             (when (and (< id-pos (length cols)))
+                               (setf (nth id-pos cols)
+                                     (ob-soql-core--convert-id-to-hyperlink (nth id-pos cols) org-hyperlink)))
+                             (string-join cols ",")))
+                         rows))
+           "\n")
+        csv))))
 
 (defun ob-soql-core--convert-id-to-hyperlink (id org-hyperlink)
   "Convert Salesforce ID into an ORG-HYPERLINK."
