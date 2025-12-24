@@ -126,24 +126,22 @@ Returns results based on OUTPUT-FORMAT."
           (let ((raw-csv (string-trim (buffer-string))))
             (unless (string-empty-p raw-csv)
               ;; Convert Id fields to org-mode hyperlinks for all formats
-              (let* ((csv (ob-soql-core--modify-csv raw-csv url))
-                     (metadata (ob-soql--build-metadata query org url csv sobject)))
+              (let* ((metadata (ob-soql--build-metadata query org url raw-csv sobject)))
                 ;; Add editable flag to metadata
                 (plist-put metadata :editable editable)
 
                 ;; If org-table format, return string for org-babel
                 (if (eq output-format 'org-table)
-                    (ob-soql--display-as-org-table csv metadata)
+                    (let ((csv (ob-soql-core--modify-csv raw-csv url)))
+                      (ob-soql--display-as-org-table csv metadata))
                   ;; Otherwise, open interactive buffer
                   ;; Actions will check :editable flag
-                  (let ((result-buffer (ob-soql-display-results csv metadata output-format)))
+                  (let ((result-buffer (ob-soql-display-results raw-csv metadata output-format)))
                     (format "[[buffer:%s][View Results in %s]]"
                             (buffer-name result-buffer)
                             output-format)))))))
       (when (buffer-live-p buf)
         (kill-buffer buf)))))
-
-
 
 (defun ob-soql--get-param (key param-list)
   "Extract param in list."

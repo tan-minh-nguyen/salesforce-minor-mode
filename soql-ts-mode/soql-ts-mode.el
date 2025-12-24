@@ -115,24 +115,30 @@
 
 ;;; Keywords and Operators
 
-(defvar soql-ts-mode--keywords
-  '("SELECT" "FROM" "WHERE" "LIMIT" "OFFSET"
-    "ORDER" "BY" "GROUP" "HAVING" "DESC" "ASC"
-    "OR" "AND" "NOT" "IN" "LIKE"
-    "UPDATE" "TRACKING" "VIEWSTAT"
-    "WITH" "DATA" "CATEGORY"
-    "FOR" "VIEW" "REFERENCE"
-    "USING" "SCOPE"
-    "NULL" "TRUE" "FALSE"
-    "INCLUDES" "EXCLUDES"
-    "ABOVE" "AT" "BELOW"
-    "ROLLUP" "CUBE"
-    "ALL" "ROWS"
-    "LAST_N_DAYS" "LAST_WEEK" "THIS_MONTH" "LAST_MONTH"
-    "THIS_QUARTER" "LAST_QUARTER" "THIS_YEAR" "LAST_YEAR"
-    "YESTERDAY" "TODAY" "TOMORROW"
-    "LAST_90_DAYS" "NEXT_90_DAYS")
-  "SOQL keywords for tree-sitter font-locking.")
+(defvar soql-ts-mode--soql-keywords
+  '("SELECT" "FROM" "LIMIT" "ORDER_BY"
+    "GROUP_BY" "HAVING" "DESC" "ASC" "OR" "AND"
+    "UPDATE" "EXCLUDES" "NULL" "WHERE" "WITH")
+  "Keywords use for soql statement.")
+
+;; (defvar soql-ts-mode--keywords
+;;   '("SELECT" "FROM" "WHERE" "LIMIT" "OFFSET"
+;;     "ORDER" "BY" "GROUP" "HAVING" "DESC" "ASC"
+;;     "OR" "AND" "NOT" "IN" "LIKE"
+;;     "UPDATE" "TRACKING" "VIEWSTAT"
+;;     "WITH" "DATA" "CATEGORY"
+;;     "FOR" "VIEW" "REFERENCE"
+;;     "USING" "SCOPE"
+;;     "NULL" "TRUE" "FALSE"
+;;     "INCLUDES" "EXCLUDES"
+;;     "ABOVE" "AT" "BELOW"
+;;     "ROLLUP" "CUBE"
+;;     "ALL" "ROWS"
+;;     "LAST_N_DAYS" "LAST_WEEK" "THIS_MONTH" "LAST_MONTH"
+;;     "THIS_QUARTER" "LAST_QUARTER" "THIS_YEAR" "LAST_YEAR"
+;;     "YESTERDAY" "TODAY" "TOMORROW"
+;;     "LAST_90_DAYS" "NEXT_90_DAYS")
+;;   "SOQL keywords for tree-sitter font-locking.")
 
 (defvar soql-ts-mode--operators
   '("=" "!=" "<>" ">" "<" ">=" "<="
@@ -143,10 +149,10 @@
 
 (defvar soql-ts-mode--font-lock-settings
   (treesit-font-lock-rules
-   :language 'soql
-   :feature 'comment
-   '((line_comment) @font-lock-comment-face
-     (block_comment) @font-lock-comment-face)
+   ;; :language 'soql
+   ;; :feature 'comment
+   ;; '((line_comment) @font-lock-comment-face
+   ;;   (block_comment) @font-lock-comment-face)
    
    :language 'soql
    :override t

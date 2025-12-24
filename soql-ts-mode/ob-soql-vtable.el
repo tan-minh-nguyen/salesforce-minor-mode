@@ -82,15 +82,15 @@ Returns buffer displaying the vtable."
                      :columns (mapcar (lambda (field)
                                         `(:name ,field
                                                 :width ,(min ob-soql-display-max-column-width
-                                                             (max 10 (length field)))))
+                                                             (max 20 (length field)))))
                                       fields)
                      :objects records
-                     :getter (lambda (record column _vtable)
-                               ;; column is the column name (string), not index
-                               (let ((value (alist-get column record nil nil #'string=)))
-                                 (ob-soql-core--truncate-string
-                                  (or value "")
-                                  ob-soql-display-max-column-width)))
+                     :getter (lambda (record column-index vtable)
+                               (let* ((column-name (vtable-column vtable column-index))
+                                      (value (assoc-default column-name record #'string-equal-ignore-case "")))
+                                 (ob-soql-core--truncate-string value
+                                                                ob-soql-display-max-column-width)))
+                     :actions (ob-soql-vtable--create-actions metadata)
                      :use-header-line nil)))
          (setq-local vtable-object table))
 
@@ -118,19 +118,19 @@ METADATA: Query metadata plist.
 Returns alist: ((key . action-fn) ...)"
   (let ((editable (plist-get metadata :editable))
         (base-actions
-         `(("RET" . ,(ob-soql-vtable--make-action #'ob-soql-vtable--open-record metadata))
-           ("g"   . ,(ob-soql-vtable--make-action #'ob-soql-vtable--refresh metadata))
-           ("?"   . ,(ob-soql-vtable--make-action #'ob-soql-vtable--show-help metadata))
-           ("q"   . ,(ob-soql-vtable--make-action #'ob-soql-vtable--quit metadata)))))
+         `("RET" ,(ob-soql-vtable--make-action #'ob-soql-vtable--open-record metadata)
+           "g"   ,(ob-soql-vtable--make-action #'ob-soql-vtable--refresh metadata)
+           "?"   ,(ob-soql-vtable--make-action #'ob-soql-vtable--show-help metadata)
+           "q"   ,(ob-soql-vtable--make-action #'ob-soql-vtable--quit metadata))))
 
     (if editable
         ;; Add editing actions
         (append base-actions
-                `(("e" . ,(ob-soql-vtable--make-action #'ob-soql-vtable--edit-field metadata))
-                  ("c" . ,(ob-soql-vtable--make-action #'ob-soql-vtable--commit-changes metadata))
-                  ("r" . ,(ob-soql-vtable--make-action #'ob-soql-vtable--revert-changes metadata))
-                  ("p" . ,(ob-soql-vtable--make-action #'ob-soql-vtable--preview-changes metadata))
-                  ("M" . ,(ob-soql-vtable--make-action #'ob-soql-vtable--load-metadata metadata))))
+                `("e" ,(ob-soql-vtable--make-action #'ob-soql-vtable--edit-field metadata)
+                  "c" ,(ob-soql-vtable--make-action #'ob-soql-vtable--commit-changes metadata)
+                  "r" ,(ob-soql-vtable--make-action #'ob-soql-vtable--revert-changes metadata)
+                  "p" ,(ob-soql-vtable--make-action #'ob-soql-vtable--preview-changes metadata)
+                  "M" ,(ob-soql-vtable--make-action #'ob-soql-vtable--load-metadata metadata)))
       ;; Read-only mode
       base-actions)))
 
@@ -294,7 +294,7 @@ METADATA: Query metadata plist"
                                         (string= (assoc-default "Id" r nil #'string=) record-id))
                                       original-records))
          (original-value (when original-record
-                          (assoc-default field original-record nil #'string=))))
+                           (assoc-default field original-record nil #'string=))))
 
     ;; If new value equals original from database, remove the change
     (if (and original-value (string= new-value original-value))
