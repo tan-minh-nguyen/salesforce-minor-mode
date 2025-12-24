@@ -1,5 +1,6 @@
 change-log/
 transcript.txt
-test/
 .aider*
 .claude/
+test/*.elc
+test/*-output.txt
