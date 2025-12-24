@@ -85,9 +85,9 @@ Returns buffer displaying the vtable."
                                                              (max 10 (length field)))))
                                       fields)
                      :objects records
-                     :getter (lambda (record column table)
-                               (let* ((column-name (vtable-column table column))
-                                      (value (assoc-default column-name record #'string= "")))
+                     :getter (lambda (record column _vtable)
+                               ;; column is the column name (string), not index
+                               (let ((value (alist-get column record nil nil #'string=)))
                                  (ob-soql-core--truncate-string
                                   (or value "")
                                   ob-soql-display-max-column-width)))
