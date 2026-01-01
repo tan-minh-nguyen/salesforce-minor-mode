@@ -115,7 +115,7 @@
 
 ;;; Keywords and Operators
 
-(defvar soql-ts-mode--soql-keywords
+(defvar soql-ts-mode--keywords
   '("SELECT" "FROM" "LIMIT" "ORDER_BY"
     "GROUP_BY" "HAVING" "DESC" "ASC" "OR" "AND"
     "UPDATE" "EXCLUDES" "NULL" "WHERE" "WITH"
