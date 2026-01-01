@@ -162,13 +162,10 @@
    :language 'soql
    :override t
    :feature 'operator
-   `([,@apex-ts-mode--soql-operators] @font-lock-operator-face)
    `([,@soql-ts-mode--operators] @font-lock-operator-face)
    
    :language 'soql
    :override t
-   :feature 'keyword
-   `([,@apex-ts-mode--soql-keywords] @font-lock-keyword-face)
    :feature 'type
    '([(fields_type) (update_type)] @font-lock-type-face)
    
@@ -177,14 +174,6 @@
    :feature 'definition
    '((field_identifier) @font-lock-property-use-face
      (storage_identifier) @font-lock-constant-face)
-   
-   :language 'soql
-   :override t
-   :feature 'literal
-   '((string_literal) @font-lock-string-face
-     [(int) (decimal)] @font-number-face)
-   :feature 'string
-   '((string_literal) @font-lock-string-face)
    
    :language 'soql
    :override t
@@ -198,9 +187,6 @@
    
    :language 'soql
    :override t
-   :feature 'type
-   '([(fields_type) (update_type)] @font-lock-type-face)
-   
    :feature 'function
    '((function_name) @font-lock-function-name-face)
    
@@ -208,18 +194,15 @@
    :override t
    :feature 'error
    '([(ERROR)] @font-lock-apex-error-face)
-   '([(ERROR)] @font-lock-soql-error-face)
    
    :language 'soql
    :feature 'bracket
    '((["(" ")" "[" "]" "{" "}"]) @font-lock-bracket-face)
-   '((["(" ")" "[" "]"]) @font-lock-bracket-face)
    
    :language 'soql
    :override t
-   :feature 'literal
-   '((string_literal) @font-lock-string-face
-     [(int) (decimal)] @font-number-face)
+   :feature 'string
+   '((string_literal) @font-lock-string-face)
    
    :language 'soql
    :feature 'delimiter
