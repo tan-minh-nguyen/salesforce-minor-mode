@@ -118,11 +118,7 @@
 (defvar soql-ts-mode--keywords
   '("SELECT" "FROM" "LIMIT" "ORDER_BY"
     "GROUP_BY" "HAVING" "DESC" "ASC" "OR" "AND"
-    "UPDATE" "EXCLUDES" "NULL" "WHERE" "WITH"
-    "LAST_N_DAYS" "LAST_WEEK" "THIS_MONTH" "LAST_MONTH"
-    "THIS_QUARTER" "LAST_QUARTER" "THIS_YEAR" "LAST_YEAR"
-    "YESTERDAY" "TODAY" "TOMORROW"
-    "LAST_90_DAYS" "NEXT_90_DAYS" "TRUE" "FALSE")
+    "UPDATE" "EXCLUDES" "NULL" "WHERE" "WITH")
   "Keywords use for soql statement.")
 
 ;; (defvar soql-ts-mode--keywords
