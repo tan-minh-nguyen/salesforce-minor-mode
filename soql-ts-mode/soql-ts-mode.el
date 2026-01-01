@@ -185,10 +185,10 @@
    :feature 'alias
    '((storage_alias (identifier) @font-lock-variable-name-face))
    
-   :language 'soql
-   :override t
-   :feature 'function
-   '((function_name) @font-lock-function-name-face)
+   ;; :language 'soql
+   ;; :override t
+   ;; :feature 'function
+   ;; '((function_name) @font-lock-function-name-face)
    
    :language 'soql
    :override t
