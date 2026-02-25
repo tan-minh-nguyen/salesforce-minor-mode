@@ -567,7 +567,7 @@ This handles statements like 'return prop;' inside get/set blocks."
   (add-to-list 'org-src-lang-modes '("apex" . apex-ts))
   (add-to-list 'org-babel-load-languages '("apex" . t)))
 
-(add-to-list 'auto-mode-alist '("\\.\\(apex\\|cls\\|trigger\\)\\'" . apex-ts-mode))
+;;;###autoload (add-to-list 'auto-mode-alist '("\\.\\(apex\\|cls\\|trigger\\)\\'" . apex-ts-mode))
 
 (add-hook 'apex-ts-mode-hook #'apex-ts-mode--soql-embeded)
 
