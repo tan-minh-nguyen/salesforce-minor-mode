@@ -1,0 +1,90 @@
+#+TITLE: Claude Plan Configuration
+
+* Project
+
+| Key              | Value                  |
+|------------------+------------------------|
+| Project Name     | salesforce-minor-mode  |
+| Language         | emacs-lisp             |
+
+* Modules
+
+| Module                | Enabled | File                        |
+|-----------------------+---------+-----------------------------|
+| Coding Standards      | t       | module_coding_standards.org |
+| Worktree Workflow     | nil     | template_project_core.org   |
+| Graphite Workflow     | nil     | module_graphite.org         |
+| Phased Implementation | nil     | module_phased.org           |
+
+* Coding Rules
+
+| Key      | Value                    |
+|----------+--------------------------|
+| Source   | languages/emacs-lisp.org |
+| Included | t                        |
+
+When ~Included~ is ~t~, the language rules file content has been appended to this config under the ~* Language Rules~ heading during init.
+
+* Output
+
+| Key    | Value              |
+|--------+--------------------|
+| Dir    | .claude/plans      |
+| Docs   | .claude/docs       |
+| Naming | [FEATURE]-PLAN.org |
+
+Placeholders: [FEATURE], [DATE], [PROJECT]
+
+~Dir~ is for plan files. ~Docs~ is for reference documents (overview, sessions, feedback, verifications).
+
+* Language Rules
+
+** Emacs Lisp Rules
+
+*** FILE ORDER (MANDATORY)
+1. Header (~-*- lexical-binding: t; -*-~)
+2. Requires
+3. Defgroup + Defcustoms
+4. Cl-defstruct
+5. Defvar / Defvar-local
+6. Functions
+7. Provide + Footer
+
+*** CODING RULES
+- DRY: No duplicated logic, extract helpers
+- Comments: Docstrings yes, inline only for "why"
+- Messages: No debug output, minimal user messages
+- Params: 0-2 positional OK, 3+ use ~cl-defun~ with ~&key~
+- Size: <20 lines per function, single responsibility
+
+*** TEMPLATE
+#+begin_src emacs-lisp
+;;; pkg.el --- Desc -*- lexical-binding: t; -*-
+;;; Commentary:
+;;; Code:
+(require 'cl-lib)
+
+(defgroup pkg nil "Group." :group 'tools :prefix "pkg-")
+(defcustom pkg-opt "val" "Option." :type 'string :group 'pkg)
+
+(cl-defstruct (pkg-item (:constructor pkg-item-create)) name value)
+
+(defvar pkg--cache nil "Cache.")
+(defvar-local pkg--state nil "State.")
+
+(defun pkg--internal () "Internal." nil)
+;;;###autoload
+(defun pkg-command () "Command." (interactive) (pkg--internal))
+
+(provide 'pkg)
+;;; pkg.el ends here
+#+end_src
+
+*** ANTI-PATTERNS
+- Mixed defvar/defcustom order
+- Requires after code
+- Struct after variables
+- Missing lexical-binding
+- God functions (100+ lines)
+- Debug messages in production
+- Too many positional params
