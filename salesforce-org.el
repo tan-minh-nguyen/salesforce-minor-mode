@@ -145,34 +145,34 @@ Options:
              `(,org-identity . ,candidate))))
    (salesforce-org--collect-by-type org-type)))
 
-(cl-defmacro salesforce-org-read-user (prompt &rest body &key require-match &allow-other-keys)
+(cl-defun salesforce-org-read-user (prompt &key action require-match)
   "Select available orgs that are authorized.
 
 PROMPT: label of input candidate.
 BODY: The forms to run after getting user selection.
 REQUIRE-MATCH: Whether to require a match."
-  (declare (indent 1))
-  `(salesforce-org--collect
-    :finish-func
-    (lambda (_)
-      (let ((sources (list org--consult-other-source
-                        org--consult-sandbox-source
-                        org--consult-devhub-source
-                        org--consult-scratch-source
-                        org--consult-nonscratch-source))
-            (action (lambda (candidate)
-                      ,@(seq-difference body (list :require-match require-match))))
-            new-input)
-        ;; Set action for all source types
-        (mapcan (lambda (source)
-                  (plist-put source :action action)
-                  (unless ,require-match
-                    (plist-put source :new action)))
-                sources)
+  (salesforce-org--collect
+   :finish-func
+   (lambda (_)
+     (let ((sources (list org--consult-other-source
+                       org--consult-sandbox-source
+                       org--consult-devhub-source
+                       org--consult-scratch-source
+                       org--consult-nonscratch-source))
+           (action-fn (lambda (candidate)
+                        (funcall action candidate)))
+           new-input)
+       ;; Set action for all source types
+       (mapc
+        (lambda (source)
+          (plist-put source :action action-fn)
+          (unless require-match
+            (plist-put source :new action-fn)))
+        sources)
 
-        (consult--multi sources
-                        :prompt ,prompt
-                        :require-match ,require-match)))))
+       (consult--multi sources
+                       :prompt prompt
+                       :require-match require-match)))))
 
 ;;; Interactive commands - Org management
 
@@ -180,7 +180,7 @@ REQUIRE-MATCH: Whether to require a match."
   "Open selected org."
   (interactive)
   (salesforce-org-read-user "Select Org: "
-    (funcall #'salesforce-org--consult-open candidate)
+    :action #'salesforce-org--consult-open
     :require-match t))
 
 (defun salesforce-org-authorize ()
@@ -191,20 +191,23 @@ REQUIRE-MATCH: Whether to require a match."
               '("https://test.salesforce.com"
                 "https://login.salesforce.com"))))
     (salesforce-org-read-user "Select Org: "
-      (salesforce-org--web-authorize url (car candidate)))))
+      :action (lambda (candidate)
+                (salesforce-org--web-authorize url (car candidate))))))
 
 (defun salesforce-org-switch-connect ()
   "Change default connection org."
   (interactive)
   (salesforce-org-read-user "Select Org: "
-    (let ((org-name (car candidate)))
-      (salesforce-core--config-process
-       :args `("set" "target-org" ,org-name "--json")
-       (setq salesforce-org-name org-name
-             salesforce-project-url (salesforce-project--get-user-data org-name "instanceUrl")
-             salesforce-project-token (salesforce-project--get-user-data org-name "accessToken"))
-       (salesforce-project--update-dir-local-config 'salesforce-org-name org-name)
-       (salesforce-core--alert (format "Change to %s success" org-name))))
+    :action
+    (lambda (candidate)
+      (let ((org-name (car candidate)))
+        (salesforce-core--config-process
+         :args `("set" "target-org" ,org-name "--json")
+         (setq salesforce-org-name org-name
+               salesforce-project-url (salesforce-project--get-user-data org-name "instanceUrl")
+               salesforce-project-token (salesforce-project--get-user-data org-name "accessToken"))
+         (salesforce-project--update-dir-local-config 'salesforce-org-name org-name)
+         (salesforce-core--alert (format "Change to %s success" org-name)))))
     :require-match t))
 
 ;;; Log management
