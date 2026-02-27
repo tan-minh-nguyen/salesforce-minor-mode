@@ -38,7 +38,6 @@
 (require 'salesforce-data)
 (require 'salesforce-project)
 (require 'ob-soql-core)
-(require 'ob-soql-vtable)
 
 (add-to-list 'org-babel-tangle-lang-exts '("soql" . "soql"))
 
