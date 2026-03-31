@@ -321,7 +321,7 @@ ARGS: Parameters passed to the process.
 CALLBACK: Optional function called after success."
   (salesforce-core--data-process
    :args `("delete" "bulk" ,@args "--json")
-   (when callback (funcall callback json-instance))))
+   :callback callback))
 
 ;;; Data Operations - Export
 
@@ -332,7 +332,7 @@ CALLBACK: Optional function called after success."
   (interactive (list (transient-args 'salesforce-data--transient:export-bulk)))
   (salesforce-core--data-process
    :args `("export" "bulk" ,@args "--json")
-   (when callback (funcall callback json-instance))))
+   :callback callback))
 
 (defun salesforce-data--export-tree (args)
   "Export tree data from the org.
@@ -340,7 +340,8 @@ ARGS is a list of parameters passed to the Salesforce CLI."
   (interactive (list (transient-args 'salesforce-data--transient:export-tree)))
   (salesforce-core--data-process
    :args `("export" "tree" ,@args "--json")
-   (message "%s" json-instance)))
+   :callback (lambda (json-instance)
+               (message "%s" json-instance))))
 
 (defun salesforce-data-export-resume (args)
   "Resume a previously interrupted export.
@@ -348,7 +349,8 @@ ARGS is a list of parameters passed to the Salesforce CLI."
   (interactive (list (transient-args 'salesforce-data--transient:export-resume)))
   (salesforce-core--data-process
    :args `("export" "resume" ,@args "--json")
-   (message "%s" json-instance)))
+   :callback (lambda (json-instance)
+               (message "%s" json-instance))))
 
 ;;; Data Operations - Import
 
@@ -365,8 +367,9 @@ SYNC run process as sync."
   (interactive (list (transient-args 'salesforce-data--transient:import-bulk)))
   (salesforce-core--data-process
    :args `("import" "bulk" ,@args "--json")
-   (salesforce-core--alert (salesforce-data--format-import-status json-instance))
-   :sync sync))
+   :sync sync
+   :callback (lambda (json-instance)
+               (salesforce-core--alert (salesforce-data--format-import-status json-instance)))))
 
 (defun salesforce-data-import-tree (args)
   "Import tree data into the org.
@@ -374,71 +377,52 @@ ARGS is a list of parameters passed to the Salesforce CLI."
   (interactive (list (transient-args 'salesforce-data--transient:import-tree)))
   (salesforce-core--data-process
    :args `("import" "tree" ,@args "--json")
-   (salesforce-core--alert (salesforce-data--format-import-status json-instance))))
+   :callback (lambda (json-instance)
+               (salesforce-core--alert (salesforce-data--format-import-status json-instance)))))
 
 (defun salesforce-data-import-from-url (url sobject)
   "Import SOBJECT data from the specified URL."
   (interactive (list (read-string "URL: ")
-                  (read-string "SObject: ")))
-  (async-start
-   `(lambda ()
-      (let ((default-directory ,(projectile-project-root)))
-        ,(async-inject-variables "\\`load-path\\'")
-        (require 'async nil :no-error)
-        (require 'process nil :no-error)
-        (require 'request nil :no-error)
-        (require 'salesforce-core nil :no-error)
-
-        (let* ((file (make-temp-file "salesforce-import-data"))
-               response-error)
-
-          ;; Make the HTTP request
-          (request ,url
-            :parser 'buffer-string
-            :sync t
-            :success
-            (cl-function
-             (lambda (&key data &allow-other-keys)
-               (when data
-                 (write-region data nil file))))
-            :error
-            (cl-function
-             (lambda (&key error-thrown &allow-other-keys)
-               (setq response-error error-thrown))))
-
-          ;; Handle request error
-          (when response-error
-            (error "Request failed with error: %s" response-error))
-
-          ;; Execute the import command
-          (let ((async-debug t)
-                (proc (salesforce-core--data-process 
-                       :args (list "import" "bulk"
-                                "-f" file
-                                "-o" ,salesforce-org-name
-                                "-s" ,sobject
-                                "--json")
-                       :sync t)))
-            (async-wait proc)
-            (let ((data (salesforce-core-parse-buffer-json (process-buffer proc))))
-              (if (eq (map-elt data "status") 1)
-                  (salesforce-core--async-when-done proc)
-                (map-nested-elt data '("result" "jobId"))))))))
-   (lambda (jobid)
-     (if jobid
-         ;; Schedule periodic resume processing
-         (let ((poll-id nil))
-           (setq poll-id 
-                 (run-at-time 
-                  10 t
-                  (lambda ()
-                    (salesforce-core--data-process
-                     :args `("export" "resume" "--json" "-i" ,jobid)
-                     (salesforce-core--alert "Import process resumed successfully.")
-                     (cancel-timer poll-id)))))
-           (salesforce-core--alert "Import data is running."))
-       ;; Handle import error
-       (salesforce-core--alert "Data import failed")))))
+                     (read-string "SObject: ")))
+  (let ((file (make-temp-file "salesforce-import-data")))
+    ;; Step 1: Download data from URL
+    (request url
+      :parser 'buffer-string
+      :success
+      (cl-function
+       (lambda (&key data &allow-other-keys)
+         (when data
+           (write-region data nil file)
+           ;; Step 2: Import the downloaded data
+           (salesforce-core--data-process
+            :args (list "import" "bulk"
+                        "-f" file
+                        "-o" salesforce-org-name
+                        "-s" sobject
+                        "--json")
+            :callback
+            (lambda (json-instance)
+              (let ((jobid (map-nested-elt json-instance '("result" "jobId"))))
+                (if jobid
+                    ;; Schedule periodic resume processing
+                    (let ((poll-id nil))
+                      (setq poll-id
+                            (run-at-time
+                             10 t
+                             (lambda ()
+                               (salesforce-core--data-process
+                                :args `("export" "resume" "--json" "-i" ,jobid)
+                                :callback
+                                (lambda (_)
+                                  (salesforce-core--alert "Import process resumed successfully.")
+                                  (cancel-timer poll-id))))))
+                      (salesforce-core--alert "Import data is running."))
+                  (salesforce-core--alert "Data import failed"))))))))
+      :error
+      (cl-function
+       (lambda (&key error-thrown &allow-other-keys)
+         (salesforce-core--alert (format "Request failed: %s" error-thrown)
+                                 :severity 'urgent))))))
 
 ;;; Query and Search Operations
 
@@ -479,11 +463,12 @@ ARGS: Parameters are passed to the search record process."
   "Ensure COMMANDS includes a result format argument."
   (unless (cl-some (lambda (arg)
                      (or (string-prefix-p "-r" arg)
-                        (string-prefix-p "--result-format" arg)))
+                         (string-prefix-p "--result-format" arg)))
                    commands)
     (append commands '("--result-format=csv")))
   commands)
 
+;;TODO: need refactor use tablist-plus instead
 (defun salesforce-data--display-search-results (json-instance)
   "Display search results from JSON-INSTANCE in a CSV buffer."
   (let ((soql-buffer (generate-new-buffer "*search results*")))
@@ -493,19 +478,15 @@ ARGS: Parameters are passed to the search record process."
     (pop-to-buffer soql-buffer)))
 
 (cl-defun salesforce-data--dispatch-search
-    (&rest args &key callback sync &allow-other-keys)
+    (&rest args &key callback &allow-other-keys)
   "Search records on the connecting Salesforce org.
 ARGS: Parameters used to build the command.
 CALLBACK: Function to run after search succeeded.
 SYNC: Run the process in sync."
-  (let ((commands (seq-difference args (list :callback callback :sync sync))))
-    (setq commands (salesforce-data--ensure-result-format commands))
+  (let ((commands (seq-difference args (list :callback callback))))
     (salesforce-core--data-process
-     :args commands
-     :sync sync
-     (if callback
-         (funcall callback json-instance)
-       (salesforce-data--display-search-results json-instance)))))
+     :args (salesforce-data--ensure-result-format commands)
+     :callback (or callback #'salesforce-data--display-search-results))))
 
 ;;; Entity Search
 

@@ -35,34 +35,34 @@
    salesforce-sobject-cache-dir 
    (salesforce-core--find-root-dir)))
 
-(defun salesforce-sobject--list-all ()
+(defun salesforce-sobject--list-all (&key then)
   "List all SObjects in the current org.
 Returns list of SObject names, or nil on error."
-  (let ((process (salesforce-core--org-process
-                  :args '("sobject" "list" "--json")
-                  :sync t)))
-    (when (and process (eq (process-exit-status process) 0))
-      (let* ((json (salesforce-core-parse-buffer-json 
-                    (process-buffer process)))
-             (result (map-elt json "result")))
-        (when result
-          (cl-loop for sobject across result
-                   collect (map-elt sobject "name")))))))
+  (salesforce-core--org-process
+   :args '("sobject" "list" "--json")
+   :callback
+   (lambda (json)
+     (when-let* ((result (map-elt json "result"))
+                 (sobjects
+                  (cl-loop for sobject across result
+                           collect (map-elt sobject "name"))))
+       (if then (apply then sobjects)
+         sobjects)))))
 
 (defun salesforce-sobject--describe (sobject-name callback)
   "Describe SOBJECT-NAME and call CALLBACK with result.
 CALLBACK receives (sobject-name metadata-json error)."
   (salesforce-core--org-process
    :args `("sobject" "describe" "-s" ,sobject-name "--json")
-   (let ((status (map-elt json-instance "status"))
-         (result (map-elt json-instance "result")))
-     (if (and status (= status 0) result)
-         ;; Success
-         (funcall callback sobject-name result nil)
-       ;; Error
-       (funcall callback sobject-name nil 
-                (or (map-elt json-instance "message")
-                    "Unknown error"))))))
+   :callback
+   (lambda (json-instance)
+     (let ((status (map-elt json-instance "status"))
+           (result (map-elt json-instance "result")))
+       (if (and status (= status 0) result)
+           (funcall callback sobject-name result nil)
+         (funcall callback sobject-name nil
+                  (or (map-elt json-instance "message")
+                      "Unknown error")))))))
 
 (defun salesforce-sobject--save-metadata (sobject-name metadata)
   "Save METADATA for SOBJECT-NAME to cache file.
@@ -129,28 +129,30 @@ FINISHED-CALLBACK is called with (success-count error-count errors-list) when do
   "Refresh all SObject definitions from current org.
 Generates metadata JSON files for code completion."
   (interactive)
-  (if-let ((sobjects (salesforce-sobject--list-all)))
-      (progn
-        (message "Found %d SObjects. Generating metadata..." 
-                 (length sobjects))
-        (salesforce-sobject--generate-batch 
-         sobjects
-         (lambda (success error errors-list)
-           (if (> error 0)
-               (progn
-                 (salesforce-core--alert 
-                  (format "SObject refresh: %d success, %d errors" success error)
-                  :severity 'urgent)
-                 (when errors-list
-                   (with-current-buffer (get-buffer-create "*SObject Errors*")
-                     (erase-buffer)
-                     (insert "SObject Generation Errors:\n\n")
-                     (dolist (err errors-list)
-                       (insert (format "- %s: %s\n" (car err) (cdr err))))
-                     (display-buffer (current-buffer)))))
-             (salesforce-core--alert 
-              (format "SObject refresh complete: %d success" success))))))
-    (user-error "Failed to list SObjects. Check org connection")))
+  ;;TODO: need REFACTOR
+  ;; (if-let ((sobjects (salesforce-sobject--list-all)))
+  ;;     (progn
+  ;;       (message "Found %d SObjects. Generating metadata..." 
+  ;;                (length sobjects))
+  ;;       (salesforce-sobject--generate-batch 
+  ;;        sobjects
+  ;;        (lambda (success error errors-list)
+  ;;          (if (> error 0)
+  ;;              (progn
+  ;;                (salesforce-core--alert 
+  ;;                 (format "SObject refresh: %d success, %d errors" success error)
+  ;;                 :severity 'urgent)
+  ;;                (when errors-list
+  ;;                  (with-current-buffer (get-buffer-create "*SObject Errors*")
+  ;;                    (erase-buffer)
+  ;;                    (insert "SObject Generation Errors:\n\n")
+  ;;                    (dolist (err errors-list)
+  ;;                      (insert (format "- %s: %s\n" (car err) (cdr err))))
+  ;;                    (display-buffer (current-buffer)))))
+  ;;            (salesforce-core--alert 
+  ;;             (format "SObject refresh complete: %d success" success))))))
+  ;;   (user-error "Failed to list SObjects. Check org connection"))
+  )
 
 ;;;###autoload
 (defun salesforce-sobject-refresh-single (sobject-name)

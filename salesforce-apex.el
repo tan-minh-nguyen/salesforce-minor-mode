@@ -211,12 +211,13 @@
     (write-region content nil temp-file)
     (salesforce-core--apex-process
      :args `("run" "-f" ,temp-file "-o" ,salesforce-org-name "--json")
-     (with-current-buffer (get-buffer-create "*apex log*")
-       (let ((buffer-read-only t)
-             (inhibit-read-only t))
-         (insert (map-nested-elt json-instance '("result" "logs")))))
-     (switch-to-buffer (get-buffer-create "*apex log*"))
-     (salesforce-core--alert "Run apex code complete"))))
+     :callback (lambda (json-instance)
+                 (with-current-buffer (get-buffer-create "*apex log*")
+                   (let ((buffer-read-only t)
+                         (inhibit-read-only t))
+                     (insert (map-nested-elt json-instance '("result" "logs")))))
+                 (switch-to-buffer (get-buffer-create "*apex log*"))
+                 (salesforce-core--alert "Run apex code complete")))))
 
 ;;; Resource Generation
 
@@ -225,7 +226,8 @@
 Open the created file using RESULT-PATH-KEYS to extract from JSON response."
   (salesforce-core--apex-process
    :args `("generate" ,type ,@args "--json")
-   (switch-to-buffer (find-file (map-nested-elt json-instance result-path-keys)))))
+   :callback (lambda (json-instance)
+               (switch-to-buffer (find-file (map-nested-elt json-instance result-path-keys))))))
 
 (defun salesforce-apex--generate-trigger (args)
   "Generate an Apex trigger with the specified ARGS."
@@ -242,7 +244,8 @@ Open the created file using RESULT-PATH-KEYS to extract from JSON response."
   (interactive (list (transient-args 'salesforce-apex--transient:lightning-resource)))
   (salesforce-core--lightning-process
    :args `("generate" "component" ,@args "--json")
-   (salesforce-core--alert "Successfully created component")))
+   :callback (lambda (_)
+               (salesforce-core--alert "Successfully created component"))))
 
 (defun salesforce-apex-generate-test-class ()
   "Generate an Apex test class.
@@ -252,10 +255,11 @@ TODO: Replace with salesforce-apex--generate-class for consistency."
          (output-dir (salesforce-core--join-path salesforce-apex-dir))
          (class-path (salesforce-core--join-path output-dir class-name ".cls")))
     (salesforce-core--apex-process
-     :args `("generate" "class" "--name" ,class-name "-t" "ApexUnitTest" 
+     :args `("generate" "class" "--name" ,class-name "-t" "ApexUnitTest"
              "--output-dir" ,output-dir "--json")
-     (switch-to-buffer (find-file class-path))
-     (salesforce-core--alert (format "Successfully created test class: %s" class-name)))))
+     :callback (lambda (_)
+                 (switch-to-buffer (find-file class-path))
+                 (salesforce-core--alert (format "Successfully created test class: %s" class-name))))))
 
 ;;; Visualforce Generation
 
@@ -263,11 +267,12 @@ TODO: Replace with salesforce-apex--generate-class for consistency."
   "Generate a Visualforce resource of TYPE with NAME, LABEL, OUTPUT-DIR, and EXTENSION."
   (let ((resource-path (concat output-dir "/" name extension)))
     (salesforce-core--visualforce-process
-     :args `("generate" ,type "--json" "--name" ,name "--label" ,label 
+     :args `("generate" ,type "--json" "--name" ,name "--label" ,label
              "--output-dir" ,output-dir)
-     (switch-to-buffer (find-file resource-path))
-     (salesforce-core--alert (format "Successfully created Visualforce %s: %s" 
-                                     type name)))))
+     :callback (lambda (_)
+                 (switch-to-buffer (find-file resource-path))
+                 (salesforce-core--alert (format "Successfully created Visualforce %s: %s"
+                                                 type name))))))
 
 (defun salesforce-visualforce-generate-page ()
   "Generate a new Visualforce page."
@@ -295,35 +300,38 @@ TODO: Replace with salesforce-apex--generate-class for consistency."
 Optionally cancel POLL-ID timer when complete."
   (let ((buffer (current-buffer)))
     (salesforce-core--apex-process
-     :args `("get" "test" "-i" ,job-id "-o" ,salesforce-org-name 
+     :args `("get" "test" "-i" ,job-id "-o" ,salesforce-org-name
              "--code-coverage" "--json")
-     (let* ((summary (map-nested-elt json-instance '("result" "summary")))
-            (outcome (map-elt summary "outcome"))
-            (alert-message (format "Unit Tests Run %s" outcome)))
-       (salesforce-core--alert alert-message))
-     (with-current-buffer buffer
-       (setq-local salesforce-apex--test-coverage
-                   (map-nested-elt json-instance '("result" "coverage"))))
-     (when poll-id (cancel-timer poll-id)))))
+     :callback (lambda (json-instance)
+                 (let* ((summary (map-nested-elt json-instance '("result" "summary")))
+                        (outcome (map-elt summary "outcome"))
+                        (alert-message (format "Unit Tests Run %s" outcome)))
+                   (salesforce-core--alert alert-message))
+                 (with-current-buffer buffer
+                   (setq-local salesforce-apex--test-coverage
+                               (map-nested-elt json-instance '("result" "coverage"))))
+                 (when poll-id (cancel-timer poll-id))))))
 
 (cl-defun salesforce-apex--execute-unit-test (&key test-cases test-level)
   "Execute specific unit tests with TEST-CASES and TEST-LEVEL."
   (let ((file-name (file-name-base)))
     (salesforce-core--apex-process
-     :args `("run" "test" "--tests" ,test-cases "--test-level" ,test-level 
+     :args `("run" "test" "--tests" ,test-cases "--test-level" ,test-level
              "--detailed-coverage" "--code-coverage" "--json")
-     (let* ((poll-id nil)
-            (job-id (map-nested-elt json-instance '("result" "testRunId")))
-            (callback (lambda (job)
-                        (salesforce-apex--get-result-test-job job poll-id))))
-       (if job-id
-           (progn 
-             (salesforce-core--alert (format "%s class is running." file-name))
-             (setq poll-id (run-at-time 60 nil callback job-id)))
-         (salesforce-core--alert 
-          (format "Tests class run success with coverage %s"
-                  (map-nested-elt json-instance 
-                                  '("result" "summary" "testRunCoverage")))))))))
+     :callback
+     (lambda (json-instance)
+       (let* ((poll-id nil)
+              (job-id (map-nested-elt json-instance '("result" "testRunId")))
+              (callback (lambda (job)
+                          (salesforce-apex--get-result-test-job job poll-id))))
+         (if job-id
+             (progn
+               (salesforce-core--alert (format "%s class is running." file-name))
+               (setq poll-id (run-at-time 60 nil callback job-id)))
+           (salesforce-core--alert
+            (format "Tests class run success with coverage %s"
+                    (map-nested-elt json-instance
+                                    '("result" "summary" "testRunCoverage"))))))))))
 
 (defun salesforce-apex--retrieve-functions ()
   "Retrieve all function names in the current buffer.
@@ -357,8 +365,9 @@ FIXME: Improve function name extraction logic."
   (interactive)
   (salesforce-core--apex-process
    :args '("run" "test" "--test-level" "RunLocalTests" "--json")
-   (salesforce-apex--get-result-test-job 
-    (map-nested-elt json-instance '("result" "testRunId")))))
+   :callback (lambda (json-instance)
+               (salesforce-apex--get-result-test-job
+                (map-nested-elt json-instance '("result" "testRunId"))))))
 
 ;;; Lightning Development
 
@@ -367,7 +376,8 @@ FIXME: Improve function name extraction logic."
   (interactive)
   (salesforce-core--lightning-process
    :args '("lightning" "lwc" "start" "--json")
-   (salesforce-core--alert "Start lwc local server success")))
+   :callback (lambda (_)
+               (salesforce-core--alert "Start lwc local server success"))))
 
 ;;; Log Management
 
@@ -404,24 +414,26 @@ FIXME: Improve function name extraction logic."
                          prop-time)))
     `(,id ,prefix ,suffix)))
 
-(defmacro salesforce-apex-prompt-log (&rest body)
+(defun salesforce-apex-prompt-log (callback)
   "Collect all logs and make prompt for selection.
-Execute BODY forms after selecting candidate."
-  `(salesforce-core--apex-process
-    :args '("list" "log" "--json")
-    (let* ((candidates (cl-loop for log-file across (map-elt json-instance "result")
-                                collect `("app" ,(map-elt log-file "Application")
-                                          "time" ,(map-elt log-file "StartTime")
-                                          "operation" ,(map-elt log-file "Operation")
-                                          "log-length" ,(map-elt log-file "LogLength")
-                                          "status" ,(map-elt log-file "Status")
-                                          "log-id" ,(map-elt log-file "Id"))))
-           (candidate (consult--read candidates
-                                     :prompt "Log: "
-                                     :category 'salesforce-log
-                                     :require-match t
-                                     :annotate #'salesforce-apex-consult--annotate)))
-      ,@body)))
+Execute CALLBACK with selected candidate."
+  (salesforce-core--apex-process
+   :args '("list" "log" "--json")
+   :callback
+   (lambda (json-instance)
+     (let* ((candidates (cl-loop for log-file across (map-elt json-instance "result")
+                                 collect `("app" ,(map-elt log-file "Application")
+                                           "time" ,(map-elt log-file "StartTime")
+                                           "operation" ,(map-elt log-file "Operation")
+                                           "log-length" ,(map-elt log-file "LogLength")
+                                           "status" ,(map-elt log-file "Status")
+                                           "log-id" ,(map-elt log-file "Id"))))
+            (candidate (consult--read candidates
+                                      :prompt "Log: "
+                                      :category 'salesforce-log
+                                      :require-match t
+                                      :annotate #'salesforce-apex-consult--annotate)))
+       (funcall callback candidate)))))
 
 ;;; Utility Functions
 

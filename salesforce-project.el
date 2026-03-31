@@ -217,10 +217,11 @@ If FORCE is non-nil, update even if value hasn't changed."
                                             '("standard" "empty" "project")))
          (default-directory project-dir))
     (make-directory project-dir 'parents)
-    (salesforce-core--project-process 
-     :args (list "generate" "--name" project-name 
+    (salesforce-core--project-process
+     :args (list "generate" "--name" project-name
               "--template" project-template "--json")
-     (salesforce-core--alert "Create Project Success"))))
+     :callback (lambda (_)
+                 (salesforce-core--alert "Create Project Success")))))
 
 ;;; Source Push/Retrieve Operations
 
@@ -233,21 +234,23 @@ If FORCE is non-nil, update even if value hasn't changed."
   "Push the specified BUFFER to a Salesforce org.
 Optionally specify a TARGET-ORG."
   (interactive (list (buffer-file-name)))
-  (salesforce-core--project-process 
-   :args `("deploy" "start" "-d" ,buffer 
-           ,@(salesforce-project--build-org-args target-org) 
+  (salesforce-core--project-process
+   :args `("deploy" "start" "-d" ,buffer
+           ,@(salesforce-project--build-org-args target-org)
            "--json")
-   (salesforce-core--alert (format "Deploy %s success" buffer))))
+   :callback (lambda (_)
+               (salesforce-core--alert (format "Deploy %s success" buffer)))))
 
 (defun salesforce-project-source-retrieve (buffer &optional target-org)
   "Retrieve source from a Salesforce org into the specified BUFFER.
 Optionally specify a TARGET-ORG."
   (interactive (list (buffer-file-name)))
-  (salesforce-core--project-process 
-   :args `("retrieve" "start" "-d" ,buffer 
-           ,@(salesforce-project--build-org-args target-org) 
+  (salesforce-core--project-process
+   :args `("retrieve" "start" "-d" ,buffer
+           ,@(salesforce-project--build-org-args target-org)
            "--json")
-   (salesforce-core--alert (format "Retrieve %s success" buffer))))
+   :callback (lambda (_)
+               (salesforce-core--alert (format "Retrieve %s success" buffer)))))
 
 ;;; Cloud Metadata Operations
 
@@ -259,7 +262,7 @@ TARGET-PATH is the local path to store the metadata.
 TARGET-ORG specifies the Salesforce org.
 FINISH-FUNC is a function to call upon completion."
   (let ((file-name (file-name-base metadata-file)))
-    (salesforce-core--project-process 
+    (salesforce-core--project-process
      :args `("retrieve" "start"
              "-d" ,metadata-file
              "-z"
@@ -267,15 +270,14 @@ FINISH-FUNC is a function to call upon completion."
              "--zip-file-name" ,file-name
              ,@(salesforce-project--build-org-args target-org)
              "--json")
-     
-     (when target-path
-       (unless (file-exists-p target-path)
-         (error "Path not exist"))
-       (copy-file (concat temporary-file-directory file-name) target-path t))
-     
-     (funcall finish-func 
-              (or target-path
-                 (expand-file-name file-name temporary-file-directory))))))
+     :callback (lambda (_)
+                 (when target-path
+                   (unless (file-exists-p target-path)
+                     (error "Path not exist"))
+                   (copy-file (concat temporary-file-directory file-name) target-path t))
+                 (funcall finish-func
+                          (or target-path
+                              (expand-file-name file-name temporary-file-directory)))))))
 
 ;;; Ediff Integration
 
@@ -476,31 +478,18 @@ Optionally specify a TARGET-ORG."
 
 (defun salesforce-project--process-multi-sources (files command)
   "Process multiple metadata FILES with the specified COMMAND."
-  (async-start 
-   `(lambda ()
-      (setq default-directory ,(projectile-project-root))
-      ,(async-inject-variables "\\`load-path\\'")
-      (require 'async nil t)
-      (require 'salesforce-project nil t)
-      (require 'salesforce-core nil t)
-      (require 'cl-macs nil t)
-      (setq async-debug t)
-      (let ((proc (apply #'salesforce-core--project-process
-                         :args ,(apply #'append 
-                                       (list command "start" "--json")
-                                       (cl-loop for file in files
-                                                collect `("-d" ,file)))
-                         :sync t)))
-        (async-wait proc)
-        (if (eq (process-exit-status proc) 1)
-            (list :status 1
-                  :error (salesforce--async-when-done proc))
-          (list :status 0
-                :json-instance (salesforce-core-parse-buffer-json
-                                (process-buffer proc))))))
-   (lambda (result)
-     (when (eq (plist-get result :status) 0)
-       (salesforce-core--alert (concat "Success " command " files"))))))
+  (let ((args (apply #'append
+                     (list command "start" "--json")
+                     (cl-loop for file in files
+                              collect (list "-d" file)))))
+    (salesforce-core--project-process
+     :args args
+     :callback (lambda (json-instance)
+                 (if (and json-instance (eq (map-elt json-instance "status") 0))
+                     (salesforce-core--alert (concat "Success " command " files"))
+                   (salesforce-core--alert
+                    (format "Failed to %s files" command)
+                    :severity 'urgent))))))
 
 (defun salesforce-project--push-multi-sources (files)
   "Push multiple metadata FILES to a Salesforce org."
@@ -746,7 +735,8 @@ TABLE should be a hash table mapping aliases to usernames."
   (let ((args (transient-args 'salesforce-project--transient:custom-metadata-field-menu)))
     (salesforce-core--cmdt-process
      :args `("generate" "field" ,@args)
-     (salesforce-core--alert "Create field on custom metadata succeeded"))))
+     :callback (lambda (_)
+                 (salesforce-core--alert "Create field on custom metadata succeeded")))))
 
 (provide 'salesforce-project)
 

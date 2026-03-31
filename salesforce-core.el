@@ -8,8 +8,8 @@
 
 (require 'alert)
 (require 'json)
-(require 'async)
 (require 'consult)
+(require 'emacs-pipeline-process)
 
 ;;; Variables
 
@@ -230,35 +230,86 @@ If DEPTH is less than 1, returns the immediate parent directory."
 
 ;;; Process Management
 
-(defmacro salesforce-core--make-process (command)
-  "Create a process macro for a specific COMMAND type.
-This generates a macro that can execute Salesforce CLI commands."
-  `(cl-defmacro ,(intern (format "salesforce-core--%s-process" command))
-       (&rest body &key args sync &allow-other-keys)
-     (let ((action ,command))
-       `(let* ((callback (lambda (proc)
-                           (let ((json-instance 
-                                  (if (member "--json" ,args)
-                                      (salesforce-core-parse-buffer-json 
-                                       (process-buffer proc))
-                                    (process-buffer proc))))
-                             ,@body))))
-          (apply #'async-start-process 
-                 salesforce-process-buffer
-                 salesforce-program-bin 
-                 (unless ,sync (apply-partially callback))
-                 (cons ,action ,args))))))
+(cl-defun salesforce-core-run-process (&key args parser callback)
+  "Run Salesforce CLI COMMAND with ARGS.
+CALLBACK receives parsed JSON (or raw output) on completion.
+If SYNC is non-nil, wait for process to complete and return result."
+  (emacs-pp-make-process-wrap
+   (make-process
+    :name salesforce-process-buffer
+    :buffer (generate-new-buffer
+             (format " *%s*" salesforce-process-buffer)))
+   :args (cons salesforce-program-bin args)
+   :parser parser
+   :then (lambda (&key data &allow-other-keys)
+           (funcall callback data))
+   :catch #'salesforce-core--handle-process-error))
 
-;; Generate all process macros using the factory
-(salesforce-core--make-process "project")
-(salesforce-core--make-process "apex") 
-(salesforce-core--make-process "visualforce")
-(salesforce-core--make-process "data")
-(salesforce-core--make-process "org")
-(salesforce-core--make-process "lightning")
-(salesforce-core--make-process "config")
-(salesforce-core--make-process "cmdt")
-(salesforce-core--make-process "sobject")
+(defun salesforce-core--handle-process-error (err)
+  "Handle process error ERR."
+  (salesforce-core--alert (format "Process error: %s" err) :severity 'urgent))
+
+(cl-defun salesforce-core--project-process
+    (&key args callback (parser emacs-pp-parser-json))
+  "Run Salesforce project CLI command with ARGS."
+  (salesforce-core-run-process :args (cons "project" args)
+                               :callback callback))
+
+(cl-defun salesforce-core--apex-process
+    (&key args callback (parser emacs-pp-parser-json))
+  "Run Salesforce apex CLI command with ARGS."
+  (salesforce-core-run-process :args (cons "apex" args)
+                               :parser parser
+                               :callback callback))
+
+(cl-defun salesforce-core--visualforce-process
+    (&key args callback (parser emacs-pp-parser-json))
+  "Run Salesforce visualforce CLI command with ARGS."
+  (salesforce-core-run-process :args (cons "visualforce" args)
+                               :parser parser
+                               :callback callback))
+
+(cl-defun salesforce-core--data-process
+    (&key args callback (parser emacs-pp-parser-json))
+  "Run Salesforce data CLI command with ARGS."
+  (salesforce-core-run-process :args (cons "data" args)
+                               :parser parser
+                               :callback callback))
+
+(cl-defun salesforce-core--org-process
+    (&key args callback (parser emacs-pp-parser-json))
+  "Run Salesforce org CLI command with ARGS."
+  (salesforce-core-run-process :args (cons "org" args)
+                               :parser parser
+                               :callback callback))
+
+(cl-defun salesforce-core--lightning-process
+    (&key args callback (parser emacs-pp-parser-json))
+  "Run Salesforce lightning CLI command with ARGS."
+  (salesforce-core-run-process :args (cons "lightning" args)
+                               :parser parser
+                               :callback callback))
+
+(cl-defun salesforce-core--config-process
+    (&key args callback (parser emacs-pp-parser-json))
+  "Run Salesforce config CLI command with ARGS."
+  (salesforce-core-run-process :args (cons "config" args)
+                               :parser parser
+                               :callback callback))
+
+(cl-defun salesforce-core--cmdt-process
+    (&key args callback (parser emacs-pp-parser-json))
+  "Run Salesforce cmdt CLI command with ARGS."
+  (salesforce-core-run-process :args (cons "cmdt" args)
+                               :parser parser
+                               :callback callback))
+
+(cl-defun salesforce-core--sobject-process
+    (&key args callback (parser emacs-pp-parser-json))
+  "Run Salesforce sobject CLI command with ARGS."
+  (salesforce-core-run-process :args (cons "sobject" args)
+                               :parser parser
+                               :callback callback))
 
 ;;; API Request
 
@@ -330,18 +381,6 @@ If parsing fails, return a hash table with status 1 and the raw buffer contents.
     (salesforce-core--alert show-message :severity 'urgent)
     show-message))
 
-(defun salesforce-core--async-when-done (proc &optional _change)
-  "Handle signal process return from sf package.
-PROC is the process that completed."
-  (when-let ((_ (> (process-exit-status proc) 0))
-             (_ (string-match-p salesforce-process-buffer 
-                                (buffer-name (process-buffer proc)))))
-    (condition-case error
-        (salesforce-handle-process-error--json 
-         (salesforce-core-parse-buffer-json (process-buffer proc))))))
-
-(advice-add 'async-when-done :after #'salesforce-core--async-when-done)
-
 ;;; Project and Org Management
 
 (defun salesforce-core--projects (prefix)
@@ -349,23 +388,6 @@ PROC is the process that completed."
   (-filter (lambda (project)
              (s-prefix-p prefix project))
            (projectile-relevant-known-projects)))
-
-(defun salesforce-core--orgs (prefix)
-  "List orgs that start with PREFIX.
-Uses cached org list if available."
-  (let ((async-debug t))
-    (cl-reduce 
-     (lambda (result org)
-       (when-let* ((alias (map-elt org "alias"))
-                   (_ (s-prefix-p prefix alias)))
-         (setq result (append result `(,alias))))
-       (when (null prefix)
-         (setq result (append result `(,(map-elt org "alias")))))
-       result)
-     (cond ((assoc-default 'data salesforce-core--org-list-cache)
-            (assoc-default 'data salesforce-core--org-list-cache))
-           (t (or (salesforce-org-list nil :sync t) '())))
-     :initial-value '())))
 
 ;;; Prompts and Completion
 

@@ -217,16 +217,18 @@ CONTENT is the code to execute."
     
     (salesforce-core--apex-process
      :args `("run" "-f" ,tempfile "-o" ,org-name "--json")
-     (unless (ob-apex--result-is-none-p result-eval)
-       (with-current-buffer buffer
-         (save-excursion
-           (ob-apex--replace-result-placeholder 
-            uuid 
-            (ob-apex--filter-log (map-nested-elt json-instance '("result" "logs"))
-                                 log-filter-type
-                                 log-filter-value)))))
-     (alert "Run apex code complete"
-            :title "Salesforce Alert"))))
+     :callback
+     (lambda (json-instance)
+       (unless (ob-apex--result-is-none-p result-eval)
+         (with-current-buffer buffer
+           (save-excursion
+             (ob-apex--replace-result-placeholder
+              uuid
+              (ob-apex--filter-log (map-nested-elt json-instance '("result" "logs"))
+                                   log-filter-type
+                                   log-filter-value)))))
+       (alert "Run apex code complete"
+              :title "Salesforce Alert")))))
 
 ;;; Result Handling
 
