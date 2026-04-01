@@ -214,14 +214,19 @@ If FORCE is non-nil, update even if value hasn't changed."
   (let* ((project-dir (read-directory-name "Directory: "))
          (project-name (read-string "Project name: "))
          (project-template (completing-read "Project template: " 
-                                            '("standard" "empty" "project")))
-         (default-directory project-dir))
-    (make-directory project-dir 'parents)
+                                            '("standard" "empty" "project"))))
+    (unless (file-exists-p project-dir)
+      (make-directory project-dir 'parents))
     (salesforce-core--project-process
-     :args (list "generate" "--name" project-name
-              "--template" project-template "--json")
-     :callback (lambda (_)
-                 (salesforce-core--alert "Create Project Success")))))
+     :args (list "generate"
+                 "--name" project-name
+                 "--template" project-template
+                 "--output-dir" project-dir
+                 "--manifest"
+                 "--json")
+     :callback
+     (lambda (_)
+       (salesforce-core--alert "Create Project Success")))))
 
 ;;; Source Push/Retrieve Operations
 
@@ -230,30 +235,33 @@ If FORCE is non-nil, update even if value hasn't changed."
   (when (and target-org (not (string-blank-p target-org)))
     (list "-o" target-org)))
 
-(defun salesforce-project-source-push (buffer &optional target-org)
-  "Push the specified BUFFER to a Salesforce org.
+(cl-defun salesforce-project-source-push (file &key target-org)
+  "Push the specified FILE to a Salesforce org.
 Optionally specify a TARGET-ORG."
   (interactive (list (buffer-file-name)))
   (salesforce-core--project-process
-   :args `("deploy" "start" "-d" ,buffer
+   :args `("deploy" "start" "-d" ,file
            ,@(salesforce-project--build-org-args target-org)
            "--json")
-   :callback (lambda (_)
-               (salesforce-core--alert (format "Deploy %s success" buffer)))))
+   :callback
+   (lambda (_)
+     (salesforce-core--alert (format "Deploy %s success" buffer)))))
 
-(defun salesforce-project-source-retrieve (buffer &optional target-org)
-  "Retrieve source from a Salesforce org into the specified BUFFER.
+(cl-defun salesforce-project-source-retrieve (file &key target-org)
+  "Retrieve source from a Salesforce org into the specified FILE.
 Optionally specify a TARGET-ORG."
   (interactive (list (buffer-file-name)))
   (salesforce-core--project-process
-   :args `("retrieve" "start" "-d" ,buffer
+   :args `("retrieve" "start" "-d" ,file
            ,@(salesforce-project--build-org-args target-org)
            "--json")
-   :callback (lambda (_)
-               (salesforce-core--alert (format "Retrieve %s success" buffer)))))
+   :callback
+   (lambda (_)
+     (salesforce-core--alert (format "Retrieve %s success" buffer)))))
 
 ;;; Cloud Metadata Operations
 
+;;TODO: refactor to use emacs-pp-job
 (cl-defun salesforce-project--clone-cloud-metadata
     (&key metadata-file target-path target-org finish-func)
   "Clone cloud metadata from a Salesforce org.
@@ -648,23 +656,6 @@ TABLE should be a hash table mapping aliases to usernames."
 (defun salesforce-project--remove-xml-suffix (original-name)
   "Remove the '-meta.xml' suffix from ORIGINAL-NAME for display."
   (string-replace "-meta.xml" "" original-name))
-
-(defun salesforce-project-open-note ()
-  "Open the note associated with the current project."
-  (interactive)
-  (if-let ((note-file 
-            (plist-get 
-             (cl-find-if 
-              (lambda (el)
-                (string= (expand-file-name (plist-get el :project)) 
-                         salesforce-project-root-dir))
-              salesforce-project-config)
-             :note-file)))
-      (display-buffer-in-side-window 
-       (find-file-noselect (expand-file-name note-file))
-       '((side . right)
-         (window-width . 0.4)))
-    (error "Note file not found")))
 
 ;;; Transient Menu Definitions
 

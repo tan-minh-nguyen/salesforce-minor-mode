@@ -16,13 +16,10 @@
 (defvar salesforce-debug nil
   "Enable debug mode for Salesforce operations.")
 
-(defvar salesforce-core--org-list-cache nil
-  "Cache for org list data. Format: ((timestamp . org-list-data))")
-
 (defvar salesforce-org-name nil
   "The name of the currently active Salesforce org, displayed in the mode line.")
 
-(defvar-local salesforce-project-root-dir ""
+(defvar-local salesforce-project-root-dir nil
   "Full path to project root.")
 
 ;;; Constants
@@ -46,11 +43,6 @@
   "Directory contains soql metadata.")
 
 ;;; Customization
-
-(defcustom salesforce-tangle-on-save t
-  "When t, automatically tangle Org files on save."
-  :type 'boolean
-  :group 'salesforce-minor-mode)
 
 (defcustom salesforce-api-version "61.0"
   "Custom define api version for command."
@@ -182,7 +174,7 @@ If PATH is non-nil, append it to the metadata root directory."
 
 (defun salesforce--get-cache-folder-path ()
   "Get absolute path of cache directory."
-  (let ((cache-dir (salesforce-core--join-path salesforce-org-cache-dir 
+  (let ((cache-dir (salesforce-core--join-path salesforce-org-cache-dir
                                                salesforce-org-name)))
     (unless (file-exists-p cache-dir)
       (make-directory cache-dir 'parents))
@@ -485,37 +477,6 @@ CONSULT-SOURCES are the sources to be used in the consult multi command."
     `(defun ,function-name ()
        (interactive)
        (consult--multi ',consult-sources))))
-
-;;; Display Utilities
-
-(defun salesforce-core--box-table (&rest rows)
-  "Pretty print ROWS as a box-drawing table with headers on left."
-  (let* ((width-col1 (apply #'max 
-                            (mapcar (lambda (row) (string-width (car row))) 
-                                    rows)))
-         (width-col2 (apply #'max 
-                            (mapcar (lambda (row) 
-                                      (string-width (format "%s" (cdr row)))) 
-                                    rows)))
-         (hline (concat "╠" (make-string (+ width-col1 2) ?═) 
-                        "╬" (make-string (+ width-col2 2) ?═) "╣"))
-         (top   (concat "╔" (make-string (+ width-col1 2) ?═) 
-                        "╦" (make-string (+ width-col2 2) ?═) "╗"))
-         (bot   (concat "╚" (make-string (+ width-col1 2) ?═) 
-                        "╩" (make-string (+ width-col2 2) ?═) "╝"))
-         (content (mapconcat
-                   (lambda (row)
-                     (format "║ %s │ %s ║"
-                             (string-pad (car row) width-col1)
-                             (string-pad (format "%s" (cdr row)) width-col2)))
-                   rows
-                   (concat "\n" hline "\n"))))
-    (concat top "\n" content "\n" bot)))
-
-(defun salesforce-core--pop-box-table (&rest rows)
-  "Popup ROWS as table by using `salesforce-core--box-table'."
-  (with-output-to-temp-buffer "*Salesforce Box Table*"
-    (insert (apply #'salesforce-core--box-table rows))))
 
 ;;; Keymap Utilities
 
