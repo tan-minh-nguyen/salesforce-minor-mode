@@ -4,3 +4,6 @@ transcript.txt
 .claude/
 test/*.elc
 test/*-output.txt
+/.agent-shell/
+.agent-shell
+.agent

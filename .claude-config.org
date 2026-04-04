@@ -2,36 +2,47 @@
 
 * Project
 
-| Key              | Value                  |
-|------------------+------------------------|
-| Project Name     | salesforce-minor-mode  |
-| Language         | emacs-lisp             |
+| Key              | Value                 |
+|------------------+-----------------------|
+| Project Name     | salesforce-minor-mode |
+| Language         | emacs-lisp            |
 
 * Modules
 
-| Module                | Enabled | File                        |
-|-----------------------+---------+-----------------------------|
-| Coding Standards      | t       | module_coding_standards.org |
-| Worktree Workflow     | nil     | template_project_core.org   |
-| Graphite Workflow     | nil     | module_graphite.org         |
-| Phased Implementation | nil     | module_phased.org           |
+| Module                | Enabled | File                                                                                                                          |
+|-----------------------+---------+-------------------------------------------------------------------------------------------------------------------------------|
+| Coding Standards      | t       | [[file:~/.config/emacs/config/prompt-templates/agent-shell/module_coding_standards.org][module_coding_standards.org]]           |
+| Worktree Workflow     | nil     | [[file:~/.config/emacs/config/prompt-templates/agent-shell/template_project_core.org][template_project_core.org]]               |
+| Graphite Workflow     | nil     | [[file:~/.config/emacs/config/prompt-templates/agent-shell/module_graphite.org][module_graphite.org]]                           |
+| Phased Implementation | nil     | [[file:~/.config/emacs/config/prompt-templates/agent-shell/module_phased.org][module_phased.org]]                               |
 
 * Coding Rules
 
-| Key      | Value                    |
-|----------+--------------------------|
-| Source   | languages/emacs-lisp.org |
-| Included | t                        |
+| Key      | Value                                                            |
+|----------+------------------------------------------------------------------|
+| Source   | [[file:.claude/code-rules/reuse-first.org][reuse-first]]          |
+| Included | t                                                                |
+| Source   | [[file:.claude/code-rules/languages/emacs-lisp.org][emacs-lisp]]  |
+| Included | t                                                                |
 
 When ~Included~ is ~t~, the language rules file content has been appended to this config under the ~* Language Rules~ heading during init.
 
+* Features
+
+| Feature | Template                                                                                                                  |
+|---------+---------------------------------------------------------------------------------------------------------------------------|
+| table   | [[file:~/.config/emacs/config/prompt-templates/agent-shell/features/emacs_table.org][emacs_table.org]]                     |
+
+When creating a plan, specify ~--feature table~ to use the feature template as base structure.
+
 * Output
 
-| Key    | Value              |
-|--------+--------------------|
-| Dir    | .claude/plans      |
-| Docs   | .claude/docs       |
-| Naming | [FEATURE]-PLAN.org |
+| Key       | Value                  |
+|-----------+------------------------|
+| Dir       | .claude/plans          |
+| Docs      | docs                   |
+| Naming    | [FEATURE]/[FEATURE].org |
+| Link Type | org                    |
 
 Placeholders: [FEATURE], [DATE], [PROJECT]
 
@@ -41,50 +52,63 @@ Placeholders: [FEATURE], [DATE], [PROJECT]
 
 ** Emacs Lisp Rules
 
-*** FILE ORDER (MANDATORY)
-1. Header (~-*- lexical-binding: t; -*-~)
-2. Requires
-3. Defgroup + Defcustoms
-4. Cl-defstruct
-5. Defvar / Defvar-local
-6. Functions
-7. Provide + Footer
+*** FILE ORDER
+Header → Requires → Defgroup/Defcustom → Struct → Defvar → Functions → Provide
 
 *** CODING RULES
-- DRY: No duplicated logic, extract helpers
-- Comments: Docstrings yes, inline only for "why"
-- Messages: No debug output, minimal user messages
-- Params: 0-2 positional OK, 3+ use ~cl-defun~ with ~&key~
-- Size: <20 lines per function, single responsibility
+| Rule     | Guideline                                      |
+|----------+------------------------------------------------|
+| DRY      | Extract helpers, no duplicate logic            |
+| Comments | Docstrings yes, inline only for "why"          |
+| Params   | 0-2 positional OK, 3+ use ~&key~               |
+| Size     | <20 lines/function, single responsibility      |
+
+*** LIBRARIES (prefer over reimplementing)
+| Need          | Use                          |
+|---------------+------------------------------|
+| Lists         | ~dash.el~, ~map.el~          |
+| Alists        | ~a.el~, ~asoc.el~            |
+| Hash tables   | ~ht.el~                      |
+| Strings       | ~s.el~, ~subr-x~             |
+| Queues/Heaps  | ~queue.el~, ~heap.el~        |
+| Async         | ~async.el~                   |
+| Persistence   | ~persist.el~                 |
+
+Perf: hash > alist/plist; plist >> alist (string keys); dash > cl-nset-difference
+
+*** ANTI-PATTERNS
+| Category       | Bad Practice                                                    |
+|----------------+-----------------------------------------------------------------|
+| Structure      | Mixed order, requires after code, missing lexical-binding       |
+| Quality        | God functions (100+), debug msgs, too many positional params    |
+| Naming         | Typos (~plsit-get~), accessor=class name, inconsistent prefixes |
+| EIEIO          | Permissive types, wrong slot docs, mixed slot-value/accessors   |
+| cl-loop        | ~on~ vs ~in~ confusion (on=cdrs, in=elements)                   |
+| Error handling | No nil checks, silent ~(_ nil)~ in pcase, incomplete branches   |
+| Docs           | "Interactively" without ~(interactive)~, wrong param names      |
+| Smell          | ~(string-join (list x y))~ → use ~concat~, unused bindings, TODOs |
+| State          | Multiple defvar-local duplicating object slots                  |
+| Delegation     | Fallback code when delegating to objects                        |
+
+*** SIMPLICITY RULES
+| Rule | Guideline |
+|------+-----------|
+| One state source | One variable/object holds state, no duplicates |
+| No fallbacks | Delegate directly, don't inline backup logic |
+| No conditionals for dispatch | Use polymorphism or separate functions |
+| Single path | One way to do something, not multiple |
 
 *** TEMPLATE
 #+begin_src emacs-lisp
 ;;; pkg.el --- Desc -*- lexical-binding: t; -*-
-;;; Commentary:
-;;; Code:
 (require 'cl-lib)
-
 (defgroup pkg nil "Group." :group 'tools :prefix "pkg-")
 (defcustom pkg-opt "val" "Option." :type 'string :group 'pkg)
-
 (cl-defstruct (pkg-item (:constructor pkg-item-create)) name value)
-
 (defvar pkg--cache nil "Cache.")
-(defvar-local pkg--state nil "State.")
-
 (defun pkg--internal () "Internal." nil)
 ;;;###autoload
 (defun pkg-command () "Command." (interactive) (pkg--internal))
-
 (provide 'pkg)
 ;;; pkg.el ends here
 #+end_src
-
-*** ANTI-PATTERNS
-- Mixed defvar/defcustom order
-- Requires after code
-- Struct after variables
-- Missing lexical-binding
-- God functions (100+ lines)
-- Debug messages in production
-- Too many positional params
