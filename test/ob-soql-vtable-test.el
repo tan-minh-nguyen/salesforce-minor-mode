@@ -25,7 +25,7 @@
   (provide 'salesforce-core))
 
 (unless (featurep 'salesforce-project)
-  (defun salesforce-project--get-user-data (org key) 
+  (defun salesforce-project--user-data (org key) 
     "Mock function."
     "https://test.salesforce.com")
   (provide 'salesforce-project))

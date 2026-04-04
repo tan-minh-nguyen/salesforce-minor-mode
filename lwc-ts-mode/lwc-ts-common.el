@@ -193,7 +193,8 @@ the tag name with CSS selectors from id and class attributes."
   "Check file is LWC."
   (require 'salesforce-project nil 'noerror)
   (and (salesforce-project-p)
-     (string-prefix-p (salesforce-core--join-path salesforce-metadata-root-dir salesforce-lwc-dir)
-                      (buffer-file-name))))
+       salesforce-project-session
+       (string-prefix-p (salesforce-project-metadata-path salesforce-project-session 'lwc)
+                        (buffer-file-name))))
 
 (provide 'lwc-ts-common)

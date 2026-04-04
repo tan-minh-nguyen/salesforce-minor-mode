@@ -45,6 +45,22 @@
          (single-line (string-join (split-string trimmed "\n" t "[ \t]+") " ")))
     (replace-regexp-in-string "[ \t]+" " " single-line)))
 
+(defun ob-soql--convert-csv-to-lisp-data (csv-content)
+  "Convert csv to org-table then lisp-data"
+  (with-temp-buffer
+    (insert csv-content)
+    (org-table-convert-region (point-min) (point-max))
+    (org-table-to-lisp)))
+
+(defun ob-soql--tablist-table (columns data &rest args)
+  "Display CSV results in a tablist-plus buffer.
+CSV is the raw data, URL for hyperlinks, QUERY for context.
+SOBJECT is the object type, EDITABLE enables edit actions."
+  (let ((table (apply #'tablist-plus-create-table
+                      columns :data data args)))
+    (tablist-plus-table-render table)
+    (pop-to-buffer (tablist-plus-table-buffer table))))
+
 (defun ob-soql-vars--extract-sobject (query)
   "Extract SObject type from SOQL QUERY."
   (when (string-match "\\bFROM\\s-+\\([A-Za-z0-9_]+\\)" query)
@@ -87,7 +103,7 @@
 
 (defun ob-soql-core--org-url (org)
   "Return the Salesforce instance URL for ORG."
-  (salesforce-project--get-user-data org "instanceUrl"))
+  (salesforce-project--user-data org "instanceUrl"))
 
 (defun ob-soql-core--modify-csv (csv org-hyperlink)
   "Return CSV after converting Id field values into ORG-HYPERLINK."

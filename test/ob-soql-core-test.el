@@ -25,7 +25,7 @@
   (provide 'salesforce-core))
 
 (unless (featurep 'salesforce-project)
-  (defun salesforce-project--get-user-data (org key) 
+  (defun salesforce-project--user-data (org key) 
     "Mock function."
     "https://test.salesforce.com")
   (provide 'salesforce-project))
@@ -113,13 +113,13 @@
 
 (ert-deftest ob-soql-core-test-org-url ()
   "Test getting org URL from salesforce-project."
-  (let ((salesforce-project--get-user-data-result "https://test.salesforce.com"))
-    ;; Mock salesforce-project--get-user-data
-    (cl-letf (((symbol-function 'salesforce-project--get-user-data)
+  (let ((salesforce-project--user-data-result "https://test.salesforce.com"))
+    ;; Mock salesforce-project--user-data
+    (cl-letf (((symbol-function 'salesforce-project--user-data)
                (lambda (org key)
                  (should (equal org "test-org"))
                  (should (equal key "instanceUrl"))
-                 salesforce-project--get-user-data-result)))
+                 salesforce-project--user-data-result)))
       
       (should (equal (ob-soql-core--org-url "test-org")
                      "https://test.salesforce.com")))))

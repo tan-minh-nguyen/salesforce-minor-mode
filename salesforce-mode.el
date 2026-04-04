@@ -34,9 +34,14 @@
 (require 'salesforce-project)
 (require 'salesforce-data)
 (require 'salesforce-sobject)
-(require 'apex-ts-mode)
-(require 'soql-ts-mode)
-(require 'ob-soql)
+(require 'salesforce-extensions)
+
+;; External mode packages (loaded if available)
+(require 'apex-ts-mode nil :noerror)
+(require 'soql-ts-mode nil :noerror)
+(require 'visualforce-ts-mode nil :noerror)
+(require 'lwc-ts-mode nil :noerror)
+(require 'apex-log-ts-mode nil :noerror)
 
 ;;; Customization
 
@@ -88,11 +93,11 @@
 (defun salesforce-mode--initialize-org-keymap ()
   "Initialize the keymap for org features."
   (let ((map (make-sparse-keymap)))
-    (keymap-set map "TAB" (cons "Switch org" #'salesforce-org-switch-connect))
-    (keymap-set map "r" (cons "Retrieve metadata" #'salesforce-project-source-retrieve))
-    (keymap-set map "d" (cons "Push metadata" #'salesforce-project-source-push))
-    (keymap-set map "p" (cons "Diff file" #'salesforce-project-preview-metadata-change))
-    (keymap-set map "." (cons "Open org" #'salesforce-org-open))
+    (keymap-set map "TAB" (cons "Switch org" #'salesforce-org-switch))
+    (keymap-set map "r" (cons "Retrieve metadata" #'salesforce-project-retrieve))
+    (keymap-set map "d" (cons "Push metadata" #'salesforce-project-push))
+    (keymap-set map "p" (cons "Diff file" #'salesforce-project-diff))
+    (keymap-set map "." (cons "Open org" #'salesforce-org-browse))
     map))
 
 (defun salesforce-mode--initialize-run-keymap ()
@@ -107,7 +112,7 @@
   "Initialize the keymap for resource management features."
   (let ((map (make-sparse-keymap)))
     (keymap-set map "c" (cons "Create resource" #'salesforce-apex--transient:generate-resource))
-    (keymap-set map "l" (cons "Delete Log" #'salesforce-org-delete-logs))
+    (keymap-set map "l" (cons "Delete Log" #'salesforce-org-log-delete))
     map))
 
 ;;; Keymaps
@@ -126,7 +131,7 @@
     (keymap-set map "M-o o" (cons "Org management" salesforce-mode-org-keymap))
     (keymap-set map "M-o R" (cons "Resource management" salesforce-mode-resource-keymap))
     (keymap-set map "M-o r" (cons "Execute code" salesforce-mode-run-keymap))
-    (keymap-set map "M-o A" (cons "Authorize org" #'salesforce-org-authorize))
+    (keymap-set map "M-o A" (cons "Authorize org" #'salesforce-org-auth))
     map)
   "Keymap for `salesforce-mode'.")
 
@@ -147,10 +152,12 @@ Updates `salesforce-mode-line-current-org-status' with appropriate icon and face
 
 (defun salesforce-mode--check-org-status ()
   "Check the current org connection status and update mode line."
-  (when (and (bound-and-true-p salesforce-mode)
-             salesforce-org-name)
-    (salesforce-org--check-status
-     :org salesforce-org-name
+  (when-let* (((bound-and-true-p salesforce-mode))
+              (salesforce-project-session)
+              (org-name (salesforce-project-org salesforce-project-session))
+              ((not (string-empty-p org-name))))
+    (salesforce-org--status
+     :org org-name
      :then #'salesforce-mode--set-mode-line-status)))
 
 (defun salesforce-mode--start-status-check-timer ()
@@ -170,12 +177,20 @@ Updates `salesforce-mode-line-current-org-status' with appropriate icon and face
   "Initialize Salesforce mode.
 Ensures org name is populated and starts status checks."
   (when (bound-and-true-p salesforce-mode)
+    ;; Load extensions from installed packages
+    (when salesforce-extensions-auto-load
+      (salesforce-extensions-load))
+
     ;; Ensure org name is populated from config file
-    (salesforce-project--ensure-org-name)
-    
+    (when (and salesforce-project-session
+               (null (salesforce-project-org salesforce-project-session)))
+      (when-let ((org-name (salesforce-project--org-name)))
+        (setf (salesforce-project-org salesforce-project-session) org-name)))
+
     ;; Only proceed with status check if we have org name
-    (when (and salesforce-org-name 
-             (not (string-empty-p salesforce-org-name)))
+    (when-let* ((salesforce-project-session)
+                (org-name (salesforce-project-org salesforce-project-session))
+                ((not (string-empty-p org-name))))
       ;; Check status immediately on initialization
       (unless salesforce-status-check
         (setq salesforce-status-check

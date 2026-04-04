@@ -175,21 +175,24 @@
   "Open the transient menu for creating an Apex class."
   (interactive)
   (let ((salesforce-apex--transient:template "DefaultApexClass")
-        (salesforce--menu:output-dir salesforce-apex-dir))
+        (salesforce--menu:output-dir
+         (salesforce-project-metadata-path salesforce-project-session 'class)))
     (salesforce-apex--transient:apex-resource)))
 
 (defun salesforce-apex--create-trigger-menu ()
   "Open the transient menu for creating an Apex trigger."
   (interactive)
   (let ((salesforce-apex--transient:template "ApexTrigger")
-        (salesforce--menu:output-dir salesforce-trigger-dir))
+        (salesforce--menu:output-dir
+         (salesforce-project-metadata-path salesforce-project-session 'trigger)))
     (salesforce-apex--transient:trigger-resource)))
 
 (defun salesforce-apex--create-lightning-app-menu ()
   "Open the transient menu for generating a Lightning app."
   (interactive)
   (let ((salesforce-apex--lightning-organize "app")
-        (salesforce--menu:output-dir salesforce-lwc-dir))
+        (salesforce--menu:output-dir
+         (salesforce-project-metadata-path salesforce-project-session 'lwc)))
     (salesforce-apex--transient:lightning-resource)))
 
 (defun salesforce-apex--create-lightning-component-menu ()
@@ -197,20 +200,22 @@
   (interactive)
   (let ((salesforce-apex--lightning-organize "component")
         (salesforce-apex--transient:template "default")
-        (salesforce--menu:output-dir salesforce-lwc-dir))
+        (salesforce--menu:output-dir
+         (salesforce-project-metadata-path salesforce-project-session 'lwc)))
     (salesforce-apex--transient:lightning-resource)))
 
 ;;; Code Execution
 
 (defun salesforce-apex-execute-code (content)
   "Execute the given Apex code CONTENT from the buffer or region."
-  (interactive (list (if (eq (point) (mark)) 
-                      (buffer-string) 
-                    (buffer-substring-no-properties (mark) (point)))))
-  (let ((temp-file (make-temp-file "temp_code")))
+  (interactive (list (if (eq (point) (mark))
+                         (buffer-string)
+                       (buffer-substring-no-properties (mark) (point)))))
+  (let ((temp-file (make-temp-file "temp_code"))
+        (org-name (salesforce-project-org salesforce-project-session)))
     (write-region content nil temp-file)
     (salesforce-core--apex-process
-     :args `("run" "-f" ,temp-file "-o" ,salesforce-org-name "--json")
+     :args `("run" "-f" ,temp-file "-o" ,org-name "--json")
      :callback (lambda (json-instance)
                  (with-current-buffer (get-buffer-create "*apex log*")
                    (let ((buffer-read-only t)
@@ -252,8 +257,8 @@ Open the created file using RESULT-PATH-KEYS to extract from JSON response."
 TODO: Replace with salesforce-apex--generate-class for consistency."
   (interactive)
   (let* ((class-name (read-string "Class name: "))
-         (output-dir (salesforce-core--join-path salesforce-apex-dir))
-         (class-path (salesforce-core--join-path output-dir class-name ".cls")))
+         (output-dir (salesforce-project-metadata-path salesforce-project-session 'class))
+         (class-path (expand-file-name (concat class-name ".cls") output-dir)))
     (salesforce-core--apex-process
      :args `("generate" "class" "--name" ,class-name "-t" "ApexUnitTest"
              "--output-dir" ,output-dir "--json")
@@ -279,8 +284,8 @@ TODO: Replace with salesforce-apex--generate-class for consistency."
   (interactive)
   (let ((page-name (read-string "Visualforce page name: "))
         (page-label (read-string "Visualforce page label: "))
-        (output-dir (salesforce-core--join-path salesforce-default-vf-path)))
-    (salesforce-visualforce--generate-resource "page" page-name page-label 
+        (output-dir (salesforce-project-metadata-path salesforce-project-session 'page)))
+    (salesforce-visualforce--generate-resource "page" page-name page-label
                                                output-dir ".page")))
 
 (defun salesforce-visualforce-generate-component ()
@@ -288,9 +293,9 @@ TODO: Replace with salesforce-apex--generate-class for consistency."
   (interactive)
   (let ((component-name (read-string "Visualforce component name: "))
         (component-label (read-string "Visualforce component label: "))
-        (output-dir (salesforce-core--join-path salesforce-vf-component-dir)))
-    (salesforce-visualforce--generate-resource "component" component-name 
-                                               component-label output-dir 
+        (output-dir (salesforce-project-metadata-path salesforce-project-session 'component)))
+    (salesforce-visualforce--generate-resource "component" component-name
+                                               component-label output-dir
                                                ".component")))
 
 ;;; Test Execution
@@ -298,9 +303,10 @@ TODO: Replace with salesforce-apex--generate-class for consistency."
 (defun salesforce-apex--get-result-test-job (job-id &optional poll-id)
   "Retrieve the result of an Apex test job by JOB-ID.
 Optionally cancel POLL-ID timer when complete."
-  (let ((buffer (current-buffer)))
+  (let ((buffer (current-buffer))
+        (org-name (salesforce-project-org salesforce-project-session)))
     (salesforce-core--apex-process
-     :args `("get" "test" "-i" ,job-id "-o" ,salesforce-org-name
+     :args `("get" "test" "-i" ,job-id "-o" ,org-name
              "--code-coverage" "--json")
      :callback (lambda (json-instance)
                  (let* ((summary (map-nested-elt json-instance '("result" "summary")))
@@ -477,7 +483,8 @@ TODO: Verify and possibly refactor this function."
   "Selection of classes in the project.
 TODO: Implement this function."
   (interactive)
-  (let ((builder (salesforce-apex--make-suitest-builder salesforce-apex-dir)))
+  (let ((builder (salesforce-apex--make-suitest-builder
+                  (salesforce-project-metadata-path salesforce-project-session 'class))))
     (consult--read
      (consult--process-collection builder)
      :prompt "Suitest: "
