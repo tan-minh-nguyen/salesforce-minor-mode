@@ -31,9 +31,9 @@
 
 (defun salesforce-sobject--cache-dir ()
   "Get the full path to SObject cache directory."
-  (expand-file-name 
-   salesforce-sobject-cache-dir 
-   (salesforce-core--find-root-dir)))
+  (expand-file-name
+   salesforce-sobject-cache-dir
+   (projectile-project-root)))
 
 (defun salesforce-sobject--list-all (&key then)
   "List all SObjects in the current org.

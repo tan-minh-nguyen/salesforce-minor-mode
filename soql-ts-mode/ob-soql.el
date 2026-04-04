@@ -38,6 +38,7 @@
 (require 'salesforce-data)
 (require 'salesforce-project)
 (require 'ob-soql-core)
+(require 'tablist-plus)
 
 (add-to-list 'org-babel-tangle-lang-exts '("soql" . "soql"))
 
@@ -112,35 +113,32 @@ BODY is the SOQL query, PARAMS are header arguments."
 (defun ob-soql--data (file org-attr)
   "Execute SOQL query stored in FILE against ORG-ATTR.
 ORG-ATTR is a list: (ORG URL QUERY OUTPUT-FORMAT SOBJECT EDITABLE).
-Returns results based on OUTPUT-FORMAT."
-  (pcase-let* ((`(,org ,url ,query ,output-format ,sobject ,editable) org-attr)
-               (process (async-get
-                         (apply #'salesforce-data--dispatch-search
-                                :sync t
-                                `("query" "-f" ,file "-o" ,org "--result-format=csv"))))
-               (buf (process-buffer process)))
+Results are inserted asynchronously."
+  (pcase-let ((`(,org ,_url ,_query ,_output-format ,sobject ,_editable) org-attr))
+    (emacs-job
+     (salesforce-core--data-process
+      :args `("query" "-f" ,file "-o" ,org "--result-format=csv")
+      :parser #'emacs-pp-parser-raw)
+     (lambda (csv-content)
+       (let ((data (ob-soql--convert-csv-to-lisp-data csv-content)))
+         (ob-soql--display-tablist-results data header))))))
 
-    (unwind-protect
-        (with-current-buffer buf
-          (let ((raw-csv (string-trim (buffer-string))))
-            (unless (string-empty-p raw-csv)
-              ;; Convert Id fields to org-mode hyperlinks for all formats
-              (let* ((metadata (ob-soql--build-metadata query org url raw-csv sobject)))
-                ;; Add editable flag to metadata
-                (plist-put metadata :editable editable)
-
-                ;; If org-table format, return string for org-babel
-                (if (eq output-format 'org-table)
-                    (let ((csv (ob-soql-core--modify-csv raw-csv url)))
-                      (ob-soql--display-as-org-table csv metadata))
-                  ;; Otherwise, open interactive buffer
-                  ;; Actions will check :editable flag
-                  (let ((result-buffer (ob-soql-display-results raw-csv metadata output-format)))
-                    (format "[[buffer:%s][View Results in %s]]"
-                            (buffer-name result-buffer)
-                            output-format)))))))
-      (when (buffer-live-p buf)
-        (kill-buffer buf)))))
+(defun ob-soql--tablist-results (csv url query sobject editable)
+  "Display CSV results in a tablist-plus buffer.
+CSV is the raw data, URL for hyperlinks, QUERY for context.
+SOBJECT is the object type, EDITABLE enables edit actions."
+  (let* ((lines (split-string csv "\n" t))
+         (headers (split-string (car lines) ","))
+         (rows (cdr lines))
+         (columns (ob-soql--build-columns headers))
+         (data (ob-soql--build-table-data rows headers url)))
+    (let ((table (tablist-plus-create-table
+                  columns
+                  :data data
+                  :page-size 50
+                  :buffer-name (format "*SOQL: %s*" (or sobject "Results")))))
+      (tablist-plus-table-render table)
+      (pop-to-buffer (tablist-plus-table-buffer table)))))
 
 (defun ob-soql--get-param (key param-list)
   "Extract param in list."

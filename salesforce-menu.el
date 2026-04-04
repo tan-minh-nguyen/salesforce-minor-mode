@@ -136,9 +136,10 @@ Uses the value from `salesforce-api-version'."
 
 (defun salesforce--menu:--target-org-handler (obj)
   "Set default value for --target-org parameter in OBJ.
-Uses the value from `salesforce-org-name'."
-  (when salesforce-org-name
-    (transient-infix-set obj (format "%s" salesforce-org-name))))
+Uses the org from `salesforce-project-session'."
+  (when-let ((org-name (and salesforce-project-session
+                            (salesforce-project-org salesforce-project-session))))
+    (transient-infix-set obj (format "%s" org-name))))
 
 (defun salesforce--menu:--output-dir-handler (obj)
   "Set default value for --output-dir parameter in OBJ.

@@ -384,7 +384,8 @@ ARGS is a list of parameters passed to the Salesforce CLI."
   "Import SOBJECT data from the specified URL."
   (interactive (list (read-string "URL: ")
                      (read-string "SObject: ")))
-  (let ((file (make-temp-file "salesforce-import-data")))
+  (let ((file (make-temp-file "salesforce-import-data"))
+        (org-name (salesforce-project-org salesforce-project-session)))
     ;; Step 1: Download data from URL
     (request url
       :parser 'buffer-string
@@ -397,7 +398,7 @@ ARGS is a list of parameters passed to the Salesforce CLI."
            (salesforce-core--data-process
             :args (list "import" "bulk"
                         "-f" file
-                        "-o" salesforce-org-name
+                        "-o" org-name
                         "-s" sobject
                         "--json")
             :callback
@@ -572,11 +573,14 @@ SYNC: Run the process in sync."
   "Import data from org table.
 Optional SOBJECT-NAME and ORG-NAME can be provided."
   (interactive)
-  (unless (org-at-table-p) 
+  (unless (org-at-table-p)
     (error "No table at point"))
-  (let ((salesforce-data--file (make-temp-file "export"))
-        (salesforce-data--sobject-value (org-entry-get (point) "SALESFORCE_SOBJECT_NAME" t))
-        (salesforce-org-name (org-entry-get (point) "SALESFORCE_ORG_NAME" t)))
+  (let* ((salesforce-data--file (make-temp-file "export"))
+         (salesforce-data--sobject-value (org-entry-get (point) "SALESFORCE_SOBJECT_NAME" t))
+         (property-org-name (org-entry-get (point) "SALESFORCE_ORG_NAME" t)))
+    ;; Use org property if specified, otherwise use session org
+    (when (and property-org-name salesforce-project-session)
+      (setf (salesforce-project-org salesforce-project-session) property-org-name))
     (org-table-export salesforce-data--file "orgtbl-to-csv")
     (salesforce-data--transient:import-bulk)))
 

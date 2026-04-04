@@ -253,22 +253,26 @@ CALLBACK is called with the results when complete."
 (defun salesforce-consult-omni-search-metadata ()
   "Query Salesforce metadata using SOQL through consult-omni."
   (interactive)
-  (consult-omni-multi 
-   nil
-   (concat "[" (propertize salesforce-org-name
-                           'face 'consult-omni-prompt-face)
-           "] Query Records: ")
-   '("Metadata")))
+  (let ((org-name (or (and salesforce-project-session
+                           (salesforce-project-org salesforce-project-session))
+                      "?")))
+    (consult-omni-multi
+     nil
+     (concat "[" (propertize org-name 'face 'consult-omni-prompt-face)
+             "] Query Records: ")
+     '("Metadata"))))
 
 (defun salesforce-consult-omni-dispatch-search ()
   "Search Salesforce records using SOSL through consult-omni."
   (interactive)
-  (consult-omni-multi 
-   nil
-   (concat "[" (propertize salesforce-org-name
-                           'face 'consult-omni-prompt-face)
-           "] Search Records: ")
-   '("Search")))
+  (let ((org-name (or (and salesforce-project-session
+                           (salesforce-project-org salesforce-project-session))
+                      "?")))
+    (consult-omni-multi
+     nil
+     (concat "[" (propertize org-name 'face 'consult-omni-prompt-face)
+             "] Search Records: ")
+     '("Search"))))
 
 (provide 'salesforce-consult-omni)
 

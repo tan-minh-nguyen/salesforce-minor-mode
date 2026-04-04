@@ -16,9 +16,6 @@
 (defvar salesforce-debug nil
   "Enable debug mode for Salesforce operations.")
 
-(defvar salesforce-org-name nil
-  "The name of the currently active Salesforce org, displayed in the mode line.")
-
 (defvar-local salesforce-project-root-dir nil
   "Full path to project root.")
 
@@ -54,16 +51,6 @@
   :type 'string
   :group 'salesforce-minor-mode)
 
-(defcustom salesforce-core--org-list-cache-ttl 300000
-  "Time-to-live for org list cache in seconds."
-  :type 'integer
-  :group 'salesforce-minor-mode)
-
-(defcustom salesforce-metadata-define-roots '((default . "force-app/main/default"))
-  "List Root Salesforce directories."
-  :type 'alist
-  :group 'salesforce-minor-mode)
-
 (defcustom salesforce-org-cache-dir ".cache/"
   "Directory to store cache files relative to the project root."
   :type 'string
@@ -89,54 +76,10 @@
   :type 'string
   :group 'salesforce-minor-mode)
 
-(defcustom salesforce-project-config '()
-  "List of project configurations.
-Each element should be a plist with :project and :note-file keys.
-Example: ((:project \"test\" :note-file \"org\"))"
-  :type 'list
-  :group 'salesforce-minor-mode)
-
 (defcustom salesforce-prefix-keymap "M"
   "The prefix key for Salesforce commands in the keymap."
   :type 'string
   :group 'salesforce-config)
-
-(defcustom salesforce-log-dir-path ".sfdx/tools/debug/logs/"
-  "Path to the directory where Salesforce debug logs are stored."
-  :type 'string
-  :group 'salesforce-config)
-
-;;; Directory Variables
-
-(defvar salesforce-metadata-root-dir "force-app/main/default"
-  "Root Salesforce directory.")
-
-(defvar salesforce-trigger-dir "triggers"
-  "Path to save apex triggers.")
-
-(defvar salesforce-apex-dir "classes"
-  "Directory path for Apex classes.")
-
-(defvar salesforce-lwc-dir "lwc"
-  "Directory path for LWC components.")
-
-(defvar salesforce-aura-dir "aura" 
-  "Directory path for Aura components.")
-
-(defvar salesforce-vf-dir "pages"
-  "Directory path for Visualforce pages.")
-
-(defvar salesforce-vf-component-dir "components"
-  "Directory path for Visualforce components.")
-
-(defvar salesforce-test-dir "lightningTests"
-  "Directory path for test components.")
-
-(defvar salesforce-object-dir "objects"
-  "Directory path for object metadata.")
-
-(defvar salesforce-package-dir "manifest"
-  "Directory path for package manifest files.")
 
 ;;; Faces
 
@@ -151,34 +94,10 @@ Example: ((:project \"test\" :note-file \"org\"))"
   "Font lock for salesforce minor mode on mode line."
   :group 'font-lock-rules)
 
-;;; Path Utilities
-
-(defun salesforce-core--find-root-dir ()
-  "Return the root directory of the current project using `project-current'."
-  (cdr (project-current)))
-
-(defun salesforce-core--tools-folder ()
-  "Get tools folder path in project."
-  (salesforce-core--join-path salesforce-state-dir "/" salesforce-tools-dir))
-
-(defun salesforce-core--join-path (&rest args)
-  "Build a full path from root directory and additional path components.
-ARGS are the path components to join."
-  (expand-file-name (string-join args "/")
-                    (salesforce-core--find-root-dir)))
-
-(defun salesforce-core--metadata-path (&optional path)
-  "Return the full path for the metadata directory.
-If PATH is non-nil, append it to the metadata root directory."
-  (salesforce-core--join-path salesforce-metadata-root-dir (or path "")))
-
-(defun salesforce--get-cache-folder-path ()
-  "Get absolute path of cache directory."
-  (let ((cache-dir (salesforce-core--join-path salesforce-org-cache-dir
-                                               salesforce-org-name)))
-    (unless (file-exists-p cache-dir)
-      (make-directory cache-dir 'parents))
-    cache-dir))
+(defun salesforce-core--parse-json (process)
+  "Parse result return from PROCESS."
+  (let ((json-object-type 'hash-table))
+    (emacs-pp-parser-json process)))
 
 (defun salesforce--ensure-directory-exists (path)
   "Create directory at PATH if it doesn't exist.
@@ -186,12 +105,6 @@ Returns PATH after ensuring it exists."
   (unless (file-exists-p path)
     (make-directory path 'parents))
   path)
-
-(defun salesforce--get-log-dir-path ()
-  "Get absolute path of log directory.
-Creates the directory if it doesn't exist."
-  (salesforce--ensure-directory-exists 
-   (salesforce-core--join-path salesforce-log-dir-path)))
 
 ;;; File Utilities
 
@@ -206,10 +119,6 @@ Returns a list of full paths to matching files."
 Returns the first matching file path, or nil if not found."
   (when-let* ((files (salesforce--find-files `(,file) directory)))
     (car files)))
-
-(defun salesforce--get-lwc-directory ()
-  "Get LWC directory path."
-  (expand-file-name salesforce-default-lwc-path (salesforce-core--find-root-dir)))
 
 (defun salesforce--find-parents (file &optional depth)
   "Find parent directory of FILE at specified DEPTH.
@@ -231,7 +140,7 @@ If SYNC is non-nil, wait for process to complete and return result."
     :name salesforce-process-buffer
     :buffer (generate-new-buffer
              (format " *%s*" salesforce-process-buffer)))
-   :args (cons salesforce-program-bin args)
+   :cmd (cons salesforce-program-bin args)
    :parser parser
    :then (lambda (&key data &allow-other-keys)
            (funcall callback data))
@@ -242,62 +151,62 @@ If SYNC is non-nil, wait for process to complete and return result."
   (salesforce-core--alert (format "Process error: %s" err) :severity 'urgent))
 
 (cl-defun salesforce-core--project-process
-    (&key args callback (parser emacs-pp-parser-json))
+    (&key args callback (parser #'salesforce-core--parse-json))
   "Run Salesforce project CLI command with ARGS."
   (salesforce-core-run-process :args (cons "project" args)
                                :callback callback))
 
 (cl-defun salesforce-core--apex-process
-    (&key args callback (parser emacs-pp-parser-json))
+    (&key args callback (parser #'salesforce-core--parse-json))
   "Run Salesforce apex CLI command with ARGS."
   (salesforce-core-run-process :args (cons "apex" args)
                                :parser parser
                                :callback callback))
 
 (cl-defun salesforce-core--visualforce-process
-    (&key args callback (parser emacs-pp-parser-json))
+    (&key args callback (parser #'salesforce-core--parse-json))
   "Run Salesforce visualforce CLI command with ARGS."
   (salesforce-core-run-process :args (cons "visualforce" args)
                                :parser parser
                                :callback callback))
 
 (cl-defun salesforce-core--data-process
-    (&key args callback (parser emacs-pp-parser-json))
+    (&key args callback (parser #'salesforce-core--parse-json))
   "Run Salesforce data CLI command with ARGS."
   (salesforce-core-run-process :args (cons "data" args)
                                :parser parser
                                :callback callback))
 
 (cl-defun salesforce-core--org-process
-    (&key args callback (parser emacs-pp-parser-json))
+    (&key args callback (parser #'salesforce-core--parse-json))
   "Run Salesforce org CLI command with ARGS."
   (salesforce-core-run-process :args (cons "org" args)
                                :parser parser
                                :callback callback))
 
 (cl-defun salesforce-core--lightning-process
-    (&key args callback (parser emacs-pp-parser-json))
+    (&key args callback (parser #'salesforce-core--parse-json))
   "Run Salesforce lightning CLI command with ARGS."
   (salesforce-core-run-process :args (cons "lightning" args)
                                :parser parser
                                :callback callback))
 
 (cl-defun salesforce-core--config-process
-    (&key args callback (parser emacs-pp-parser-json))
+    (&key args callback (parser #'salesforce-core--parse-json))
   "Run Salesforce config CLI command with ARGS."
   (salesforce-core-run-process :args (cons "config" args)
                                :parser parser
                                :callback callback))
 
 (cl-defun salesforce-core--cmdt-process
-    (&key args callback (parser emacs-pp-parser-json))
+    (&key args callback (parser #'salesforce-core--parse-json))
   "Run Salesforce cmdt CLI command with ARGS."
   (salesforce-core-run-process :args (cons "cmdt" args)
                                :parser parser
                                :callback callback))
 
 (cl-defun salesforce-core--sobject-process
-    (&key args callback (parser emacs-pp-parser-json))
+    (&key args callback (parser #'salesforce-core--parse-json))
   "Run Salesforce sobject CLI command with ARGS."
   (salesforce-core-run-process :args (cons "sobject" args)
                                :parser parser
@@ -324,11 +233,13 @@ ARGS: arguments passed to `request'." service)
 
 (salesforce-core--api-request "tooling")
 
+;;; Get Org Name
+
 ;;; JSON Parsing
 
 (defun salesforce-core-parse-buffer-json (buffer)
   "Parse JSON from BUFFER and return it as a hash table.
-If parsing fails, return a hash table with status 1 and the raw buffer contents."
+If parsing fails, return a hash table with status 1 and the raw buffer contents. (obsolete)"
   (condition-case err
       (with-current-buffer buffer
         (goto-char (point-min))
