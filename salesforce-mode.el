@@ -34,7 +34,6 @@
 (require 'salesforce-project)
 (require 'salesforce-data)
 (require 'salesforce-sobject)
-(require 'salesforce-extensions)
 
 ;; External mode packages (loaded if available)
 (require 'apex-ts-mode nil :noerror)
@@ -177,10 +176,6 @@ Updates `salesforce-mode-line-current-org-status' with appropriate icon and face
   "Initialize Salesforce mode.
 Ensures org name is populated and starts status checks."
   (when (bound-and-true-p salesforce-mode)
-    ;; Load extensions from installed packages
-    (when salesforce-extensions-auto-load
-      (salesforce-extensions-load))
-
     ;; Ensure org name is populated from config file
     (when (and salesforce-project-session
                (null (salesforce-project-org salesforce-project-session)))

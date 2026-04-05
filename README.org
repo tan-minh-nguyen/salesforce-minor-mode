@@ -5,26 +5,59 @@ A comprehensive Emacs package for Salesforce development, integrating Salesforce
 
 ** Key Features
 - Full Salesforce CLI integration
-- Syntax highlighting with tree-sitter (Apex, SOQL, Visualforce, LWC)
-- LSP support with Eglot/LSP-bridge
-- Org-babel support for literate programming
-- Multi-org management
+- Multi-org management and switching
+- Metadata retrieve/deploy with diff support
 - Data import/export with org-mode integration
+- Apex code execution
+- SOQL/SOSL query execution
 - Consult integration for unified search
+- Transient menus for complex operations
+
+* Architecture
+
+This package is part of a multi-package ecosystem for Salesforce development:
+
+| Package               | Purpose                              | Repository                      |
+|-----------------------+--------------------------------------+---------------------------------|
+| salesforce-minor-mode | Core CLI integration (this package)  | [[https://github.com/tan-minh-nguyen/salesforce-minor-mode][salesforce-minor-mode]]           |
+| apex-ts-mode          | Apex tree-sitter major mode          | [[https://github.com/tan-minh-nguyen/apex-ts-mode][apex-ts-mode]]                    |
+| soql-ts-mode          | SOQL tree-sitter major mode          | [[https://github.com/tan-minh-nguyen/soql-ts-mode][soql-ts-mode]]                    |
+| lwc-ts-mode           | LWC tree-sitter major mode           | [[https://github.com/tan-minh-nguyen/lwc-ts-mode][lwc-ts-mode]]                     |
+| visualforce-ts-mode   | Visualforce tree-sitter major mode   | [[https://github.com/tan-minh-nguyen/visualforce-ts-mode][visualforce-ts-mode]]             |
+| apex-ts-log           | Apex debug log tree-sitter mode      | [[https://github.com/tan-minh-nguyen/apex-ts-log][apex-ts-log]]                     |
+
+The tree-sitter modes are standalone packages that work independently for syntax highlighting and editing. When combined with salesforce-minor-mode, they gain additional features like org-babel integration, CLI commands, and project management.
 
 * Installation
 ** Dependencies
 - [[https://developer.salesforce.com/docs/atlas.en-us.sfdx_setup.meta/sfdx_setup/sfdx_setup_install_cli.htm][Salesforce CLI]] (sf) v2.x+
 - Emacs 27.1+
-- [[https://tree-sitter.github.io/tree-sitter/][tree-sitter]]
+- [[https://tree-sitter.github.io/tree-sitter/][tree-sitter]] (for companion mode packages)
 
 ** Doom Emacs
 #+begin_src emacs-lisp
 ;; packages.el
 (package! salesforce-minor-mode
-  :recipe (:host github 
-           :repo "furucrm-minhtan/salesforce-minor-mode" 
-           :files ("*.el" "*/*.el")))
+  :recipe (:host github
+           :repo "tan-minh-nguyen/salesforce-minor-mode"
+           :files ("*.el" "extensions/*.el")))
+
+;; Optional: Install companion tree-sitter modes
+(package! apex-ts-mode
+  :recipe (:host github :repo "tan-minh-nguyen/apex-ts-mode"
+           :files ("*.el" "extensions/*.el")))
+(package! soql-ts-mode
+  :recipe (:host github :repo "tan-minh-nguyen/soql-ts-mode"
+           :files ("*.el" "extensions/*.el")))
+(package! lwc-ts-mode
+  :recipe (:host github :repo "tan-minh-nguyen/lwc-ts-mode"
+           :files ("*.el")))
+(package! visualforce-ts-mode
+  :recipe (:host github :repo "tan-minh-nguyen/visualforce-ts-mode"
+           :files ("*.el" "extensions/*.el")))
+(package! apex-ts-log
+  :recipe (:host github :repo "tan-minh-nguyen/apex-ts-log"
+           :files ("*.el" "extensions/*.el")))
 
 ;; config.el
 (use-package! salesforce-minor-mode
@@ -36,18 +69,26 @@ A comprehensive Emacs package for Salesforce development, integrating Salesforce
 
 ** Vanilla Emacs
 #+begin_src emacs-lisp
+;; Add all packages to load-path
 (add-to-list 'load-path "/path/to/salesforce-minor-mode")
-(require 'salesforce-minor-mode)
+(add-to-list 'load-path "/path/to/apex-ts-mode")
+(add-to-list 'load-path "/path/to/soql-ts-mode")
+;; ... add other mode packages as needed
 
+(require 'salesforce-mode)
+
+;; Enable salesforce-mode in Salesforce file types
 (add-hook 'apex-ts-mode-hook #'salesforce-mode)
 (add-hook 'soql-ts-mode-hook #'salesforce-mode)
+(add-hook 'visualforce-ts-mode-hook #'salesforce-mode)
+(add-hook 'lwc-ts-mode-hook #'salesforce-mode)
 #+end_src
 
 * Quick Start
 ** Basic Configuration
 #+begin_src emacs-lisp
 (setq salesforce-api-version "61.0")
-(setq salesforce-metadata-define-roots 
+(setq salesforce-metadata-define-roots
       '((default . "force-app/main/default")))
 #+end_src
 
@@ -84,20 +125,18 @@ A comprehensive Emacs package for Salesforce development, integrating Salesforce
 
 * Features
 ** Apex Development
-- Syntax highlighting and completion
-- Execute code and run tests
+- Execute Apex code against connected orgs
 - Generate classes and triggers
-- Org-babel support:
- #+begin_src org
+- Org-babel support (via apex-ts-mode extensions):
+  #+begin_src org
   ,#+begin_src apex :org myorg
     System.debug('Hello from Emacs!');
   ,#+end_src
- #+end_src
+  #+end_src
 
 ** SOQL Queries
 - Query execution with results visualization
-- Auto-completion for fields and objects
-- Org-babel support:
+- Org-babel support (via soql-ts-mode extensions):
   #+begin_src org
   ,#+begin_src soql :org myorg :results table
   SELECT Id, Name FROM Account LIMIT 10
@@ -123,43 +162,34 @@ A comprehensive Emacs package for Salesforce development, integrating Salesforce
 * Project Structure
 #+begin_example
 salesforce-minor-mode/
-├── salesforce-mode.el                    # Main mode definition
-├── salesforce-core.el                    # Core utilities and consult integration
-├── salesforce-project.el                 # Project and metadata management
-├── salesforce-org.el                     # Org management and authentication
-├── salesforce-apex.el                    # Apex operations and code generation
-├── salesforce-data.el                    # Data import/export operations
-├── salesforce-menu.el                    # Transient menu definitions
-├── apex-ts-mode/
-│   ├── apex-ts-mode.el                  # Apex major mode with tree-sitter
-│   ├── apex-consult.el                  # Consult integration for Apex
-│   ├── ob-apex.el                       # Org-babel support for Apex
-│   ├── extensions/                      # Apex extensions
-│   ├── language-server/                 # LSP configurations
-│   └── snippets/                        # Code snippets
-├── apex-ts-log/
-│   ├── apex-log-ts-mode.el              # Apex log file mode with tree-sitter
-│   └── ob-apex-log.el                   # Org-babel for Apex logs
-├── soql-ts-mode/
-│   ├── soql-ts-mode.el                  # SOQL major mode with tree-sitter
-│   ├── soql-company.el                  # Company-mode integration
-│   ├── soql-lsp.el                      # LSP configuration
-│   ├── ob-soql.el                       # Org-babel support for SOQL
-│   └── language-server/                 # LSP configurations
-├── visualforce-ts-mode/
-│   ├── visualforce-ts-mode.el           # Visualforce major mode
-│   ├── visualforce-eglot.el             # Eglot integration
-│   ├── visualforce-lsp-bridge.el        # LSP-bridge integration
-│   └── language-server/                 # LSP configurations
-├── lwc-ts-mode/
-│   ├── lwc-ts-mode.el                   # LWC major mode (main entry)
-│   ├── lwc-js-ts-mode.el                # JavaScript mode for LWC
-│   ├── lwc-html-ts-mode.el              # HTML mode for LWC
-│   ├── lwc-ts-common.el                 # Common utilities
-│   └── language-server/                 # LSP configurations
+├── salesforce-mode.el        # Main mode definition
+├── salesforce-core.el        # Core utilities and consult integration
+├── salesforce-project.el     # Project and metadata management
+├── salesforce-org.el         # Org management and authentication
+├── salesforce-apex.el        # Apex operations and code generation
+├── salesforce-data.el        # Data import/export operations
+├── salesforce-sobject.el     # SObject schema operations
+├── salesforce-menu.el        # Transient menu definitions
 └── extensions/
-    └── salesforce-consult-omni.el       # Consult-omni integration
+    └── salesforce-consult-omni.el  # Consult-omni integration
 #+end_example
+
+* Companion Packages
+
+Each tree-sitter mode package follows a similar structure:
+
+#+begin_example
+<mode>-ts-mode/
+├── <mode>-ts-mode.el         # Main mode (standalone)
+├── <mode>-*.el               # Supporting files
+├── extensions/
+│   ├── <mode>-ob.el          # Org-babel integration (requires salesforce-*)
+│   ├── <mode>-lsp.el         # LSP integration
+│   └── <mode>-*.el           # Other integrations
+└── README.org
+#+end_example
+
+The =extensions/= folder in each mode package contains files that integrate with salesforce-minor-mode. These are loaded with soft requires and work optionally.
 
 * Contributing
 Contributions welcome! Please:

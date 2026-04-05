@@ -1,7 +1,0 @@
-# -*- mode: snippet -*-
-# name: schedulable
-# key: sch
-# --
-${1:$$(yas-choose-value '("private" "public" "protected" "global" ""))} ${2:$$(yas-choose-value '("with sharing" "without sharing" ""))} class ${3:class} implements Schedulabe {
-    $0
-}

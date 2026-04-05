@@ -1,7 +1,0 @@
-# -*- mode: snippet -*-
-# name: cls
-# key: cls
-# --
-${1:$$(yas-choose-value '("private" "public" "protected" "global" ""))} ${2:$$(yas-choose-value '("with sharing" "without sharing" ""))} class ${3:Class} {
-      $0
-}

@@ -1,6 +1,0 @@
-# -*- mode: snippet; require-final-newline: nil -*-
-# name: assert
-# key: as
-# group: test
-# --
-System.assert(${1:expression});

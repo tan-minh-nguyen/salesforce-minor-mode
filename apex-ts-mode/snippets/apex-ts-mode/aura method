@@ -1,9 +1,0 @@
-# -*- mode: snippet -*-
-# name: aura method
-# key: @am
-# group: annotation
-# --
-@AuraEnabled(${1:properties})
-${2:$$(yas-choose-value '("public" "global" ""))} static ${3:return} ${4:method} (${5:params}) {
-    $0
-}

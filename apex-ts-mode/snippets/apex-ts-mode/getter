@@ -1,7 +1,0 @@
-# -*- mode: snippet; require-final-newline: nil -*-
-# name: getter
-# key: g
-# --
-${1:$$(yas-choose-value '("private" "public" "protected" "global" ""))} $2 get${3:Field} () {
-       return ${3:field};
-}
