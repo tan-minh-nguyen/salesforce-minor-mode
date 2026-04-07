@@ -64,7 +64,7 @@ Options:
   (let ((alias/username (or (get-text-property (point) 'alias)
                            (get-text-property (point) 'username)))
         (url (get-text-property (point) 'instanceUrl)))
-    (salesforce-org--auth-web url alias/username)))
+    (salesforce-org--auth-web alias/username :url url)))
 
 (cl-defun salesforce-org-read (then &key prompt require-match)
   "Select available orgs that are authorized.
@@ -82,24 +82,39 @@ REQUIRE-MATCH: Whether to require a match."
                (consult--multi
                 (cl-loop for org-type in (hash-table-keys org-pairs)
                          as org-collection = (gethash org-type org-pairs)
+                         as collection = (seq-map (lambda (item)
+                                                    (cons (propertize (map-elt item "username") 'face 'font-lock-constant-face)
+                                                          item))
+                                                  org-collection)
                          as async = (consult--async-dynamic
                                      (lambda (input)
-                                       (seq-map (lambda (candidate)
-                                                  (cons (map-elt candidate "username")
-                                                        candidate))
-                                                org-collection)))
+                                       (if input
+                                           (seq-filter (pcase-lambda (`(,username . ,data))
+                                                         (string-prefix-p input (substring-no-properties username) t))
+                                                       collection)
+                                         collection)))
                          as narrow = (aref (upcase org-type) 0)
-                         as annotate = (pcase-lambda (`(,cand . ,data))
-                                         (let* ((alias (map-elt data "alias"))
-                                                (last-used (map-elt data "lastUsed"))
-                                                (desc (format "[%s\t%s]" alias last-used)))
-                                           (concat cand "\t" desc)))
+                         as annotate = (pcase-lambda (data)
+                                         (let* ((alias (or (map-elt data "alias") ""))
+                                                (last-used (format-time-string
+                                                            "%Y-%m-%d %H:%M"
+                                                            (parse-iso8601-time-string (map-elt data "lastUsed"))))
+                                                (org-name (or (map-elt data "name") "")))
+                                           (concat " "
+                                                   (propertize (truncate-string-to-width alias 15 0 ?\s "…")
+                                                               'face 'font-lock-string-face)
+                                                   " "
+                                                   (propertize (truncate-string-to-width org-name 20 0 ?\s "…")
+                                                               'face 'font-lock-comment-face)
+                                                   " "
+                                                   (propertize last-used 'face 'font-lock-doc-face))))
                          collect (list :async async
-                                       :name org-type
-                                       :category 'salesforce-org
-                                       :narrow narrow
-                                       :annotate annotate))
+                                    :name org-type
+                                    :category 'salesforce-org
+                                    :narrow narrow
+                                    :annotate annotate))
                 :prompt prompt
+                :initial ""
                 :require-match require-match))))
      :finally
      (lambda ()
@@ -107,8 +122,9 @@ REQUIRE-MATCH: Whether to require a match."
               (pair-value (if (hash-table-p selected-value)
                               (cons (map-elt selected-value "username")
                                     selected-value)
-                            (cons selected-value nil)))))
-       (funcall then pair-value)))))
+                            (cons (string-replace "#" "" selected-value) nil))))
+
+         (funcall then pair-value))))))
 
 ;;; Interactive commands - Org management
 
@@ -122,40 +138,46 @@ REQUIRE-MATCH: Whether to require a match."
 (cl-defun salesforce-org-browse (&key org)
   "Open selected org."
   (interactive)
-  (salesforce-org-read "Select Org: "
-    (pcase-lambda (`(,org . ,data))
-      (salesforce-org--browse org
-        :args '("-r")
-        :then
-        (lambda (json-instance)
-          (browse-url-generic (map-nested-elt json-instance '("result" "url"))))))
-    :require-match t))
+  (salesforce-org-read
+   (pcase-lambda (`(,org . ,data))
+     (salesforce-org--browse org
+       :args '("-r")
+       :then
+       (lambda (json-instance)
+         (browse-url-generic (map-nested-elt json-instance '("result" "url"))))))
+   :prompt "Select Org: "
+   :require-match t))
 
 (defun salesforce-org-auth ()
   "Use web login to authorize to org."
   (interactive)
   (salesforce-org-read
-      (pcase-lambda (`(,alias . ,data))
-        (let* ((collection '((sandbox "https://test.salesforce.com")
-                             (production "https://login.salesforce.com")))
-               (annotate-fn
-                (lambda (candidate)
-                  (list candidate
-                     (nerd-icons-faicon "nf-fa-cloud")
-                     (apply #'pcase candidate
-                            (,@collection
-                             (t "custom"))))))
-               (lookup (lambda (cand &rest _)
-                         (apply #'pcase cand
-                                `(,@collection
-                                  (t ,cand)))))
-               (url (or (map-elt data "loginURL")
-                       (consult--read collection
-                                      :prompt "URL: "
-                                      :annotate annotate-fn
-                                      :loopkup lookup-fn))))
-          (salesforce-org--auth-web alias :url url)))
-    :prompt "Select Org: "))
+   (pcase-lambda (`(,alias . ,data))
+     (let* ((collection '(sandbox production))
+            (annotate-fn
+             (lambda (candidate)
+               (list candidate
+                  ""
+                  (concat "\t"
+                          (propertize (pcase candidate
+                                        ("sandbox" "https://test.salesforce.com")
+                                        ("production" "https://login.salesforce.com")
+                                        (_ "custom"))
+                                      'face
+                                      'font-lock-comment-face)))))
+            (lookup-fn
+             (lambda (cand &rest _)
+               (pcase cand
+                 ("sandbox" "https://test.salesforce.com")
+                 ("production" "https://login.salesforce.com")
+                 (_ cand))))
+            (url (or (map-elt data "loginURL")
+                    (consult--read collection
+                                   :prompt "URL: "
+                                   :annotate annotate-fn
+                                   :lookup lookup-fn))))
+       (salesforce-org--auth-web alias :url url)))
+   :prompt "Select Org: "))
 
 (defun salesforce-org-set-default (org-name)
   "Set default ORG-NAME for current project."

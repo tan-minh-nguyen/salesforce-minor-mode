@@ -441,20 +441,6 @@ Execute CALLBACK with selected candidate."
                                       :annotate #'salesforce-apex-consult--annotate)))
        (funcall callback candidate)))))
 
-;;; Utility Functions
-
-(defun salesforce-apex--draw-table (header data)
-  "Draw table from DATA and HEADER.
-TODO: Verify and possibly refactor this function."
-  (let ((header-construct (mapcar (lambda (col)
-                                    `(,col . ,(length col)))
-                                  header)))
-    (cl-loop for row in data
-             as line = (mapcar (lambda (col)
-                                 (let ((header (pop header-construct)))
-                                   (string-pad col (cdr header))
-                                   (add-to-list 'header-construct header t))))
-             concat (concat line "\n"))))
 
 (defun salesforce-apex-soql-string-p (soql-string)
   "Check if SOQL-STRING is a valid SOQL query."
@@ -492,6 +478,86 @@ TODO: Implement this function."
      :require-match t
      :category 'salesforce-suitest
      :sort nil)))
+
+(defun salesforce-apex-convert-test-result (test-result)
+  "Convert TEST-RESULT to `salesforce-apex-test-result' instance."
+  (let ((id (map-nested-elt test-result '("Id")))
+        (class-name (map-nested-elt test-result '("ApexClass" "Name")))
+        (coverage (map-nested-elt test-result '("testPass")))
+        (tests-ran (map-nested-elt test-result '("testsRan")))
+        (tests-passed (map-nested-elt test-result '("passing")))
+        (tests-failed (map-nested-elt test-result '("failing"))))
+    (cons id
+          (make-instance 'salesforce-apex-test-result
+                         :class class-name
+                         :coverage coverage
+                         :tests-failed tests-failed
+                         :tests-passed tests-passed
+                         :tests-ran tests-ran))))
+
+(defun salesforce-apex-convert-test-results (test-results)
+  "Convert TEST-RESULTS to list of `salesforce-apex-test-result' instances."
+  (cl-loop for test-result across test-results
+           collect (salesforce-apex-convert-test-result test-result)))
+
+(defclass salesforce-apex-test-result (tablist-plus-data)
+  ((class
+    :initarg :class
+    :initform nil
+    :type string
+    :documentation "Name of class.")
+   (coverage
+    :initarg :coverage
+    :initform 0
+    :type number
+    :documentation "Percent of test coverage.")
+   (tests-failed
+    :initarg :tests-failed
+    :initform 0
+    :documentation "Number of tests failed.")
+   (tests-passed
+    :initarg :tests-passed
+    :initform 0
+    :documentation "Number of tests passed.")
+   (tests-ran
+    :initarg :tests-ran
+    :initform 0
+    :documentation "Number of tests ran.")))
+
+(cl-defmethod tablist-plus-data-to-entry ((tests salesforce-apex-test-result) key)
+  "Transform PROVIDER to tabulated-list entry format."
+  (let* ((name (format "%s" (cloud-storage-provider-name provider)))
+         (type (cloud-storage-utils-format-type-name
+                (cloud-storage-provider-type provider)))
+         (local-path (abbreviate-file-name
+                      (or (cloud-storage-provider-local-path provider) "-")))
+         (remote-path (cloud-storage-provider-remote-path provider))
+         (auto-sync (if (cloud-storage-provider-auto-sync provider)
+                        (format "Yes (%s)"
+                                (cloud-storage-utils-format-interval
+                                 (cloud-storage-provider-interval provider)))
+                      "No"))
+         (enabled (if (cloud-storage-provider-enabled provider) "✓" "✗"))
+         (mount (cloud-storage-provider--human-mount provider)))
+    (list key (vector name type local-path remote-path auto-sync enabled mount))))
+
+(defun salesforce-apex-all-test ()
+  "Run all tests on org."
+  (emacs-pp-job
+   (lambda ()
+     (salesforce-core--apex-process
+      :args '("run" "test" "-l" "RunAllTestsInOrg" "--synchronous" "--code-coverage" "--json")))
+   (lambda (json-instance)
+     (let* ((data (salesforce-apex-convert-test-results (map-nested-elt json-instance '("result" "tests"))))
+            (table (make-instance 'tablist-plus-table
+                                  [("Class Name" 30 t)
+                                   ("Coverage" 10 t)
+                                   ("Tests Ran" 10 t)
+                                   ("Tests Passed" 12 t)
+                                   ("Tests Failed" 12 t)]
+                                  :data data)))
+       (tablist-plus-table-render table)
+       (pop-to-buffer (tablist-plus-table-buffer table))))))
 
 (provide 'salesforce-apex)
 ;;; salesforce-apex.el ends here

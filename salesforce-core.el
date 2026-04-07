@@ -139,11 +139,15 @@ If SYNC is non-nil, wait for process to complete and return result."
    (make-process
     :name salesforce-process-buffer
     :buffer (generate-new-buffer
-             (format " *%s*" salesforce-process-buffer)))
+             (format "*%s*" salesforce-process-buffer)))
    :cmd (cons salesforce-program-bin args)
    :parser parser
-   :then (lambda (&key data &allow-other-keys)
-           (funcall callback data))
+   :then
+   (cl-function
+    (lambda (&key data &allow-other-keys)
+      (if callback
+          (funcall callback data)
+        data)))
    :catch #'salesforce-core--handle-process-error))
 
 (defun salesforce-core--handle-process-error (err)
@@ -357,7 +361,7 @@ CANDIDATE is the selected item to act upon."
 
 (defun salesforce-consult--search-candidates (&rest body)
   "Search candidates with tree-sitter rule in the buffer.
-BODY contains (name regexp icon pred name-fn) for the search."
+BODY contains (name regexp icon pred name-fn) for the search. (obsolete)"
   (pcase-let ((`(,name ,regexp ,icon ,pred ,name-fn) body))
     (when-let* ((tree (treesit-induce-sparse-tree 
                        (treesit-buffer-root-node) regexp))
