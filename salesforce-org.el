@@ -26,6 +26,8 @@ ALIAS is the name to assign to the authorized org."
    :args `("login" "web" "-a" ,alias "--instance-url" ,url "--set-default" "--json")
    :callback
    (lambda (json-instance)
+     (unless salesforce-project-session
+       (salesforce-project--setup))
      (setf (salesforce-project-org salesforce-project-session) alias
            (salesforce-project-url salesforce-project-session)
            (salesforce-project--user-data alias "instanceUrl")
@@ -185,6 +187,8 @@ REQUIRE-MATCH: Whether to require a match."
    :args `("set" "target-org" ,org-name "--json")
    :callback
    (lambda (&rest _)
+     (unless salesforce-project-session
+       (salesforce-project--setup))
      (setf (salesforce-project-org salesforce-project-session) org-name
            (salesforce-project-url salesforce-project-session)
            (salesforce-project--user-data org-name "instanceUrl")
@@ -198,7 +202,7 @@ REQUIRE-MATCH: Whether to require a match."
   (interactive)
   (salesforce-org-read
    (pcase-lambda (`(,org-name . ,data))
-     (salesforce-org-set-default org-name))
+     (salesforce-org-set-default (or (map-elt data "alias") org-name)))
    :prompt "Select Org: "
    :require-match t))
 

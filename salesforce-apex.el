@@ -300,44 +300,36 @@ TODO: Replace with salesforce-apex--generate-class for consistency."
 
 ;;; Test Execution
 
-(defun salesforce-apex--get-result-test-job (job-id &optional poll-id)
+(defun salesforce-apex--show-test-results-table (json-instance)
+  "Display test results from JSON-INSTANCE in a table."
+  (let* ((data (salesforce-apex-convert-test-results
+                (map-nested-elt json-instance '("result" "tests"))))
+         (table (apply #'tablist-plus-create-table [("Test Name" 20 t)
+                                                    ("Status" 10 t)
+                                                    ("Message" 30 t)
+                                                    ("Stack Trace" 30 t)]
+                       (list :data data :group-by (salesforce-apex--group-class-test)))))
+    (tablist-plus-table-render table)
+    (switch-to-buffer (tablist-plus-table-buffer table))))
+
+(cl-defun salesforce-apex--handle-test-results (json-instance &key (type-table 'class))
+  "Handle test results from JSON-INSTANCE.
+TYPE-TABLE determines display format: `class' (default)."
+  (declare (indent 1))
+  (pcase type-table
+    ('class (salesforce-apex--show-test-results-table json-instance))))
+
+(cl-defun salesforce-apex--get-result-test-job (job-id &key poll-id type-table)
   "Retrieve the result of an Apex test job by JOB-ID.
 Optionally cancel POLL-ID timer when complete."
-  (let ((buffer (current-buffer))
-        (org-name (salesforce-project-org salesforce-project-session)))
+  (declare (indent 1))
+  (let ((org-name (salesforce-project-org salesforce-project-session)))
     (salesforce-core--apex-process
-     :args `("get" "test" "-i" ,job-id "-o" ,org-name
-             "--code-coverage" "--json")
-     :callback (lambda (json-instance)
-                 (let* ((summary (map-nested-elt json-instance '("result" "summary")))
-                        (outcome (map-elt summary "outcome"))
-                        (alert-message (format "Unit Tests Run %s" outcome)))
-                   (salesforce-core--alert alert-message))
-                 (with-current-buffer buffer
-                   (setq-local salesforce-apex--test-coverage
-                               (map-nested-elt json-instance '("result" "coverage"))))
-                 (when poll-id (cancel-timer poll-id))))))
-
-(cl-defun salesforce-apex--execute-unit-test (&key test-cases test-level)
-  "Execute specific unit tests with TEST-CASES and TEST-LEVEL."
-  (let ((file-name (file-name-base)))
-    (salesforce-core--apex-process
-     :args `("run" "test" "--tests" ,test-cases "--test-level" ,test-level
-             "--detailed-coverage" "--code-coverage" "--json")
+     :args `("get" "test" "-i" ,job-id "-o" ,org-name "--code-coverage" "--json")
      :callback
      (lambda (json-instance)
-       (let* ((poll-id nil)
-              (job-id (map-nested-elt json-instance '("result" "testRunId")))
-              (callback (lambda (job)
-                          (salesforce-apex--get-result-test-job job poll-id))))
-         (if job-id
-             (progn
-               (salesforce-core--alert (format "%s class is running." file-name))
-               (setq poll-id (run-at-time 60 nil callback job-id)))
-           (salesforce-core--alert
-            (format "Tests class run success with coverage %s"
-                    (map-nested-elt json-instance
-                                    '("result" "summary" "testRunCoverage"))))))))))
+       (prog1 (salesforce-apex--handle-test-results json-instance)
+         (when poll-id (cancel-timer poll-id)))))))
 
 (defun salesforce-apex--retrieve-functions ()
   "Retrieve all function names in the current buffer.
@@ -346,6 +338,25 @@ FIXME: Improve function name extraction logic."
                                                  '((method_declaration) @function))
            collect (treesit-node-text 
                     (treesit-node-child-by-field-name node "name") t)))
+
+;;; Test Class
+
+(cl-defun salesforce-apex--execute-unit-test (&key test-cases test-level)
+  "Execute specific unit tests with TEST-CASES and TEST-LEVEL."
+  (salesforce-core--apex-process
+   :args `("run" "test" ,@(when test-cases (list "--tests" test-cases)) "--test-level" ,test-level
+           "--detailed-coverage" "--code-coverage" "--json")
+   :callback
+   (lambda (json-instance)
+     (let* ((poll-id nil)
+            (job-id (map-nested-elt json-instance '("result" "testRunId")))
+            (callback (lambda (job)
+                        (salesforce-apex--get-result-test-job job :poll-id poll-id))))
+       (if job-id
+           (progn
+             (salesforce-core--alert "test is running.")
+             (setq poll-id (run-at-time nil 60 callback job-id)))
+         (salesforce-apex--handle-test-results json-instance))))))
 
 (defun salesforce-apex-execute-method-test (node)
   "Execute a single unit test for the method at NODE."
@@ -357,8 +368,10 @@ FIXME: Improve function name extraction logic."
   (when-let* ((func-name (treesit-node-text 
                           (treesit-node-child-by-field-name node "name")))
               (test-cases (format "%s.%s" (file-name-base) func-name)))
-    (salesforce-apex--execute-unit-test :test-cases test-cases 
-                                        :test-level "RunSpecifiedTests")))
+
+    (salesforce-apex--execute-unit-test
+     :test-cases test-cases 
+     :test-level "RunSpecifiedTests")))
 
 (defun salesforce-apex-execute-test-class (file)
   "Execute all unit tests in the specified FILE."
@@ -369,11 +382,14 @@ FIXME: Improve function name extraction logic."
 (defun salesforce-apex-execute-local-tests ()
   "Run all test classes except those in the org managed package."
   (interactive)
-  (salesforce-core--apex-process
-   :args '("run" "test" "--test-level" "RunLocalTests" "--json")
-   :callback (lambda (json-instance)
-               (salesforce-apex--get-result-test-job
-                (map-nested-elt json-instance '("result" "testRunId"))))))
+  (salesforce-apex--execute-unit-test
+   :test-level "RunLocalTests"))
+
+(defun salesforce-apex-all-test ()
+  "Run all tests on org."
+  (interactive)
+  (salesforce-apex--execute-unit-test
+   :test-level "RunAllTestsInOrg"))
 
 ;;; Lightning Development
 
@@ -386,6 +402,66 @@ FIXME: Improve function name extraction logic."
                (salesforce-core--alert "Start lwc local server success"))))
 
 ;;; Log Management
+
+(defclass salesforce-apex-log (tablist-plus-data)
+  ((id
+    :initarg :id
+    :initform nil
+    :type (or string null)
+    :documentation "Id of log file.")
+   (app
+    :initarg :app
+    :initform nil
+    :type (or string null)
+    :documentation "app owner's file.")
+   (time
+    :initarg :time
+    :initform nil
+    :type (or string null)
+    :documentation "created date of file.")
+   (size
+    :initarg :size
+    :initform 0
+    :type number
+    :documentation "size of file.")
+   (status
+    :initarg :status
+    :initform nil
+    :type (or string null)
+    :documentation "status of log file.")
+   (operation
+    :initarg :operation
+    :initform nil
+    :type (or string null)
+    :documentation "operation of log file."))
+  :documentation "Log file construct.")
+
+(defun salesforce-apex-convert-log-file (log-file)
+  "Convert LOG-FILE to `salesforce-apex-log' instance."
+  (let ((id (map-nested-elt test-result '("Id")))
+        (app (map-nested-elt test-result '("Application")))
+        (time (map-nested-elt test-result '("StartTime")))
+        (operation (map-nested-elt test-result '("Operation")))
+        (status (map-nested-elt test-result '("Status")))
+        (size (map-nested-elt test-result '("LogLength"))))
+
+    (cons id
+          (make-instance 'salesforce-apex-log
+                         :id id
+                         :app app
+                         :size size
+                         :time time
+                         :status status
+                         :operation operation))))
+
+(cl-defmethod tablist-plus-data-to-entry ((log-file salesforce-apex-log) key)
+  "Transform RESULT to tabulated-list entry format."
+  (list key
+     (vector (or (slot-value log-file 'app) "")
+             (format "%.1f%%" (slot-value log-file 'size))
+             (slot-value result 'status)
+             (slot-value result 'operation)
+             (format-time-string display-time-format (parse-iso8601-time-string (slot-value result 'time))))))
 
 (defun salesforce-apex--time-format (format-string time-string)
   "Format TIME-STRING according to FORMAT-STRING."
@@ -482,18 +558,19 @@ TODO: Implement this function."
 (defun salesforce-apex-convert-test-result (test-result)
   "Convert TEST-RESULT to `salesforce-apex-test-result' instance."
   (let ((id (map-nested-elt test-result '("Id")))
-        (class-name (map-nested-elt test-result '("ApexClass" "Name")))
-        (coverage (map-nested-elt test-result '("testPass")))
-        (tests-ran (map-nested-elt test-result '("testsRan")))
-        (tests-passed (map-nested-elt test-result '("passing")))
-        (tests-failed (map-nested-elt test-result '("failing"))))
+        (class (map-nested-elt test-result '("ApexClass" "Name")))
+        (unit-test (map-nested-elt test-result '("MethodName")))
+        (stack (map-nested-elt test-result '("StackTrace")))
+        (message (map-nested-elt test-result '("Message")))
+        (status (map-nested-elt test-result '("Outcome"))))
+
     (cons id
           (make-instance 'salesforce-apex-test-result
-                         :class class-name
-                         :coverage coverage
-                         :tests-failed tests-failed
-                         :tests-passed tests-passed
-                         :tests-ran tests-ran))))
+                         :unit-test unit-test
+                         :class class
+                         :stack-trace stack
+                         :message message
+                         :status status))))
 
 (defun salesforce-apex-convert-test-results (test-results)
   "Convert TEST-RESULTS to list of `salesforce-apex-test-result' instances."
@@ -501,63 +578,49 @@ TODO: Implement this function."
            collect (salesforce-apex-convert-test-result test-result)))
 
 (defclass salesforce-apex-test-result (tablist-plus-data)
-  ((class
+  ((unit-test
+    :initarg :unit-test
+    :initform nil
+    :type (or string null)
+    :documentation "Name of class.")
+   (status
+    :initarg :status
+    :initform nil
+    :type (or string null)
+    :documentation "Number of tests failed.")
+   (class
     :initarg :class
     :initform nil
-    :type string
-    :documentation "Name of class.")
-   (coverage
-    :initarg :coverage
-    :initform 0
-    :type number
-    :documentation "Percent of test coverage.")
-   (tests-failed
-    :initarg :tests-failed
-    :initform 0
-    :documentation "Number of tests failed.")
-   (tests-passed
-    :initarg :tests-passed
-    :initform 0
+    :type (or string null)
     :documentation "Number of tests passed.")
-   (tests-ran
-    :initarg :tests-ran
-    :initform 0
+   (stack-trace
+    :initarg :stack-trace
+    :initform nil
+    :type (or string null)
+    :documentation "Number of tests ran.")
+   (message
+    :initarg :message
+    :initform nil
+    :type (or string null)
     :documentation "Number of tests ran.")))
 
-(cl-defmethod tablist-plus-data-to-entry ((tests salesforce-apex-test-result) key)
-  "Transform PROVIDER to tabulated-list entry format."
-  (let* ((name (format "%s" (cloud-storage-provider-name provider)))
-         (type (cloud-storage-utils-format-type-name
-                (cloud-storage-provider-type provider)))
-         (local-path (abbreviate-file-name
-                      (or (cloud-storage-provider-local-path provider) "-")))
-         (remote-path (cloud-storage-provider-remote-path provider))
-         (auto-sync (if (cloud-storage-provider-auto-sync provider)
-                        (format "Yes (%s)"
-                                (cloud-storage-utils-format-interval
-                                 (cloud-storage-provider-interval provider)))
-                      "No"))
-         (enabled (if (cloud-storage-provider-enabled provider) "✓" "✗"))
-         (mount (cloud-storage-provider--human-mount provider)))
-    (list key (vector name type local-path remote-path auto-sync enabled mount))))
+(cl-defmethod tablist-plus-data-to-entry ((result salesforce-apex-test-result) key)
+  "Transform RESULT to tabulated-list entry format."
+  (list key
+     (vector (slot-value result 'unit-test)
+             (slot-value result 'class)
+             (slot-value result 'status)
+             (or (slot-value result 'message) "")
+             (or (slot-value result 'stack-trace) ""))))
 
-(defun salesforce-apex-all-test ()
-  "Run all tests on org."
-  (emacs-pp-job
-   (lambda ()
-     (salesforce-core--apex-process
-      :args '("run" "test" "-l" "RunAllTestsInOrg" "--synchronous" "--code-coverage" "--json")))
-   (lambda (json-instance)
-     (let* ((data (salesforce-apex-convert-test-results (map-nested-elt json-instance '("result" "tests"))))
-            (table (make-instance 'tablist-plus-table
-                                  [("Class Name" 30 t)
-                                   ("Coverage" 10 t)
-                                   ("Tests Ran" 10 t)
-                                   ("Tests Passed" 12 t)
-                                   ("Tests Failed" 12 t)]
-                                  :data data)))
-       (tablist-plus-table-render table)
-       (pop-to-buffer (tablist-plus-table-buffer table))))))
+(cl-defun salesforce-apex--group-class-test ()
+  "Group test entries by class-name to show on tabulated TABLE."
+  (lambda (table)
+    (let ((data (tablist-plus-table-data table)))
+      (seq-group-by
+       (pcase-lambda (`(,key ,_))
+         (slot-value (gethash key data) 'class))
+       tabulated-list-entries))))
 
 (provide 'salesforce-apex)
 ;;; salesforce-apex.el ends here

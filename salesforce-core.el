@@ -96,7 +96,8 @@
 
 (defun salesforce-core--parse-json (process)
   "Parse result return from PROCESS."
-  (let ((json-object-type 'hash-table))
+  (let ((json-object-type 'hash-table)
+        (json-null nil))
     (emacs-pp-parser-json process)))
 
 (defun salesforce--ensure-directory-exists (path)
