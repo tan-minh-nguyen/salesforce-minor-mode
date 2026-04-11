@@ -163,8 +163,7 @@ REQUIRE-MATCH: Whether to require a match."
                   (concat "\t"
                           (propertize (pcase candidate
                                         ("sandbox" "https://test.salesforce.com")
-                                        ("production" "https://login.salesforce.com")
-                                        (_ "custom"))
+                                        ("production" "https://login.salesforce.com"))
                                       'face
                                       'font-lock-comment-face)))))
             (lookup-fn
@@ -205,71 +204,5 @@ REQUIRE-MATCH: Whether to require a match."
      (salesforce-org-set-default (or (map-elt data "alias") org-name)))
    :prompt "Select Org: "
    :require-match t))
-
-;;; Log management
-
-(defun salesforce-org-log-read ()
-  "Use consult to create select box for log."
-  (salesforce-core--apex-process
-   :args '("log" "list" "--json")
-   :callback
-   (lambda (json-instance)
-     (let* ((raw-results ))
-       (consult--read (consult--async-dynamic
-                       ;; TODO: add filter by one of these data or all?
-                       (lambda (input)
-                         (cl-loop for data across (map-elt json-instance "result")
-                                  as log-id = (map-elt data "Id")
-                                  collect (cons log-id data))))
-                      :prompt "Select log file: "
-                      :require-match t
-                      :lookup (lambda (candidate &rest _) (car candidate))
-                      :annotate
-                      (pcase-lambda (`(,_ . ,data))
-                        (let* ((log-id (map-elt data "id"))
-                               (size (/ (map-elt data "length") (* 1024 1024)))
-                               (operation (map-elt data "operation"))
-                               (time (format-time-string "%Y-%m-%d" (parse-time-string (map-elt data "start-time")))))
-
-                          (concat (propertize (format "%.2fMB" size) 'face 'font-lock-number-face)
-                                  "\t"
-                                  (propertize time 'face 'font-lock-string-face)
-                                  "\t"
-                                  (nerd-icons-octicon "nf-oct-log")
-                                  " "
-                                  (propertize operation 'face 'font-lock-keyword-face)))))))))
-
-
-(defun salesforce-org-log-show ()
-  "Select a Salesforce log and open its content in a buffer."
-  (interactive)
-  (emacs-pp-job
-   (lambda ()
-     (salesforce-org-log-read))
-   (lambda (select-log)
-     (salesforce-core--apex-process
-      :args `("get" "log" "--log-id" ,select-log "--json")))
-   (lambda (json-instance)
-     (let* ((log-dir (salesforce-project-log-dir salesforce-project-session))
-            (file-name (concat log-dir selected-log ".log"))
-            (file (create-file-buffer file-name)))
-       (with-current-buffer file
-         (with-silent-modifications
-           (setf (buffer-string) (map-nested-elt json-instance '("result" 0 "log")))))
-       (salesforce-core--alert (format "Fetch log %s success" selected-log))))))
-
-(defun salesforce-org-log-delete ()
-  "Clear logs from the connected Salesforce org."
-  (interactive)
-  (let ((temp-file (make-temp-file "log" nil ".csv")))
-    (emacs-job
-     (lambda (_)
-       (salesforce-data--export-bulk
-        `("-q" "SELECT Id FROM ApexLog" "--result-format=csv" "--output-file" ,temp-file)))
-     (lambda (_)
-       (salesforce-data--delete-bulk
-        `("--sobject" "ApexLog" "--file" ,temp-file)))
-     (lambda ()
-       (salesforce-core-alert "Deleting log data succeeded")))))
 
 (provide 'salesforce-org)

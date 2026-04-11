@@ -241,7 +241,7 @@ Open the created file using RESULT-PATH-KEYS to extract from JSON response."
    (lambda ()
      (salesforce-apex--generate-resource "trigger" :args args))
    (lambda (json-instance)
-     (switch-to-buffer (find-file (map-nested-elt json-instance '("result" "created" 0))))))
+     (switch-to-buffer (find-file (map-nested-elt json-instance '("result" "created" 0)))))))
 
 (defun salesforce-apex--generate-class (args)
   "Generate an Apex class with the specified ARGS."
@@ -298,10 +298,10 @@ Open the created file using RESULT-PATH-KEYS to extract from JSON response."
   "Display test results from JSON-INSTANCE in a table."
   (let* ((data (salesforce-apex-convert-test-results
                 (map-nested-elt json-instance '("result" "tests"))))
-         (table (apply #'salesforce-table-create-test-result [("Test Name" 30 t)
-                                                              ("Status" 10 t)
-                                                              ("Message" 50 t)
-                                                              ("Stack Trace" 50 t)]
+         (table (apply #'salesforce-table-create-ran-tests-table [("Test Name" 30 t)
+                                                                  ("Status" 10 t)
+                                                                  ("Message" 50 t)
+                                                                  ("Stack Trace" 50 t)]
                        (list :data data :group-by (salesforce-apex--test-group-class)))))
     (tablist-plus-table-render table)
     (switch-to-buffer (tablist-plus-table-buffer table))))
@@ -397,120 +397,29 @@ FIXME: Improve function name extraction logic."
 
 ;;; Log Management
 
-(defclass salesforce-apex-log (tablist-plus-data)
-  ((id
-    :initarg :id
-    :initform nil
-    :type (or string null)
-    :documentation "Id of log file.")
-   (app
-    :initarg :app
-    :initform nil
-    :type (or string null)
-    :documentation "app owner's file.")
-   (time
-    :initarg :time
-    :initform nil
-    :type (or string null)
-    :documentation "created date of file.")
-   (size
-    :initarg :size
-    :initform 0
-    :type number
-    :documentation "size of file.")
-   (status
-    :initarg :status
-    :initform nil
-    :type (or string null)
-    :documentation "status of log file.")
-   (operation
-    :initarg :operation
-    :initform nil
-    :type (or string null)
-    :documentation "operation of log file."))
-  :documentation "Log file construct.")
-
-(defun salesforce-apex-convert-log-file (log-file)
-  "Convert LOG-FILE to `salesforce-apex-log' instance."
-  (let ((id (map-nested-elt test-result '("Id")))
-        (app (map-nested-elt test-result '("Application")))
-        (time (map-nested-elt test-result '("StartTime")))
-        (operation (map-nested-elt test-result '("Operation")))
-        (status (map-nested-elt test-result '("Status")))
-        (size (map-nested-elt test-result '("LogLength"))))
-
-    (cons id
-          (make-instance 'salesforce-apex-log
-                         :id id
-                         :app app
-                         :size size
-                         :time time
-                         :status status
-                         :operation operation))))
-
-(cl-defmethod tablist-plus-data-to-entry ((log-file salesforce-apex-log) key)
-  "Transform RESULT to tabulated-list entry format."
-  (list key
-     (vector (or (slot-value log-file 'app) "")
-             (format "%.1f%%" (slot-value log-file 'size))
-             (slot-value result 'status)
-             (slot-value result 'operation)
-             (format-time-string display-time-format (parse-iso8601-time-string (slot-value result 'time))))))
-
-(defun salesforce-apex--time-format (format-string time-string)
-  "Format TIME-STRING according to FORMAT-STRING."
-  (format-time-string format-string
-                      (encode-time (parse-time-string time-string))))
-
-(defun salesforce-apex-consult--annotate (candidate)
-  "Format a CANDIDATE string with properties for display in consult."
-  (let* ((data candidate)
-         (app (map-elt data "app"))
-         (time (map-elt data "time"))
-         (op (map-elt data "operation"))
-         (size (map-elt data "log-length"))
-         (status (map-elt data "status"))
-         (id (map-elt data "log-id"))
-         (len-text 10)
-         (prop-time (propertize (salesforce-apex--time-format "%Y-%m-%d %H:%M:%S" time) 
-                                'face 'org-time-grid))
-         (prop-op (propertize (string-pad op len-text) 
-                              'face 'font-lock-doc-markup-face))
-         (prop-size (propertize (string-pad (format "%s" (/ size 1000)) len-text) 
-                                'face 'font-lock-keyword-face))
-         (prop-status (propertize (string-pad status len-text) 
-                                  'face 'font-lock-keyword-face))
-         (prefix (nerd-icons-octicon "nf-oct-log"))
-         (suffix (concat (propertize (string-pad op len-text) 
-                                     'face (if (string= status "success") 
-                                               'font-lock-builtin-face 
-                                             'font-lock-string-face))
-                         prop-size
-                         status 
-                         prop-time)))
-    `(,id ,prefix ,suffix)))
-
-(defun salesforce-apex-prompt-log (callback)
+(cl-defun salesforce-apex-list-log (&key then)
   "Collect all logs and make prompt for selection.
 Execute CALLBACK with selected candidate."
   (salesforce-core--apex-process
    :args '("list" "log" "--json")
-   :callback
-   (lambda (json-instance)
-     (let* ((candidates (cl-loop for log-file across (map-elt json-instance "result")
-                                 collect `("app" ,(map-elt log-file "Application")
-                                           "time" ,(map-elt log-file "StartTime")
-                                           "operation" ,(map-elt log-file "Operation")
-                                           "log-length" ,(map-elt log-file "LogLength")
-                                           "status" ,(map-elt log-file "Status")
-                                           "log-id" ,(map-elt log-file "Id"))))
-            (candidate (consult--read candidates
-                                      :prompt "Log: "
-                                      :category 'salesforce-log
-                                      :require-match t
-                                      :annotate #'salesforce-apex-consult--annotate)))
-       (funcall callback candidate)))))
+   :callback then))
 
+(defun salesforce-apex-all-log ()
+  "List all logs on org in tablist."
+  (interactive)
+  (emacs-pp-job
+   (lambda ()
+     (salesforce-apex-list-log))
+   (lambda (json-instance)
+     (let* ((data (salesforce-table-convert-logs-json (map-nested-elt json-instance '("result"))))
+            (table (apply #'salesforce-table-create-log-table [("Operation" 40 t)
+                                                               ("Application" 30 t)
+                                                               ("Status" 80 t)
+                                                               ("Size" 15 t)
+                                                               ("Timestamp" 20 t)]
+                          (list :data data :group-by (salesforce-table--log-group-by-user)))))
+       (tablist-plus-table-render table)
+       (switch-to-buffer (tablist-plus-table-buffer table))))))
 
 (defun salesforce-apex-soql-string-p (soql-string)
   "Check if SOQL-STRING is a valid SOQL query."

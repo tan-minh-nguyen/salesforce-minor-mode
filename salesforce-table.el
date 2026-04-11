@@ -80,7 +80,7 @@ Returns a cons cell (ID . instance) for use with tablist-plus hash tables."
                          :message message
                          :status status))))
 
-(defun salesforce-table-create-test-result (columns &rest args &key (buffer (generate-new-buffer "*salesforce-ran-tests*")) &allow-other-keys)
+(cl-defun salesforce-table-create-test-result (columns &rest args &key (buffer (generate-new-buffer "*salesforce-ran-tests*")) &allow-other-keys)
   "Create table for test results.
 
 COLUMNS: table columns.
@@ -118,7 +118,7 @@ Used with tablist-plus to group test results by their parent Apex class."
    (lines
     :initarg :class
     :initform nil
-    :type (or hash-table nil)
+    :type (or hash-table null)
     :documentation "Lines of covered.")
    (total-lines
     :initarg :total-covered
@@ -168,7 +168,7 @@ Returns a cons cell (ID . instance) for use with tablist-plus hash tables."
   (cl-loop for coverage-result across coverage-results
            collect (salesforce-table-convert-test-result coverage-result)))
 
-(defun salesforce-table-create-coverage-result (columns &rest args &key (buffer (generate-new-buffer "*salesforce-coverage-tests*")) &allow-other-keys)
+(cl-defun salesforce-table-create-ran-tests-table (columns &rest args &key (buffer (generate-new-buffer "*salesforce-coverage-tests*")) &allow-other-keys)
   "Create table for test results.
 
 COLUMNS: table columns.
@@ -212,7 +212,12 @@ ARGS: optional args for tablist-table."
     :initarg :operation
     :initform nil
     :type (or string null)
-    :documentation "Type of operation that generated the log."))
+    :documentation "Type of operation that generated the log.")
+   (user
+    :initarg :user
+    :initform nil
+    :type (or string null)
+    :documentation "User created a log file."))
   "Represents an Apex debug log file entry.
 
 This class holds metadata about a debug log stored in Salesforce,
@@ -221,33 +226,65 @@ used for displaying logs in a tabulated list.")
 (cl-defmethod tablist-plus-data-to-entry ((log-file salesforce-table-log) key)
   "Transform LOG-FILE to tabulated-list entry format with KEY as identifier."
   (list key
-     (vector (or (slot-value log-file 'app) "")
-             (format "%d" (slot-value log-file 'size))
+     (vector (or (slot-value log-file 'operation) "")
+             (or (slot-value log-file 'app) "")
              (or (slot-value log-file 'status) "")
-             (or (slot-value log-file 'operation) "")
+             (format "%d" (slot-value log-file 'size))
              (if-let ((time-str (slot-value log-file 'time)))
                  (format-time-string display-time-string
                                      (parse-iso8601-time-string time-str))
                ""))))
 
-(defun salesforce-table-convert-log-file (log-file)
-  "Convert LOG-FILE JSON object to `salesforce-table-log' instance.
+(defun salesforce-table-convert-log-json (log-json)
+  "Convert LOG-JSON JSON object to `salesforce-table-log' instance.
 
 Returns a cons cell (ID . instance) for use with tablist-plus hash tables."
-  (let ((id (map-nested-elt log-file '("Id")))
-        (app (map-nested-elt log-file '("Application")))
-        (time (map-nested-elt log-file '("StartTime")))
-        (operation (map-nested-elt log-file '("Operation")))
-        (status (map-nested-elt log-file '("Status")))
-        (size (or (map-nested-elt log-file '("LogLength")) 0)))
+  (let ((id (map-nested-elt log-json '("Id")))
+        (app (map-nested-elt log-json '("Application")))
+        (time (map-nested-elt log-json '("StartTime")))
+        (operation (map-nested-elt log-json '("Operation")))
+        (status (map-nested-elt log-json '("Status")))
+        (user (map-nested-elt log-json '("LogUser" "Name")))
+        (size (or (map-nested-elt log-json '("LogLength")) 0)))
     (cons id
           (make-instance 'salesforce-table-log
                          :id id
                          :app app
                          :size size
                          :time time
+                         :user user
                          :status status
                          :operation operation))))
+
+(defun salesforce-table-convert-logs-json (json-logs)
+  "Convert JSON-LOGS to `salesforce-apex-log'."
+  (cl-loop for json-log across json-logs
+           collect (salesforce-table-convert-log-json json-log)))
+
+(cl-defun salesforce-table-create-log-table (columns &rest args &key (buffer (generate-new-buffer "*salesforce-logs*")) &allow-other-keys)
+  "Create table for test results.
+
+COLUMNS: table columns.
+BUFFER: buffer name of table.
+ARGS: optional args for tablist-table."
+  (declare (indent 1))
+  (let ((args (seq-difference args (list :buffer buffer))))
+    (apply #'tablist-plus-create-table columns
+           :buffer buffer
+           args)))
+
+(defun salesforce-table--log-group-by-timestamp ()
+  "Group log by timestamp to display on tablist."
+  (tablist-plus-table-make-group-by-column "Timestamp"))
+
+(defun salesforce-table--log-group-by-user ()
+  "Group log by user to display on tablist."
+  (lambda (table)
+    (let ((data (tablist-plus-table-data table)))
+      (seq-group-by
+       (pcase-lambda (`(,key ,_))
+         (slot-value (gethash key data) 'user))
+       tabulated-list-entries))))
 
 (provide 'salesforce-table)
 ;;; salesforce-table.el ends here
