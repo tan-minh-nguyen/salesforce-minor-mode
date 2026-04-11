@@ -28,10 +28,8 @@
   "Salesforce project management."
   :group 'tools)
 
-(defcustom salesforce-files-test-root '(".sf" ".sfdx" ".forceignore")
-  "Files/dirs to identify Salesforce projects."
-  :type 'list
-  :group 'salesforce-project)
+(defconst salesforce-files-test-root '("sfdx-project.json" ".forceignore" "package.json")
+  "Files/dirs to identify Salesforce projects.")
 
 (defcustom salesforce-project-configuration 
   '((nil . ((eval . (salesforce-mode 1)))))
@@ -135,8 +133,8 @@
 (defun salesforce-project-init ()
   "Initialize configuration for a Salesforce project.
   Sets up metadata and applies directory locals."
-  (when (and (equal (projectile-project-type) 'salesforce)
-             (not (salesforce-project--locals-p)))
+  (when (and (salesforce-project-p)
+           (not salesforce-project-session))
     (let ((enable-local-variables :all))
       (salesforce-project--setup)
       (salesforce-project--apply-locals)
@@ -178,7 +176,8 @@
               (project-setup (make-instance 'salesforce-project
                                             :org (salesforce-project--org-name))))
     ;;TODO: add auto update org when default org was configured
-    (salesforce-project--set-local 'salesforce-project-session project-setup)))
+    (prog1 (setq salesforce-project-session project-setup)
+      (salesforce-project--set-local 'salesforce-project-session project-setup))))
 
 (defun salesforce-project--locals-file ()
   "Return .dir-locals.el path if it exists, nil otherwise."
@@ -250,9 +249,14 @@
   "Register Salesforce project type for Projectile."
   (projectile-register-project-type 'salesforce 
                                     salesforce-files-test-root
-                                    :project-file ".forceignore"
-                                    :compile "npm install && npm run build")
+                                    :project-file "sfdx-project.json"
+                                    :compile "npm install && npm run build"
+                                    :test "sf apex run test --test-level RunAllInOrg"
+                                    :test-suffix "Test")
 
+  (add-to-list 'projectile-project-root-files-bottom-up
+               "sfdx-project.json")
+  
   (add-hook 'projectile-after-switch-project-hook 
             #'salesforce-project-init))
 
@@ -293,11 +297,11 @@
   (declare (indent 1))
   (salesforce-core--project-process
    :args `("deploy" "start" "-d" ,file
-           "-o" org
+           "-o" ,org
            "--json")
    :callback
    (lambda (_)
-     (salesforce-core--alert (format "Deploy %s success" buffer)))))
+     (salesforce-core--alert (format "Deploy %s success" file)))))
 
 (cl-defun salesforce-project-retrieve (file &key (org (salesforce-project-org salesforce-project-session)))
   "Retrieve source from a Salesforce org into the specified FILE.
@@ -306,11 +310,11 @@
   (declare (indent 1))
   (salesforce-core--project-process
    :args `("retrieve" "start" "-d" ,file
-           "-o" org
+           "-o" ,org
            "--json")
    :callback
    (lambda (_)
-     (salesforce-core--alert (format "Retrieve %s success" buffer)))))
+     (salesforce-core--alert (format "Retrieve %s success" file)))))
 
 ;;; Cloud Metadata Operations
 
