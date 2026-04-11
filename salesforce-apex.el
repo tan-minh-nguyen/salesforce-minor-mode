@@ -9,6 +9,7 @@
 (require 'salesforce-core)
 (require 'alert)
 (require 'salesforce-menu)
+(require 'salesforce-table)
 
 ;;; Variables
 
@@ -226,23 +227,30 @@
 
 ;;; Resource Generation
 
-(defun salesforce-apex--generate-resource (type args result-path-keys)
+(cl-defun salesforce-apex--generate-resource (type &key args then)
   "Generate a Salesforce resource of TYPE with ARGS.
 Open the created file using RESULT-PATH-KEYS to extract from JSON response."
   (salesforce-core--apex-process
    :args `("generate" ,type ,@args "--json")
-   :callback (lambda (json-instance)
-               (switch-to-buffer (find-file (map-nested-elt json-instance result-path-keys))))))
+   :callback then))
 
 (defun salesforce-apex--generate-trigger (args)
   "Generate an Apex trigger with the specified ARGS."
   (interactive (list (transient-args 'salesforce-apex--transient:trigger-resource)))
-  (salesforce-apex--generate-resource "trigger" args '("result" "created" 0)))
+  (emacs-pp-job
+   (lambda ()
+     (salesforce-apex--generate-resource "trigger" :args args))
+   (lambda (json-instance)
+     (switch-to-buffer (find-file (map-nested-elt json-instance '("result" "created" 0))))))
 
 (defun salesforce-apex--generate-class (args)
   "Generate an Apex class with the specified ARGS."
   (interactive (list (transient-args 'salesforce-apex--transient:apex-resource)))
-  (salesforce-apex--generate-resource "class" args '("result" "created" 0)))
+  (emacs-pp-job
+   (lambda ()
+     (salesforce-apex--generate-resource "class" :args args))
+   (lambda (json-instance)
+     (switch-to-buffer (find-file (map-nested-elt json-instance '("result" "created" 0)))))))
 
 (defun salesforce-apex--generate-lightning-component (args)
   "Generate a Lightning Web Component (LWC) or Aura component with ARGS."
@@ -251,20 +259,6 @@ Open the created file using RESULT-PATH-KEYS to extract from JSON response."
    :args `("generate" "component" ,@args "--json")
    :callback (lambda (_)
                (salesforce-core--alert "Successfully created component"))))
-
-(defun salesforce-apex-generate-test-class ()
-  "Generate an Apex test class.
-TODO: Replace with salesforce-apex--generate-class for consistency."
-  (interactive)
-  (let* ((class-name (read-string "Class name: "))
-         (output-dir (salesforce-project-metadata-path salesforce-project-session 'class))
-         (class-path (expand-file-name (concat class-name ".cls") output-dir)))
-    (salesforce-core--apex-process
-     :args `("generate" "class" "--name" ,class-name "-t" "ApexUnitTest"
-             "--output-dir" ,output-dir "--json")
-     :callback (lambda (_)
-                 (switch-to-buffer (find-file class-path))
-                 (salesforce-core--alert (format "Successfully created test class: %s" class-name))))))
 
 ;;; Visualforce Generation
 
@@ -304,11 +298,11 @@ TODO: Replace with salesforce-apex--generate-class for consistency."
   "Display test results from JSON-INSTANCE in a table."
   (let* ((data (salesforce-apex-convert-test-results
                 (map-nested-elt json-instance '("result" "tests"))))
-         (table (apply #'tablist-plus-create-table [("Test Name" 20 t)
-                                                    ("Status" 10 t)
-                                                    ("Message" 30 t)
-                                                    ("Stack Trace" 30 t)]
-                       (list :data data :group-by (salesforce-apex--group-class-test)))))
+         (table (apply #'salesforce-table-create-test-result [("Test Name" 30 t)
+                                                              ("Status" 10 t)
+                                                              ("Message" 50 t)
+                                                              ("Stack Trace" 50 t)]
+                       (list :data data :group-by (salesforce-apex--test-group-class)))))
     (tablist-plus-table-render table)
     (switch-to-buffer (tablist-plus-table-buffer table))))
 
@@ -554,73 +548,6 @@ TODO: Implement this function."
      :require-match t
      :category 'salesforce-suitest
      :sort nil)))
-
-(defun salesforce-apex-convert-test-result (test-result)
-  "Convert TEST-RESULT to `salesforce-apex-test-result' instance."
-  (let ((id (map-nested-elt test-result '("Id")))
-        (class (map-nested-elt test-result '("ApexClass" "Name")))
-        (unit-test (map-nested-elt test-result '("MethodName")))
-        (stack (map-nested-elt test-result '("StackTrace")))
-        (message (map-nested-elt test-result '("Message")))
-        (status (map-nested-elt test-result '("Outcome"))))
-
-    (cons id
-          (make-instance 'salesforce-apex-test-result
-                         :unit-test unit-test
-                         :class class
-                         :stack-trace stack
-                         :message message
-                         :status status))))
-
-(defun salesforce-apex-convert-test-results (test-results)
-  "Convert TEST-RESULTS to list of `salesforce-apex-test-result' instances."
-  (cl-loop for test-result across test-results
-           collect (salesforce-apex-convert-test-result test-result)))
-
-(defclass salesforce-apex-test-result (tablist-plus-data)
-  ((unit-test
-    :initarg :unit-test
-    :initform nil
-    :type (or string null)
-    :documentation "Name of class.")
-   (status
-    :initarg :status
-    :initform nil
-    :type (or string null)
-    :documentation "Number of tests failed.")
-   (class
-    :initarg :class
-    :initform nil
-    :type (or string null)
-    :documentation "Number of tests passed.")
-   (stack-trace
-    :initarg :stack-trace
-    :initform nil
-    :type (or string null)
-    :documentation "Number of tests ran.")
-   (message
-    :initarg :message
-    :initform nil
-    :type (or string null)
-    :documentation "Number of tests ran.")))
-
-(cl-defmethod tablist-plus-data-to-entry ((result salesforce-apex-test-result) key)
-  "Transform RESULT to tabulated-list entry format."
-  (list key
-     (vector (slot-value result 'unit-test)
-             (slot-value result 'class)
-             (slot-value result 'status)
-             (or (slot-value result 'message) "")
-             (or (slot-value result 'stack-trace) ""))))
-
-(cl-defun salesforce-apex--group-class-test ()
-  "Group test entries by class-name to show on tabulated TABLE."
-  (lambda (table)
-    (let ((data (tablist-plus-table-data table)))
-      (seq-group-by
-       (pcase-lambda (`(,key ,_))
-         (slot-value (gethash key data) 'class))
-       tabulated-list-entries))))
 
 (provide 'salesforce-apex)
 ;;; salesforce-apex.el ends here
