@@ -35,15 +35,6 @@
 (require 'salesforce-data)
 (require 'salesforce-sobject)
 
-;; External mode packages (loaded if available)
-(require 'apex-ts-mode nil :noerror)
-(require 'soql-ts-mode nil :noerror)
-(require 'visualforce-ts-mode nil :noerror)
-(require 'lwc-ts-mode nil :noerror)
-(require 'apex-log-ts-mode nil :noerror)
-
-;;; Customization
-
 (defgroup salesforce nil
   "Salesforce development tools for Emacs."
   :group 'tools

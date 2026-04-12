@@ -6,9 +6,7 @@
 
 ;;; Code:
 
-(require 'alert)
 (require 'json)
-(require 'consult)
 (require 'emacs-pipeline-process)
 
 ;;; Variables

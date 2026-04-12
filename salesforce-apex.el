@@ -7,7 +7,6 @@
 ;;; Code:
 
 (require 'salesforce-core)
-(require 'alert)
 (require 'salesforce-menu)
 (require 'salesforce-table)
 

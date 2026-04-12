@@ -5,10 +5,18 @@
 
 ;;; Code:
 
-(require 'projectile)
 (require 'salesforce-core)
 (require 'transient)
-(require 'taxy)
+(require 'eieio-base)
+(require 'project)
+
+(defun salesforce-project-root ()
+  "Return the root directory of the current project.
+Use projectile if available, otherwise fall back to project.el."
+  (if (and (featurep 'projectile) (fboundp 'projectile-project-root))
+      (projectile-project-root)
+    (when-let ((proj (project-current)))
+      (project-root proj))))
 
 ;;; Variables
 
@@ -42,17 +50,21 @@
   :type 'string
   :group 'salesforce-project)
 
+(defun salesforce-project-persistent-file ()
+  "Return path to project settings file."
+  (expand-file-name ".project-settings.el" (salesforce-project-root)))
+
 ;;; Project Detection and Initialization
 
 (defvar salesforce-project-session nil
   "Save session of salesforce project.")
 
-(defclass salesforce-project ()
+(defclass salesforce-project (eieio-persistent)
   ((metadata-directory
     :initarg :metadata-directory
-    :initform (projectile-expand-root "force-app/main/default")
+    :initform nil
     :accessor salesforce-project-source
-    :type string
+    :type (or null string)
     :documentation "Path to sources metadata.")
    (org
     :initarg :org
@@ -72,61 +84,104 @@
     :accessor salesforce-project-token
     :type (or null string)
     :documentation "Access token (not persisted to dir-locals).")
-   (tool-directory
-    :initarg :tool-directory
-    :initform ".sfdx/tools"
-    :accessor salesforce-project-tool-directory
-    :type string
-    :documentation "Directory of tool directory."))
+   )
   :documentation "Configurations of Salesforce project.")
 
-(defconst salesforce-project-metadata-paths
-  '((class . "classes/")
-    (trigger . "triggers/")
-    (lwc . "lwc/")
-    (aura . "aura/")
-    (page . "pages/")
-    (component . "components/")
-    (flow . "flows/")
-    (profile . "profiles/")
-    (permission-set . "permissionsets/")
-    (layout . "layouts/")
-    (label . "labels/")
-    (static-resource . "staticresources/")
-    (report . "reports/")
-    (dashboard . "dashboards/")
-    (document . "documents/")
-    (email-template . "email/")
-    (sobject . "sobjects/")
-    (manifest . "manifest/"))
-  "Metadata type to subdirectory mapping.")
+(cl-defmethod initialize-instance :after ((obj salesforce-project) &rest _)
+  "Set default metadata-directory if not provided."
+  (unless (oref obj metadata-directory)
+    (oset obj metadata-directory
+          (expand-file-name "force-app/main/default"
+                            (salesforce-project-root)))))
+
+(defcustom salesforce-project-metadata-types
+  '((class           :directory "classes/"              :api "ApexClass")
+    (trigger         :directory "triggers/"             :api "ApexTrigger")
+    (lwc             :directory "lwc/"                  :api "LightningComponentBundle")
+    (aura            :directory "aura/"                 :api "AuraDefinitionBundle")
+    (page            :directory "pages/"                :api "ApexPage")
+    (component       :directory "components/"           :api "ApexComponent")
+    (flow            :directory "flows/"                :api "Flow")
+    (profile         :directory "profiles/"             :api "Profile")
+    (permission-set  :directory "permissionsets/"       :api "PermissionSet")
+    (layout          :directory "layouts/"              :api "Layout")
+    (label           :directory "labels/"               :api "CustomLabels")
+    (static-resource :directory "staticresources/"      :api "StaticResource")
+    (report          :directory "reports/"              :api "Report")
+    (dashboard       :directory "dashboards/"           :api "Dashboard")
+    (document        :directory "documents/"            :api "Document")
+    (email-template  :directory "email/"                :api "EmailTemplate")
+    (sobject         :directory "objects/"              :api "CustomObject")
+    (flexipage       :directory "flexipages/"           :api "FlexiPage")
+    (quick-action    :directory "quickActions/"         :api "QuickAction")
+    (tab             :directory "tabs/"                 :api "CustomTab")
+    (app             :directory "applications/"         :api "CustomApplication")
+    (manifest        :directory "manifest/"             :api nil)
+    ;; Tool directories (relative to project root)
+    (tool            :directory ".sfdx/tools/"          :base root)
+    (log             :directory ".sfdx/tools/logs/"     :base root)
+    (cache           :directory ".sfdx/tools/cache/"    :base root))
+  "Unified metadata type registry.
+Each entry: (SYMBOL :directory DIRECTORY :api API-NAME :base BASE)
+- SYMBOL: internal identifier
+- :directory: subdirectory path
+- :api: Salesforce API metadata type name (optional)
+- :base: `root' for project root, nil for metadata source directory"
+  :type '(alist :key-type symbol
+                :value-type (plist :key-type keyword
+                                   :value-type (choice string symbol (const nil))))
+  :group 'salesforce-project)
 
 (cl-defmethod salesforce-project-source-path ((project salesforce-project) &key path)
   "Return expanded PATH under source directory in PROJECT."
+  (declare (indent 1))
   (expand-file-name path (salesforce-project-source project)))
 
-(cl-defmethod salesforce-project-metadata-path ((project salesforce-project) type)
-  "Return metadata directory for TYPE in PROJECT."
-  (salesforce-project-source-path project
-    :path (alist-get type salesforce-project-metadata-paths)))
+(defun salesforce-project-metadata-get (type property)
+  "Get PROPERTY for metadata TYPE from registry."
+  (plist-get (alist-get type salesforce-project-metadata-types) property))
 
-(cl-defmethod salesforce-project-tool-path ((project salesforce-project) &key path)
-  "Return expanded PATH under tool directory in PROJECT."
-  (expand-file-name path (salesforce-project-tool-directory project)))
+(defun salesforce-project-metadata-find-by (property value)
+  "Find metadata entry where PROPERTY equals VALUE."
+  (cl-find-if (lambda (entry)
+                (equal value (plist-get (cdr entry) property)))
+              salesforce-project-metadata-types))
+
+(defun salesforce-project-metadata-api-type (type)
+  "Get SF API type name for internal TYPE symbol."
+  (salesforce-project-metadata-get type :api))
+
+(defun salesforce-project-metadata-type-from-file (file)
+  "Determine Salesforce API metadata type from FILE path by directory."
+  (let ((dir (file-name-nondirectory
+              (directory-file-name (file-name-directory file)))))
+    (when-let ((entry (salesforce-project-metadata-find-by
+                       :directory (concat dir "/"))))
+      (plist-get (cdr entry) :api))))
+
+(cl-defmethod salesforce-project-metadata-path ((project salesforce-project) type)
+  "Return directory for TYPE in PROJECT.
+If TYPE has `:base root', path is relative to project root.
+Otherwise, path is relative to metadata source directory."
+  (let ((directory (salesforce-project-metadata-get type :directory))
+        (base (salesforce-project-metadata-get type :base)))
+    (if (eq base 'root)
+        (expand-file-name directory (salesforce-project-root))
+      (salesforce-project-source-path project :path directory))))
 
 (cl-defmethod salesforce-project-log-dir ((project salesforce-project))
   "Return log directory of PROJECT."
-  (salesforce-project-tool-path project :path "debug/logs/"))
+  (salesforce-project-metadata-path project 'log))
 
 (cl-defmethod salesforce-project-cache-dir ((project salesforce-project))
   "Return cache directory of PROJECT."
-  (salesforce-project-tool-path project :path "cache/"))
+  (salesforce-project-metadata-path project 'cache))
 
 ;;;###autoload
 (cl-defun salesforce-project-p (&key directory)
   "Determine if DIRECTORY is a Salesforce project.
   If DIR is not provided, use the current projectile project root."
-  (let ((default-directory (or directory (projectile-project-root))))
+  (when-let ((default-directory (or directory (salesforce-project-root))))
     (cl-some #'projectile-verify-file-wildcard salesforce-files-test-root)))
 
 ;;;###autoload 
@@ -138,15 +193,15 @@
     (let ((enable-local-variables :all))
       (salesforce-project--setup)
       (salesforce-project--apply-locals)
-      (salesforce-project--save-locals))))
+      (salesforce-project--session-persistent))))
 
 ;;; Configuration Management
 
-(defun salesforce-project--config-path (root)
+(defun salesforce-project--config-path ()
   "Return the config file path for the project ROOT.
   Checks both .sf/config.json and legacy .sfdx/sfdx-config.json."
-  (let ((modern-config (expand-file-name ".sf/config.json" root))
-        (legacy-config (expand-file-name ".sfdx/sfdx-config.json" root)))
+  (let ((modern-config (expand-file-name ".sf/config.json" (salesforce-project-root)))
+        (legacy-config (expand-file-name ".sfdx/sfdx-config.json" (salesforce-project-root))))
     (cond
      ((file-exists-p modern-config) modern-config)
      ((file-exists-p legacy-config) legacy-config)
@@ -166,42 +221,29 @@
 (defun salesforce-project--org-name ()
   "Return the current Salesforce org alias for the project.
   Checks config files or falls back to cached value."
-  (let* ((root (projectile-project-root))
-         (config-file (salesforce-project--config-path root)))
+  (let ((config-file (salesforce-project--config-path)))
     (and config-file (salesforce-project--config-org config-file))))
 
 (defun salesforce-project--setup ()
   "Locate and configure the metadata directory for the current project."
-  (when-let* ((root-directory (projectile-project-root))
-              (project-setup (make-instance 'salesforce-project
-                                            :org (salesforce-project--org-name))))
+  (when-let* ((project-setup
+               (if (file-exists-p (salesforce-project-persistent-file))
+                   (eieio-persistent-read (salesforce-project-persistent-file) 'salesforce-project)
+                 (make-instance 'salesforce-project
+                                :file (salesforce-project-persistent-file)
+                                :org (salesforce-project--org-name)))))
     ;;TODO: add auto update org when default org was configured
     (prog1 (setq salesforce-project-session project-setup)
       (salesforce-project--set-local 'salesforce-project-session project-setup))))
 
-(defun salesforce-project--locals-file ()
-  "Return .dir-locals.el path if it exists, nil otherwise."
-  (when-let* ((path (expand-file-name ".dir-locals.el" (projectile-project-root)))
-              (_ (file-exists-p path)))
-    path))
-
-(defun salesforce-project--locals-p ()
-  "Return t when .dir-locals.el exists."
-  (and (salesforce-project--locals-file) t))
-
-(defun salesforce-project--save-locals ()
-  "Save config of project to dir-locals.el."
-  (when-let ((file (salesforce-project--locals-file)))
-    (with-current-buffer (find-file-noselect file)
-      (save-buffer))))
+(defun salesforce-project--session-persistent ()
+  "Save project session to persistent file."
+  (eieio-persistent-save salesforce-project-session))
 
 (defun salesforce-project-local-get (symbol &optional mode)
   "Return non-nil if SYMBOL exists under MODE in project configuration.
   If MODE is nil, check the default project entry."
   (assoc symbol (alist-get mode salesforce-project-configuration)))
-
-(defalias 'salesforce-project-local-p 
-  #'salesforce-project-local-get)
 
 (defun salesforce-project--set-local (symbol value &optional force)
   "Update project configuration for SYMBOL with VALUE.
@@ -209,7 +251,7 @@
   If FORCE is non-nil, update even if value hasn't changed."
   (unless (symbolp symbol)
     (error (format "%s should be symbol" symbol)))
-  (when (or (not (eq (cdr (salesforce-project-local-p symbol)) value))
+  (when (or (not (eq (cdr (salesforce-project-local-get symbol)) value))
            force)
     (let ((mode-entry (assoc nil salesforce-project-configuration)))
       (if mode-entry
@@ -229,35 +271,60 @@
   "Apply directory local variables for the current project."
   (dir-locals-set-class-variables 'project-configuration
                                   salesforce-project-configuration)
-  (dir-locals-set-directory-class (projectile-project-root)
+  (dir-locals-set-directory-class (salesforce-project-root)
                                   'project-configuration)
   (hack-dir-local-variables-non-file-buffer))
 
 (defun salesforce-project--save-session ()
-  "Save session to dir-locals without token.
-  Clones the session object and sets token to nil before saving
-  to prevent sensitive data from being persisted to disk."
+  "Update in-memory configuration with session (without token)."
   (when salesforce-project-session
     (let ((copy (clone salesforce-project-session)))
       (setf (salesforce-project-token copy) nil)
       (salesforce-project--set-local
        'salesforce-project-session copy))))
 
+(cl-defun salesforce-project-get-sfdx-config (&key path)
+  "Read sfdx-config.json file from PATH."
+  (let ((sfdx-file (expand-file-name (or path "/sfdx-config.json")
+                                     (salesforce-project-root))))
+    (with-temp-buffer
+      (insert-file-contents (find-file-noselect sfdx-file))
+      (json-parse-string (buffer-string)))))
+
+(defun salesforce-project-sync-sfdx-config ()
+  "Sync config in sfdx-config.json to `salesforce-project-session'."
+  (let* ((json-object-type 'hash-table)
+         (sfdx-config (salesforce-project-get-sfdx-config))
+         (project-session (or salesforce-project-session
+                             (salesforce-project--setup))))
+
+    ;; (setf (salesforce-project-source project-session)
+    ;;       (map-nested-elt sfdx-config '("packageDirectories" "0" "path")))
+
+    (setq salesforce-project-session project-session
+          salesforce-api-version (map-nested-elt sfdx-config '("sourceApiVersion")))))
+
+
+(defun salesforce-project-cleanup ()
+  "Cleanup project before switch."
+  (when (salesforce-project-p)
+    (salesforce-project--save-session)
+    (setq salesforce-project-session nil)))
+
 ;;; Projectile Integration
 ;;;###autoload
 (defun salesforce-project-setup-projectile ()
   "Register Salesforce project type for Projectile."
-  (projectile-register-project-type 'salesforce 
+  (projectile-register-project-type 'salesforce
                                     salesforce-files-test-root
                                     :project-file "sfdx-project.json"
                                     :compile "npm install && npm run build"
                                     :test "sf apex run test --test-level RunAllInOrg"
                                     :test-suffix "Test")
 
-  (add-to-list 'projectile-project-root-files-bottom-up
-               "sfdx-project.json")
-  
-  (add-hook 'projectile-after-switch-project-hook 
+  (add-hook 'projectile-before-switch-project-hook
+            #'salesforce-project-cleanup)
+  (add-hook 'projectile-after-switch-project-hook
             #'salesforce-project-init))
 
 ;;; Project Operations
@@ -266,19 +333,20 @@
 (defun salesforce-project-create ()
   "Create a new Salesforce project in a specified directory."
   (interactive)
-  (let* ((project-dir (read-directory-name "Directory: "))
+  (let* ((project-directory (read-directory-name "Directory: "))
          (project-name (read-string "Project name: "))
          (project-template (completing-read "Project template: " 
                                             '("standard" "empty" "project"))))
     (unless (file-exists-p project-dir)
       (make-directory project-dir 'parents))
     (salesforce-core--project-process
-     :args (list "generate"
-                 "--name" project-name
-                 "--template" project-template
-                 "--output-dir" project-dir
-                 "--manifest"
-                 "--json")
+     :args `("generate"
+             "--name" ,project-name
+             "--template" ,project-template
+             ,@(when project-directory
+                 (list "--output-dir" project-directory))
+             "--manifest"
+             "--json")
      :callback
      (lambda (_)
        (salesforce-core--alert "Create Project Success")))))
@@ -326,15 +394,17 @@
   TARGET-ORG specifies the Salesforce org.
   FINISH-FUNC is a function to call upon completion."
   (declare (indent 1))
-  (salesforce-core--project-process
-   :args `("retrieve" "start"
-           "-d" ,file
-           "-t" ,save-directory
-           "--zip-file-name" ,file
-           "-o" ,org
-           "-z"
-           "--json")
-   :callback then))
+  (let* ((file-name (file-name-base file))
+         (metadata-api (salesforce-project-metadata-type-from-file file)))
+    (salesforce-core--project-process
+     :args `("retrieve" "start"
+             "--metadata" ,(concat metadata-api ":" file-name)
+             "-t" ,save-directory
+             "--zip-file-name" ,file-name
+             "-o" ,org
+             "-z"
+             "--json")
+     :callback then)))
 
 ;;; Ediff Integration
 
@@ -483,15 +553,14 @@
   "Diff source between the local project and a Salesforce platform.
   Optionally specify a TARGET-ORG."
   (interactive (list (salesforce-project-org salesforce-project-session)))
-  (let* ((file (buffer-file-name))
-         (file-name (file-name-base (buffer-file-name))))
+  (let* ((file (buffer-file-name)))
     (emacs-pp-job
      (lambda ()
-       (salesforce-project--pull-metadata file-name
+       (salesforce-project--pull-metadata file
                                           :org org))
      (lambda ()
        (let ((pulled-file (salesforce--find-file (file-name-nondirectory file)
-                                                 (expand-file-name file-name temporary-file-directory))))
+                                                 temporary-file-directory)))
          (salesforce-project--ediff-setup pulled-file file)))
      :catch
      (lambda (error)
@@ -529,7 +598,7 @@
 
 (defun salesforce-project--get-relative-path (file-name)
   "Get the relative path of FILE-NAME within the project."
-  (file-name-directory (file-relative-name file-name (projectile-project-root))))
+  (file-name-directory (file-relative-name file-name (salesforce-project-root))))
 
 (defun salesforce-project--create-temp-project-folder (temp-dir relative-path)
   "Create a temporary folder structure matching the project layout.
@@ -539,7 +608,7 @@
          (dest-dir (file-name-directory 
                     (expand-file-name relative-path temp-dir)))
          (salesforce-project-file 
-          (expand-file-name "sfdx-project.json" (projectile-project-root))))
+          (expand-file-name "sfdx-project.json" (salesforce-project-root))))
     
     ;; Create destination directory structure
     (unless (file-exists-p dest-dir)

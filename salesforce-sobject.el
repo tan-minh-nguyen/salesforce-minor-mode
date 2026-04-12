@@ -7,6 +7,7 @@
 ;;; Code:
 
 (require 'salesforce-core)
+(require 'salesforce-project)
 (require 'json)
 
 ;;; Configuration
@@ -33,7 +34,7 @@
   "Get the full path to SObject cache directory."
   (expand-file-name
    salesforce-sobject-cache-dir
-   (projectile-project-root)))
+   (salesforce-project-root)))
 
 (defun salesforce-sobject--list-all (&key then)
   "List all SObjects in the current org.

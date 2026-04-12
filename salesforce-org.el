@@ -7,7 +7,6 @@
 ;;; Code:
 
 (require 'salesforce-core)
-(require 'nerd-icons)
 
 ;;; Keymap
 
