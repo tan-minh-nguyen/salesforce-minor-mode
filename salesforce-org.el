@@ -121,7 +121,8 @@ REQUIRE-MATCH: Whether to require a match."
      (lambda ()
        (let* ((selected-value (car candidate))
               (pair-value (if (hash-table-p selected-value)
-                              (cons (map-elt selected-value "username")
+                              (cons (or (map-elt selected-value "alias")
+                                       (map-elt selected-value "username"))
                                     selected-value)
                             (cons (string-replace "#" "" selected-value) nil))))
 
@@ -171,7 +172,7 @@ REQUIRE-MATCH: Whether to require a match."
                  ("sandbox" "https://test.salesforce.com")
                  ("production" "https://login.salesforce.com")
                  (_ cand))))
-            (url (or (map-elt data "loginURL")
+            (url (or (map-elt data "loginUrl")
                     (consult--read collection
                                    :prompt "URL: "
                                    :annotate annotate-fn

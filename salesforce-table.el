@@ -146,27 +146,27 @@ Used with tablist-plus to group test results by their parent Apex class."
                      (slot-value result 'total-lines))
              (slot-value result 'percents))))
 
-(defun salesforce-table-convert-test-result (coverage-result)
-  "Convert COVERAGE-RESULT JSON object to `salesforce-table-test-result' instance.
+(defun salesforce-table-convert-coverage-result (coverage-result)
+  "Convert COVERAGE-RESULT JSON object to `salesforce-table-coverage-result' instance.
 
 Returns a cons cell (ID . instance) for use with tablist-plus hash tables."
-  (let ((id (map-nested-elt test-result '("Id")))
-        (class (map-nested-elt test-result '("Name")))
-        (lines (map-nested-elt test-result '("lines")))
-        (total-covered (map-nested-elt test-result '("totalCovered")))
-        (percents (map-nested-elt test-result '("coveredPercent"))))
+  (let ((id (map-nested-elt coverage-result '("Id")))
+        (class (map-nested-elt coverage-result '("Name")))
+        (lines (map-nested-elt coverage-result '("lines")))
+        (total-covered (map-nested-elt coverage-result '("totalCovered")))
+        (percents (map-nested-elt coverage-result '("coveredPercent"))))
 
     (cons id
-          (make-instance 'salesforce-table-test-result
+          (make-instance 'salesforce-table-coverage-result
                          :class class
                          :lines lines
                          :total-covered total-covered
                          :percents percents))))
 
 (defun salesforce-table-convert-coverage-results (coverage-results)
-  "Convert COVERAGE-RESULTS vector to list of `salesforce-table-test-result' instances."
+  "Convert COVERAGE-RESULTS vector to list of `salesforce-table-coverage-result' instances."
   (cl-loop for coverage-result across coverage-results
-           collect (salesforce-table-convert-test-result coverage-result)))
+           collect (salesforce-table-convert-coverage-result coverage-result)))
 
 (cl-defun salesforce-table-create-ran-tests-table (columns &rest args &key (buffer (generate-new-buffer "*salesforce-coverage-tests*")) &allow-other-keys)
   "Create table for test results.

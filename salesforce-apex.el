@@ -295,13 +295,13 @@ Open the created file using RESULT-PATH-KEYS to extract from JSON response."
 
 (defun salesforce-apex--show-test-results-table (json-instance)
   "Display test results from JSON-INSTANCE in a table."
-  (let* ((data (salesforce-apex-convert-test-results
+  (let* ((data (salesforce-table-convert-test-results
                 (map-nested-elt json-instance '("result" "tests"))))
          (table (apply #'salesforce-table-create-ran-tests-table [("Test Name" 30 t)
                                                                   ("Status" 10 t)
-                                                                  ("Message" 50 t)
-                                                                  ("Stack Trace" 50 t)]
-                       (list :data data :group-by (salesforce-apex--test-group-class)))))
+                                                                  ("Message" 70 t)
+                                                                  ("Stack Trace" 70 t)]
+                       (list :data data :group-by (salesforce-table--test-group-class)))))
     (tablist-plus-table-render table)
     (switch-to-buffer (tablist-plus-table-buffer table))))
 
@@ -312,17 +312,19 @@ TYPE-TABLE determines display format: `class' (default)."
   (pcase type-table
     ('class (salesforce-apex--show-test-results-table json-instance))))
 
-(cl-defun salesforce-apex--get-result-test-job (job-id &key poll-id type-table)
+(cl-defun salesforce-apex--get-result-test-job (job-id &key poll-id type-table (org (salesforce-project-org salesforce-project-session)))
   "Retrieve the result of an Apex test job by JOB-ID.
 Optionally cancel POLL-ID timer when complete."
   (declare (indent 1))
-  (let ((org-name (salesforce-project-org salesforce-project-session)))
-    (salesforce-core--apex-process
-     :args `("get" "test" "-i" ,job-id "-o" ,org-name "--code-coverage" "--json")
-     :callback
-     (lambda (json-instance)
-       (prog1 (salesforce-apex--handle-test-results json-instance)
-         (when poll-id (cancel-timer poll-id)))))))
+  (salesforce-core--apex-process
+   :args `("get" "test" "-i" ,job-id "-o" ,org "--code-coverage" "--json")
+   :catch
+   (pcase-lambda (`(,_ ,data))
+     (signal 'emacs-pp-process-error (list data)))
+   :callback
+   (lambda (json-instance)
+     (prog1 (salesforce-apex--handle-test-results json-instance)
+       (when poll-id (cancel-timer poll-id))))))
 
 (defun salesforce-apex--retrieve-functions ()
   "Retrieve all function names in the current buffer.
@@ -334,21 +336,29 @@ FIXME: Improve function name extraction logic."
 
 ;;; Test Class
 
-(cl-defun salesforce-apex--execute-unit-test (&key test-cases test-level)
+(cl-defun salesforce-apex--execute-unit-test (&key test-cases test-level (org (salesforce-project-org salesforce-project-session)))
   "Execute specific unit tests with TEST-CASES and TEST-LEVEL."
   (salesforce-core--apex-process
    :args `("run" "test" ,@(when test-cases (list "--tests" test-cases)) "--test-level" ,test-level
-           "--detailed-coverage" "--code-coverage" "--json")
+           "--detailed-coverage" "--code-coverage" "-o" ,org "--json")
    :callback
    (lambda (json-instance)
      (let* ((poll-id nil)
             (job-id (map-nested-elt json-instance '("result" "testRunId")))
-            (callback (lambda (job)
-                        (salesforce-apex--get-result-test-job job :poll-id poll-id))))
+            (callback
+             (lambda (job)
+               (emacs-pp-job
+                (lambda ()
+                  (salesforce-apex--get-result-test-job job
+                    :poll-id poll-id :org org))
+                :catch
+                (lambda (err)
+                  (salesforce-core--handle-process-error err)
+                  (cancel-timer poll-id))))))
        (if job-id
            (progn
              (salesforce-core--alert "test is running.")
-             (setq poll-id (run-at-time nil 60 callback job-id)))
+             (setq poll-id (run-at-time nil 10 callback job-id)))
          (salesforce-apex--handle-test-results json-instance))))))
 
 (defun salesforce-apex-execute-method-test (node)

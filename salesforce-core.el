@@ -130,7 +130,19 @@ If DEPTH is less than 1, returns the immediate parent directory."
 
 ;;; Process Management
 
-(cl-defun salesforce-core-run-process (&key args parser callback)
+(cl-defun salesfore-core--process-success-p (event)
+  "Assert event is success."
+  (member event '("exited abnormally with code 100\n" "finished\n")))
+
+(cl-defun salesforce-core--get-error (proc event &key stderr)
+  "Assert event is success."
+  (pcase event
+    ("exited abnormally with code 2\n"
+     (salesforce-core--parse-json proc))
+    (_
+     (emacs-pp-parser-raw stderr))))
+
+(cl-defun salesforce-core-run-process (&key args parser catch callback)
   "Run Salesforce CLI COMMAND with ARGS.
 CALLBACK receives parsed JSON (or raw output) on completion.
 If SYNC is non-nil, wait for process to complete and return result."
@@ -138,20 +150,31 @@ If SYNC is non-nil, wait for process to complete and return result."
    (make-process
     :name salesforce-process-buffer
     :buffer (generate-new-buffer
-             (format "*%s*" salesforce-process-buffer)))
-   :cmd (cons salesforce-program-bin args)
-   :parser parser
-   :then
-   (cl-function
-    (lambda (&key data &allow-other-keys)
-      (if callback
-          (funcall callback data)
-        data)))
-   :catch #'salesforce-core--handle-process-error))
+             (format "*%s*" salesforce-process-buffer))
+    :sentinel
+    (cl-function
+     (lambda (proc event &key stderr &allow-other-keys)
+       (unwind-protect
+           (condition-case err
+               (cond
+                ((salesfore-core--process-success-p event)
+                 (let ((data (funcall parser proc)))
+                   (if callback (funcall callback data) data)))
+                (t (signal 'emacs-pp-process-error
+                           (list (salesforce-core--get-error proc event :stderr stderr)))))
+             (error
+              (funcall catch err)))
+         (emacs-pp--cleanup-process proc)
+         (emacs-pp--cleanup-process stderr)))))
+   :cmd (cons salesforce-program-bin args)))
 
 (defun salesforce-core--handle-process-error (err)
   "Handle process error ERR."
-  (salesforce-core--alert (format "Process error: %s" err) :severity 'urgent))
+  (pcase-let ((`(,_signal ,data) err))
+    (pcase data
+      ((pred hash-table-p)
+       (salesforce-handle-process-error--json data))
+      (_ (salesforce-core--alert (format "Process error: %s" data) :severity 'urgent)))))
 
 (cl-defun salesforce-core--project-process
     (&key args callback (parser #'salesforce-core--parse-json))
@@ -160,10 +183,11 @@ If SYNC is non-nil, wait for process to complete and return result."
                                :callback callback))
 
 (cl-defun salesforce-core--apex-process
-    (&key args callback (parser #'salesforce-core--parse-json))
+    (&key args callback (catch #'salesforce-core--handle-process-error) (parser #'salesforce-core--parse-json))
   "Run Salesforce apex CLI command with ARGS."
   (salesforce-core-run-process :args (cons "apex" args)
                                :parser parser
+                               :catch catch
                                :callback callback))
 
 (cl-defun salesforce-core--visualforce-process
