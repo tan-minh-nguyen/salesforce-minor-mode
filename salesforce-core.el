@@ -177,9 +177,11 @@ If SYNC is non-nil, wait for process to complete and return result."
       (_ (salesforce-core--alert (format "Process error: %s" data) :severity 'urgent)))))
 
 (cl-defun salesforce-core--project-process
-    (&key args callback (parser #'salesforce-core--parse-json))
+    (&key args callback (catch #'salesforce-core--handle-process-error) (parser #'salesforce-core--parse-json))
   "Run Salesforce project CLI command with ARGS."
   (salesforce-core-run-process :args (cons "project" args)
+                               :parser parser
+                               :catch catch
                                :callback callback))
 
 (cl-defun salesforce-core--apex-process
@@ -191,52 +193,59 @@ If SYNC is non-nil, wait for process to complete and return result."
                                :callback callback))
 
 (cl-defun salesforce-core--visualforce-process
-    (&key args callback (parser #'salesforce-core--parse-json))
+    (&key args callback (catch #'salesforce-core--handle-process-error) (parser #'salesforce-core--parse-json))
   "Run Salesforce visualforce CLI command with ARGS."
   (salesforce-core-run-process :args (cons "visualforce" args)
                                :parser parser
+                               :catch catch
                                :callback callback))
 
 (cl-defun salesforce-core--data-process
-    (&key args callback (parser #'salesforce-core--parse-json))
+    (&key args callback (catch #'salesforce-core--handle-process-error) (parser #'salesforce-core--parse-json))
   "Run Salesforce data CLI command with ARGS."
   (salesforce-core-run-process :args (cons "data" args)
                                :parser parser
+                               :catch catch
                                :callback callback))
 
 (cl-defun salesforce-core--org-process
-    (&key args callback (parser #'salesforce-core--parse-json))
+    (&key args callback (catch #'salesforce-core--handle-process-error) (parser #'salesforce-core--parse-json))
   "Run Salesforce org CLI command with ARGS."
   (salesforce-core-run-process :args (cons "org" args)
                                :parser parser
+                               :catch catch
                                :callback callback))
 
 (cl-defun salesforce-core--lightning-process
-    (&key args callback (parser #'salesforce-core--parse-json))
+    (&key args callback (catch #'salesforce-core--handle-process-error) (parser #'salesforce-core--parse-json))
   "Run Salesforce lightning CLI command with ARGS."
   (salesforce-core-run-process :args (cons "lightning" args)
                                :parser parser
+                               :catch catch
                                :callback callback))
 
 (cl-defun salesforce-core--config-process
-    (&key args callback (parser #'salesforce-core--parse-json))
+    (&key args callback (catch #'salesforce-core--handle-process-error) (parser #'salesforce-core--parse-json))
   "Run Salesforce config CLI command with ARGS."
   (salesforce-core-run-process :args (cons "config" args)
                                :parser parser
+                               :catch catch
                                :callback callback))
 
 (cl-defun salesforce-core--cmdt-process
-    (&key args callback (parser #'salesforce-core--parse-json))
+    (&key args callback (catch #'salesforce-core--handle-process-error) (parser #'salesforce-core--parse-json))
   "Run Salesforce cmdt CLI command with ARGS."
   (salesforce-core-run-process :args (cons "cmdt" args)
                                :parser parser
+                               :catch catch
                                :callback callback))
 
 (cl-defun salesforce-core--sobject-process
-    (&key args callback (parser #'salesforce-core--parse-json))
+    (&key args callback (catch #'salesforce-core--handle-process-error) (parser #'salesforce-core--parse-json))
   "Run Salesforce sobject CLI command with ARGS."
   (salesforce-core-run-process :args (cons "sobject" args)
                                :parser parser
+                               :catch catch
                                :callback callback))
 
 ;;; API Request
