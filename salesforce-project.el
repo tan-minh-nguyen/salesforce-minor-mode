@@ -36,9 +36,6 @@ Use projectile if available, otherwise fall back to project.el."
   "Salesforce project management."
   :group 'tools)
 
-(defconst salesforce-files-test-root '("sfdx-project.json" ".forceignore" "package.json")
-  "Files/dirs to identify Salesforce projects.")
-
 (defcustom salesforce-project-configuration 
   '((nil . ((eval . (salesforce-mode 1)))))
   "Project configuration for Salesforce projects."
@@ -310,22 +307,6 @@ Otherwise, path is relative to metadata source directory."
   (when (salesforce-project-p)
     (salesforce-project--save-session)
     (setq salesforce-project-session nil)))
-
-;;; Projectile Integration
-;;;###autoload
-(defun salesforce-project-setup-projectile ()
-  "Register Salesforce project type for Projectile."
-  (projectile-register-project-type 'salesforce
-                                    salesforce-files-test-root
-                                    :project-file "sfdx-project.json"
-                                    :compile "npm install && npm run build"
-                                    :test "sf apex run test --test-level RunAllInOrg"
-                                    :test-suffix "Test")
-
-  (add-hook 'projectile-before-switch-project-hook
-            #'salesforce-project-cleanup)
-  (add-hook 'projectile-after-switch-project-hook
-            #'salesforce-project-init))
 
 ;;; Project Operations
 

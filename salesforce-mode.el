@@ -78,6 +78,9 @@
   :type 'integer
   :group 'salesforce)
 
+(defconst salesforce-files-test-root '("sfdx-project.json" ".forceignore" "package.json")
+  "Files/dirs to identify Salesforce projects.")
+
 ;;; Keymap Initialization
 
 (defun salesforce-mode--initialize-org-keymap ()
@@ -189,6 +192,22 @@ Ensures org name is populated and starts status checks."
   "Cleanup Salesforce mode resources.
 Stops the periodic status check timer."
   (salesforce-mode--stop-status-check-timer))
+
+;;; Projectile Integration
+;;;###autoload
+(defun salesforce-project-setup-projectile ()
+  "Register Salesforce project type for Projectile."
+  (projectile-register-project-type 'salesforce
+                                    salesforce-files-test-root
+                                    :project-file "sfdx-project.json"
+                                    :compile "npm install && npm run build"
+                                    :test "sf apex run test --test-level RunAllInOrg"
+                                    :test-suffix "Test")
+
+  (add-hook 'projectile-before-switch-project-hook
+            #'salesforce-project-cleanup)
+  (add-hook 'projectile-after-switch-project-hook
+            #'salesforce-project-init))
 
 ;;; Minor Mode Definition
 

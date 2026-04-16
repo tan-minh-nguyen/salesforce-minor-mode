@@ -130,7 +130,7 @@ REQUIRE-MATCH: Whether to require a match."
 
 ;;; Interactive commands - Org management
 
-(defun salesforce-org--browse (org-name &key args then)
+(cl-defun salesforce-org--browse (org-name &key args then)
   "Open org CANDIDATE selected with browser."
   (declare (indent 1))
   (salesforce-core--org-process
