@@ -305,13 +305,6 @@ Open the created file using RESULT-PATH-KEYS to extract from JSON response."
     (tablist-plus-table-render table)
     (switch-to-buffer (tablist-plus-table-buffer table))))
 
-(cl-defun salesforce-apex--handle-test-results (json-instance &key (type-table 'class))
-  "Handle test results from JSON-INSTANCE.
-TYPE-TABLE determines display format: `class' (default)."
-  (declare (indent 1))
-  (pcase type-table
-    ('class (salesforce-apex--show-test-results-table json-instance))))
-
 (cl-defun salesforce-apex--get-result-test-job (job-id &key poll-id type-table (org (salesforce-project-org salesforce-project-session)))
   "Retrieve the result of an Apex test job by JOB-ID.
 Optionally cancel POLL-ID timer when complete."
@@ -323,7 +316,7 @@ Optionally cancel POLL-ID timer when complete."
      (signal 'emacs-pp-process-error (list data)))
    :callback
    (lambda (json-instance)
-     (prog1 (salesforce-apex--handle-test-results json-instance)
+     (prog1 (salesforce-apex--show-test-results-table json-instance)
        (when poll-id (cancel-timer poll-id))))))
 
 (defun salesforce-apex--retrieve-functions ()
@@ -359,7 +352,7 @@ FIXME: Improve function name extraction logic."
            (progn
              (salesforce-core--alert "test is running.")
              (setq poll-id (run-at-time nil 10 callback job-id)))
-         (salesforce-apex--handle-test-results json-instance))))))
+         (salesforce-apex--show-test-results-table json-instance))))))
 
 (defun salesforce-apex-execute-method-test (node)
   "Execute a single unit test for the method at NODE."
