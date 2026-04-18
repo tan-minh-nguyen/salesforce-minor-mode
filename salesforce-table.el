@@ -34,8 +34,8 @@
     :initform ""
     :type string
     :documentation "Test outcome status (Pass/Fail/Skip).")
-   (class
-    :initarg :class
+   (class-name
+    :initarg :class-name
     :initform ""
     :type string
     :documentation "Name of the Apex test class.")
@@ -75,7 +75,7 @@ Returns a cons cell (ID . instance) for use with tablist-plus hash tables."
     (cons id
           (make-instance 'salesforce-table-test-result
                          :unit-test unit-test
-                         :class class
+                         :class-name class
                          :stack-trace stack
                          :message message
                          :status status))))
@@ -106,7 +106,7 @@ Used with tablist-plus to group test results by their parent Apex class."
     (let ((data (tablist-plus-table-data table)))
       (seq-group-by
        (pcase-lambda (`(,key ,_))
-         (slot-value (gethash key data) 'class))
+         (slot-value (gethash key data) 'class-name))
        tabulated-list-entries))))
 
 (defclass salesforce-table-coverage-result (tablist-plus-data)

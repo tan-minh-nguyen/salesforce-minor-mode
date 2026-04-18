@@ -80,8 +80,7 @@ Use projectile if available, otherwise fall back to project.el."
     :initform nil
     :accessor salesforce-project-token
     :type (or null string)
-    :documentation "Access token (not persisted to dir-locals).")
-   )
+    :documentation "Access token (not persisted to dir-locals)."))
   :documentation "Configurations of Salesforce project.")
 
 (cl-defmethod initialize-instance :after ((obj salesforce-project) &rest _)
