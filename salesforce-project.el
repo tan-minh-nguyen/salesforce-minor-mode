@@ -537,9 +537,9 @@ Otherwise, path is relative to metadata source directory."
     (emacs-pp-job
      (lambda ()
        (salesforce-project--pull-metadata file
-                                          :org org))
+         :org org))
      (lambda ()
-       (let ((pulled-file (salesforce--find-file (file-name-nondirectory file)
+       (let ((pulled-file (salesforce--find-file (file-name-base file)
                                                  temporary-file-directory)))
          (salesforce-project--ediff-setup pulled-file file)))
      :catch
