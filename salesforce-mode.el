@@ -78,7 +78,7 @@
   :type 'integer
   :group 'salesforce)
 
-(defconst salesforce-files-test-root '("sfdx-project.json" ".forceignore" "package.json")
+(defconst salesforce-files-test-root '("sfdx-project.json")
   "Files/dirs to identify Salesforce projects.")
 
 ;;; Keymap Initialization
