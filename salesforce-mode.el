@@ -204,7 +204,7 @@ Stops the periodic status check timer."
                                     :test "sf apex run test --test-level RunAllInOrg"
                                     :test-suffix "Test")
 
-  (add-hook 'projectile-before-switch-project-hook
+  (add-hook 'projectile-after-switch-project-hook
             #'salesforce-project-cleanup)
   (add-hook 'projectile-after-switch-project-hook
             #'salesforce-project-init))
