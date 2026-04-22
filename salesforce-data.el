@@ -50,8 +50,7 @@
     (salesforce--menu:-o)
     (salesforce--menu:--api-version)]]
   [""
-   ("RET" "Execute SOQL" salesforce-data-query)
-   ("M-RET" "Execute SOSL" salesforce-data-search)])
+   ("RET" "Execute SOQL" salesforce-data-query)])
 
 ;;; Transient Menu Definitions - Import Menus
 
@@ -450,44 +449,108 @@ INPUT can be either a file path or a query string."
 ARGS: Parameters are passed to the search record process."
   (interactive (list (or (transient-args 'salesforce-data--transient:data-search)
                      (salesforce-data--read-content))))
+
   (apply #'salesforce-data--dispatch-search
          `("query" ,@(salesforce-data--build-query-args args))))
 
-(defun salesforce-data-search (search-string)
+(cl-defun salesforce-data--search-build (pattern &key (sobjects '("Account")) (fields '("Name")))
+  "Build search PATTERN."
+  (declare (indent 1))
+  ;;TODO: add set default fields and object
+  (format "FIND {%s} IN %s Fields RETURNING %s"
+          pattern
+          (string-join fields ",")
+          (string-join sobjects ",")))
+
+(defun salesforce-data--consult-input-transform (input)
+  "Transform INPUT to (text . opts) to easy retrieve.
+opts use format (:key . value)"
+  (let* ((input-split (consult--command-split input))
+         (str (car input-split)))
+
+    (cons str
+          (cl-loop for (flag value) on (cdr input-split) by #'cddr
+                   with opts = nil
+                   as key = (intern (replace-regexp-in-string "^[-]+" ":" flag))
+                   as save-opt = (alist-get key opts)
+                   if save-opt
+                   do (setf (alist-get key opts) `(,@save-opt ,value))
+                   else do (push (cons key (list value)) opts)
+                   finally return opts))))
+
+(defun salesforce-data--consult-async-search ()
+  "Async search function use SOSL to find records.
+
+Can pass parameters to search input:
+-fields use for searching field.
+-sobject use for searching sobject."
+  (lambda (sink)
+    (lambda (action)
+      (pcase action
+        ((pred stringp)
+         (pcase-let* ((`(,search . ,args) (salesforce-data--consult-input-transform action))
+                      (search-fields (assoc-default :fields args))
+                      (org (or (car (assoc-default :org args))
+                              (salesforce-project-org salesforce-project-session)))
+                      (search-sobjects (assoc-default :sobject args)))
+           (emacs-pp-job
+            (lambda ()
+              (let ((search-clause
+                     (apply #'salesforce-data--search-build search
+                            `(,@(when search-fields (list :fields search-fields))
+                              ,@(when search-sobjects (list :sobjects search-sobjects)))))
+                    (temp-file (make-temp-file "sosl")))
+
+                (write-region search-clause nil temp-file)
+
+                (apply #'salesforce-data--dispatch-search
+                       (list "search" "-f" temp-file "--result-format=json" "-o" org))))
+            (lambda (data)
+              (let ((items (cl-loop for item across (map-nested-elt data '("searchRecords"))
+                                    collect (propertize (gethash "Id" item) 'data item))))
+                (funcall sink items)))))
+         nil)
+        ((or 'cancel 'destroy)
+         ;;TODO: add feat abort pipeline
+         )
+        (_ (funcall sink action))))))
+
+(cl-defun salesforce-data-search ()
   "Execute SOSL statement with SEARCH-STRING."
-  (interactive (list (or (transient-args 'salesforce-data--transient:data-search)
-                     (salesforce-data--read-content))))
-  (apply #'salesforce-data--dispatch-search 
-         `("search" ,@(salesforce-data--build-query-args search-string))))
+  (interactive)
+
+  (consult--read (consult--async-pipeline
+                  (consult--async-min-input 3)
+                  (consult--async-throttle nil 0.5)
+                  (salesforce-data--consult-async-search))
+                 :prompt "Pattern: "
+                 :annotate
+                 (lambda (cand)
+                   (let ((data (get-text-property 0 'data cand)))
+                     (list cand "" (concat "\t" (propertize (map-nested-elt data '("attributes" "type")) 'face 'font-lock-keyword-face)))))
+                 :category 'salesforce-search
+                 :history 'salesforce-data-track-records))
 
 (defun salesforce-data--ensure-result-format (commands)
   "Ensure COMMANDS includes a result format argument."
   (unless (cl-some (lambda (arg)
                      (or (string-prefix-p "-r" arg)
-                         (string-prefix-p "--result-format" arg)))
+                        (string-prefix-p "--result-format" arg)))
                    commands)
     (append commands '("--result-format=csv")))
   commands)
 
-;;TODO: need refactor use tablist-plus instead
-(defun salesforce-data--display-search-results (json-instance)
-  "Display search results from JSON-INSTANCE in a CSV buffer."
-  (let ((soql-buffer (generate-new-buffer "*search results*")))
-    (with-current-buffer soql-buffer
-      (insert (with-current-buffer json-instance (buffer-string)))
-      (csv-mode))
-    (pop-to-buffer soql-buffer)))
-
 (cl-defun salesforce-data--dispatch-search
-    (&rest args &key callback &allow-other-keys)
+    (&rest args &key (parser #'salesforce-core--parse-json) callback &allow-other-keys)
   "Search records on the connecting Salesforce org.
 ARGS: Parameters used to build the command.
 CALLBACK: Function to run after search succeeded.
 SYNC: Run the process in sync."
-  (let ((commands (seq-difference args (list :callback callback))))
+  (let ((args (seq-difference args (list :callback callback :parser parser))))
     (salesforce-core--data-process
-     :args (salesforce-data--ensure-result-format commands)
-     :callback (or callback #'salesforce-data--display-search-results))))
+     :args (salesforce-data--ensure-result-format args)
+     :parser parser
+     :callback callback)))
 
 ;;; Entity Search
 
@@ -537,21 +600,6 @@ SYNC: Run the process in sync."
   (from :type string :documentation "sobject name.")
   (where :type string :documentation "filter conditions.")
   (order-by :type string :documentation "sort order.") group-by having)
-
-(defmacro salesforce-data-define-soql (&rest exprs)
-  "Define SOQL fetcher from CONSTRUCTS."
-  (mapcar (lambda (expr)
-            ())
-          exprs))
-
-(cl-defun salesforce-data-soql-builder (soql-builder)
-  "Build SQOL for apex."
-  (let ((select (cl-struct-slot-value
-                 salesforce-data-soql-builder
-                 :select
-                 soql-builder)))
-    (string-join
-     (string-join ))))
 
 ;;; Org-mode Integration
 
