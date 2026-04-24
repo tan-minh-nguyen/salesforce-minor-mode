@@ -36,12 +36,6 @@ Use projectile if available, otherwise fall back to project.el."
   "Salesforce project management."
   :group 'tools)
 
-(defcustom salesforce-project-configuration 
-  '((nil . ((eval . (salesforce-mode 1)))))
-  "Project configuration for Salesforce projects."
-  :type 'list
-  :group 'salesforce-project)
-
 (defcustom salesforce-project-mode-line-icon ""
   "`salesforce-minor-mode' icon."
   :type 'string
@@ -188,12 +182,12 @@ Otherwise, path is relative to metadata source directory."
            (not salesforce-project-session))
     (let ((enable-local-variables :all))
       (salesforce-project--setup)
-      (salesforce-project--apply-locals)
+      ;;TODO: replace by projectile-add-dir-local-variabl
       (salesforce-project--session-persistent))))
 
 ;;; Configuration Management
 
-(defun salesforce-project--config-path ()
+(defun salesforce-project--get-config-file ()
   "Return the config file path for the project ROOT.
   Checks both .sf/config.json and legacy .sfdx/sfdx-config.json."
   (let ((modern-config (expand-file-name ".sf/config.json" (salesforce-project-root)))
@@ -217,7 +211,7 @@ Otherwise, path is relative to metadata source directory."
 (defun salesforce-project--org-name ()
   "Return the current Salesforce org alias for the project.
   Checks config files or falls back to cached value."
-  (let ((config-file (salesforce-project--config-path)))
+  (let ((config-file (salesforce-project--get-config-file)))
     (and config-file (salesforce-project--config-org config-file))))
 
 (defun salesforce-project--setup ()
@@ -229,47 +223,12 @@ Otherwise, path is relative to metadata source directory."
                                 :file (salesforce-project-persistent-file)
                                 :org (salesforce-project--org-name)))))
     ;;TODO: add auto update org when default org was configured
-    (prog1 (setq salesforce-project-session project-setup)
-      (salesforce-project--set-local 'salesforce-project-session project-setup))))
+    (projectile-add-dir-local-variable nil 'salesforce-project-session project-setup)
+    (projectile-add-dir-local-variable nil 'eval '(salesforce-mode 1))))
 
 (defun salesforce-project--session-persistent ()
   "Save project session to persistent file."
   (eieio-persistent-save salesforce-project-session))
-
-(defun salesforce-project-local-get (symbol &optional mode)
-  "Return non-nil if SYMBOL exists under MODE in project configuration.
-  If MODE is nil, check the default project entry."
-  (assoc symbol (alist-get mode salesforce-project-configuration)))
-
-(defun salesforce-project--set-local (symbol value &optional force)
-  "Update project configuration for SYMBOL with VALUE.
-  Configuration is stored in `salesforce-project-configuration'.
-  If FORCE is non-nil, update even if value hasn't changed."
-  (unless (symbolp symbol)
-    (error (format "%s should be symbol" symbol)))
-  (when (or (not (eq (cdr (salesforce-project-local-get symbol)) value))
-           force)
-    (let ((mode-entry (assoc nil salesforce-project-configuration)))
-      (if mode-entry
-          ;; Mode entry exists, update or add symbol
-          (let ((symbol-list (cdr mode-entry)))
-            (if (assoc symbol symbol-list)
-                ;; Symbol exists, update its value
-                (setf (alist-get symbol symbol-list) value)
-              ;; Symbol doesn't exist, add it
-              (setf (alist-get nil salesforce-project-configuration)
-                    (cons (cons symbol value) symbol-list))))
-        ;; Mode entry doesn't exist, create it
-        (push (cons nil (list (cons symbol value)))
-              salesforce-project-configuration)))))
-
-(defun salesforce-project--apply-locals ()
-  "Apply directory local variables for the current project."
-  (dir-locals-set-class-variables 'project-configuration
-                                  salesforce-project-configuration)
-  (dir-locals-set-directory-class (salesforce-project-root)
-                                  'project-configuration)
-  (hack-dir-local-variables-non-file-buffer))
 
 (defun salesforce-project--save-session ()
   "Update in-memory configuration with session (without token)."
@@ -287,7 +246,7 @@ Otherwise, path is relative to metadata source directory."
       (insert-file-contents (find-file-noselect sfdx-file))
       (json-parse-string (buffer-string)))))
 
-(defun salesforce-project-sync-sfdx-config ()
+(defun salesforce-project-read-sfdx-config ()
   "Sync config in sfdx-config.json to `salesforce-project-session'."
   (let* ((json-object-type 'hash-table)
          (sfdx-config (salesforce-project-get-sfdx-config))
@@ -602,6 +561,8 @@ Otherwise, path is relative to metadata source directory."
     
     dest-dir))
 
+;; Unused functions
+
 (defun salesforce-project--copy-file-to-temp (file dest-path)
   "Copy FILE and its metadata to the temporary directory DEST-PATH."
   (let* ((file-directory (file-name-directory file))
@@ -630,6 +591,7 @@ Otherwise, path is relative to metadata source directory."
        current-file 
        (expand-file-name relative-path temp-dir)))))
 
+;;TODO: refactor maybe this will useful in some case
 (defun salesforce-project-deploy-select (file-name)
   "Backup metadata and select section to deploy.
   FILE-NAME is the path to the file being deployed.
@@ -664,9 +626,11 @@ Otherwise, path is relative to metadata source directory."
   "List stale users that connected."
   (let ((alias-file (expand-file-name "~/.sfdx/alias.json")))
     (when (file-exists-p alias-file)
-      (let ((json (with-current-buffer (find-file-noselect alias-file)
-                    (json-parse-string (buffer-string) 
-                                       :object-type 'hash-table))))
+      (let ((json
+             (with-temp-buffer
+               (insert-file-contents alias-file)
+               (json-parse-string (buffer-string) 
+                                  :object-type 'hash-table))))
         (map-elt json "orgs")))))
 
 (defun salesforce-project--resolve-username (username-or-alias table)
@@ -686,8 +650,8 @@ Otherwise, path is relative to metadata source directory."
                           username-or-alias table))
               (json-file (format "~/.sfdx/%s.json" user-name))
               (_ (file-exists-p (expand-file-name json-file)))
-              (data (with-current-buffer 
-                        (find-file-noselect (expand-file-name json-file))
+              (data (with-temp-buffer
+                      (insert-file-contents (expand-file-name json-file))
                       (json-parse-string (buffer-string) 
                                          :object-type 'hash-table))))
     (map-elt data key)))
@@ -721,7 +685,7 @@ Otherwise, path is relative to metadata source directory."
   "Remove the '-meta.xml' suffix from ORIGINAL-NAME for display."
   (string-replace "-meta.xml" "" original-name))
 
-;;; Transient Menu Definitions
+;;; Create Field Menu (WIP)
 
 (transient-define-prefix salesforce-project--transient:custom-metadata-field-menu ()
   "Menu configuration generate custom field Salesforce."
