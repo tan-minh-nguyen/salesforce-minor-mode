@@ -25,14 +25,12 @@ ALIAS is the name to assign to the authorized org."
    :args `("login" "web" "-a" ,alias "--instance-url" ,url "--set-default" "--json")
    :callback
    (lambda (json-instance)
-     (unless salesforce-project-session
-       (salesforce-project--setup))
-     (setf (salesforce-project-org salesforce-project-session) alias
-           (salesforce-project-url salesforce-project-session)
-           (salesforce-project--user-data alias "instanceUrl")
-           (salesforce-project-token salesforce-project-session)
-           (salesforce-project--user-data alias "accessToken"))
-     (salesforce-project--save-session)
+     (salesforce-project--setup
+      :session
+      (make-instance 'salesforce-project
+                     :org alias
+                     :url (salesforce-project--user-data org-name "instanceUrl")))
+     
      (salesforce-core--alert (format "Authorize to %s success"
                                      (map-nested-elt json-instance '("result" "username")))))))
 
@@ -186,14 +184,12 @@ REQUIRE-MATCH: Whether to require a match."
    :args `("set" "target-org" ,org-name "--json")
    :callback
    (lambda (&rest _)
-     (unless salesforce-project-session
-       (salesforce-project--setup))
-     (setf (salesforce-project-org salesforce-project-session) org-name
-           (salesforce-project-url salesforce-project-session)
-           (salesforce-project--user-data org-name "instanceUrl")
-           (salesforce-project-token salesforce-project-session)
-           (salesforce-project--user-data org-name "accessToken"))
-     (salesforce-project--save-session)
+     (salesforce-project--setup
+      :session
+      (make-instance 'salesforce-project
+                     :org org-name
+                     :url (salesforce-project--user-data org-name "instanceUrl")))
+
      (salesforce-core--alert (format "Change to %s success" org-name)))))
 
 (defun salesforce-org-switch ()

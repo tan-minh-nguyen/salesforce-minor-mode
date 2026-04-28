@@ -96,7 +96,8 @@
   "Parse result return from PROCESS."
   (let ((json-object-type 'hash-table)
         (json-null nil))
-    (emacs-pp-parser-json process)))
+    (ignore-errors
+      (emacs-pp-parser-json process))))
 
 (defun salesforce--ensure-directory-exists (path)
   "Create directory at PATH if it doesn't exist.
@@ -138,7 +139,8 @@ If DEPTH is less than 1, returns the immediate parent directory."
   "Assert event is success."
   (pcase event
     ("exited abnormally with code 2\n"
-     (salesforce-core--parse-json proc))
+     (or (salesforce-core--parse-json proc)
+         (emacs-pp-parser-raw stderr)))
     (_
      (emacs-pp-parser-raw stderr))))
 

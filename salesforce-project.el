@@ -7,7 +7,6 @@
 
 (require 'salesforce-core)
 (require 'transient)
-(require 'eieio-base)
 (require 'project)
 
 (defun salesforce-project-root ()
@@ -41,16 +40,12 @@ Use projectile if available, otherwise fall back to project.el."
   :type 'string
   :group 'salesforce-project)
 
-(defun salesforce-project-persistent-file ()
-  "Return path to project settings file."
-  (expand-file-name ".project-settings.el" (salesforce-project-root)))
-
 ;;; Project Detection and Initialization
 
 (defvar salesforce-project-session nil
   "Save session of salesforce project.")
 
-(defclass salesforce-project (eieio-persistent)
+(defclass salesforce-project ()
   ((metadata-directory
     :initarg :metadata-directory
     :initform nil
@@ -179,85 +174,48 @@ Otherwise, path is relative to metadata source directory."
   "Initialize configuration for a Salesforce project.
   Sets up metadata and applies directory locals."
   (when (and (salesforce-project-p)
-           (not salesforce-project-session))
+             (not salesforce-project-session))
     (let ((enable-local-variables :all))
-      (salesforce-project--setup)
-      ;;TODO: replace by projectile-add-dir-local-variabl
-      (salesforce-project--session-persistent))))
+      (salesforce-project-load-sfdx-config))))
 
 ;;; Configuration Management
 
-(defun salesforce-project--get-config-file ()
-  "Return the config file path for the project ROOT.
-  Checks both .sf/config.json and legacy .sfdx/sfdx-config.json."
-  (let ((modern-config (expand-file-name ".sf/config.json" (salesforce-project-root)))
-        (legacy-config (expand-file-name ".sfdx/sfdx-config.json" (salesforce-project-root))))
-    (cond
-     ((file-exists-p modern-config) modern-config)
-     ((file-exists-p legacy-config) legacy-config)
-     (t nil))))
-
-(defun salesforce-project--config-org (config-file)
-  "Read the org alias from CONFIG-FILE using native JSON parsing."
-  (when (and config-file (file-exists-p config-file))
-    (condition-case nil
-        (with-temp-buffer
-          (insert-file-contents config-file)
-          (let* ((json (json-parse-buffer :object-type 'alist)))
-            (or (alist-get 'target-org json)
-                (alist-get 'defaultusername json))))
-      (error nil))))
-
-(defun salesforce-project--org-name ()
-  "Return the current Salesforce org alias for the project.
-  Checks config files or falls back to cached value."
-  (let ((config-file (salesforce-project--get-config-file)))
-    (and config-file (salesforce-project--config-org config-file))))
-
-(defun salesforce-project--setup ()
+(cl-defun salesforce-project--setup (&key session)
   "Locate and configure the metadata directory for the current project."
   (when-let* ((project-setup
-               (if (file-exists-p (salesforce-project-persistent-file))
-                   (eieio-persistent-read (salesforce-project-persistent-file) 'salesforce-project)
-                 (make-instance 'salesforce-project
-                                :file (salesforce-project-persistent-file)
-                                :org (salesforce-project--org-name)))))
+               (or session
+                   (let ((sfdx-config (salesforce-project-get-sfdx-config)))
+                     (make-instance 'salesforce-project
+                                    :org (gethash "name" sfdx-config))))))
     ;;TODO: add auto update org when default org was configured
     (projectile-add-dir-local-variable nil 'salesforce-project-session project-setup)
     (projectile-add-dir-local-variable nil 'eval '(salesforce-mode 1))))
 
-(defun salesforce-project--session-persistent ()
-  "Save project session to persistent file."
-  (eieio-persistent-save salesforce-project-session))
-
-(defun salesforce-project--save-session ()
-  "Update in-memory configuration with session (without token)."
-  (when salesforce-project-session
-    (let ((copy (clone salesforce-project-session)))
-      (setf (salesforce-project-token copy) nil)
-      (salesforce-project--set-local
-       'salesforce-project-session copy))))
-
 (cl-defun salesforce-project-get-sfdx-config (&key path)
   "Read sfdx-config.json file from PATH."
-  (let ((sfdx-file (expand-file-name (or path "/sfdx-config.json")
+  (let ((sfdx-file (expand-file-name (or path "sfdx-config.json")
                                      (salesforce-project-root))))
     (with-temp-buffer
       (insert-file-contents (find-file-noselect sfdx-file))
       (json-parse-string (buffer-string)))))
 
-(defun salesforce-project-read-sfdx-config ()
+(defun salesforce-project-load-sfdx-config ()
   "Sync config in sfdx-config.json to `salesforce-project-session'."
-  (let* ((json-object-type 'hash-table)
-         (sfdx-config (salesforce-project-get-sfdx-config))
+  (let* ((sfdx-config (salesforce-project-get-sfdx-config))
          (project-session (or salesforce-project-session
-                             (salesforce-project--setup))))
-
-    ;; (setf (salesforce-project-source project-session)
-    ;;       (map-nested-elt sfdx-config '("packageDirectories" "0" "path")))
+                              (salesforce-project--setup
+                               :session
+                               (make-instance 'salesforce-project
+                                              :url (salesforce-project--user-data
+                                                    (gethash "name" sfdx-config) 'instanceUrl)
+                                              :org (gethash "name" sfdx-config))))))
 
     (setq salesforce-project-session project-session
-          salesforce-api-version (map-nested-elt sfdx-config '("sourceApiVersion")))))
+          salesforce-api-version (map-nested-elt sfdx-config '("sourceApiVersion")))
+
+    (emacs-pp-job
+     (lambda ()
+       (salesforce-org-set-default (salesforce-project-org project-session))))))
 
 
 (defun salesforce-project-cleanup ()
@@ -669,11 +627,6 @@ Otherwise, path is relative to metadata source directory."
   (when (and (bound-and-true-p salesforce-mode)
              salesforce-project-session)
     (let ((org-name (salesforce-project-org salesforce-project-session)))
-      ;; Lazy load org name if empty
-      (when (or (null org-name) (string-empty-p org-name))
-        (setq org-name (salesforce-project--org-name))
-        (when org-name
-          (setf (salesforce-project-org salesforce-project-session) org-name)))
       (when (and org-name (not (string-empty-p org-name)))
         (concat (propertize (concat salesforce-project-mode-line-icon " " org-name)
                             'face 'salesforce-mode-line-face)
