@@ -29,7 +29,7 @@ ALIAS is the name to assign to the authorized org."
       :session
       (make-instance 'salesforce-project
                      :org alias
-                     :url (salesforce-project--user-data org-name "instanceUrl")))
+                     :url (salesforce-project--user-data alias "instanceUrl")))
      
      (salesforce-core--alert (format "Authorize to %s success"
                                      (map-nested-elt json-instance '("result" "username")))))))
@@ -157,13 +157,13 @@ REQUIRE-MATCH: Whether to require a match."
             (annotate-fn
              (lambda (candidate)
                (list candidate
-                  ""
-                  (concat "\t"
-                          (propertize (pcase candidate
-                                        ("sandbox" "https://test.salesforce.com")
-                                        ("production" "https://login.salesforce.com"))
-                                      'face
-                                      'font-lock-comment-face)))))
+                     ""
+                     (concat "\t"
+                             (propertize (pcase candidate
+                                           ("sandbox" "https://test.salesforce.com")
+                                           ("production" "https://login.salesforce.com"))
+                                         'face
+                                         'font-lock-string-face)))))
             (lookup-fn
              (lambda (cand &rest _)
                (pcase cand
@@ -171,10 +171,10 @@ REQUIRE-MATCH: Whether to require a match."
                  ("production" "https://login.salesforce.com")
                  (_ cand))))
             (url (or (map-elt data "loginUrl")
-                    (consult--read collection
-                                   :prompt "URL: "
-                                   :annotate annotate-fn
-                                   :lookup lookup-fn))))
+                     (consult--read collection
+                                    :prompt "URL: "
+                                    :annotate annotate-fn
+                                    :lookup lookup-fn))))
        (salesforce-org--auth-web alias :url url)))
    :prompt "Select Org: "))
 

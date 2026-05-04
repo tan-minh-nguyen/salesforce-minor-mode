@@ -174,9 +174,9 @@ Otherwise, path is relative to metadata source directory."
   "Initialize configuration for a Salesforce project.
   Sets up metadata and applies directory locals."
   (when (and (salesforce-project-p)
-             (not salesforce-project-session))
+             (not (alist-get 'salesforce-project-session dir-local-variables-alist)))
     (let ((enable-local-variables :all))
-      (salesforce-project-load-sfdx-config))))
+      (salesforce-project-load-sfdx-project))))
 
 ;;; Configuration Management
 
@@ -184,31 +184,35 @@ Otherwise, path is relative to metadata source directory."
   "Locate and configure the metadata directory for the current project."
   (when-let* ((project-setup
                (or session
-                   (let ((sfdx-config (salesforce-project-get-sfdx-config)))
+                   (let ((sfdx-config (salesforce-project-get-sfdx-project)))
                      (make-instance 'salesforce-project
                                     :org (gethash "name" sfdx-config))))))
     ;;TODO: add auto update org when default org was configured
-    (projectile-add-dir-local-variable nil 'salesforce-project-session project-setup)
-    (projectile-add-dir-local-variable nil 'eval '(salesforce-mode 1))))
+    (unless (alist-get 'salesforce-project-session dir-local-variables-alist)
+      (projectile-add-dir-local-variable nil 'salesforce-project-session project-setup))
+    (unless (equal '(salesforce-mode 1) (alist-get 'eval dir-local-variables-alist))
+      (projectile-add-dir-local-variable nil 'eval '(salesforce-mode 1)))))
 
-(cl-defun salesforce-project-get-sfdx-config (&key path)
+(cl-defun salesforce-project-get-sfdx-project(&key path)
   "Read sfdx-config.json file from PATH."
-  (let ((sfdx-file (expand-file-name (or path "sfdx-config.json")
+  (let ((sfdx-file (expand-file-name (or path "sfdx-project.json")
                                      (salesforce-project-root))))
     (with-temp-buffer
-      (insert-file-contents (find-file-noselect sfdx-file))
+      (insert-file-contents sfdx-file)
       (json-parse-string (buffer-string)))))
 
-(defun salesforce-project-load-sfdx-config ()
-  "Sync config in sfdx-config.json to `salesforce-project-session'."
-  (let* ((sfdx-config (salesforce-project-get-sfdx-config))
+(defun salesforce-project-load-sfdx-project ()
+  "Sync config in sfdx-project.json to `salesforce-project-session'."
+  (let* ((sfdx-config (salesforce-project-get-sfdx-project))
          (project-session (or salesforce-project-session
-                              (salesforce-project--setup
-                               :session
-                               (make-instance 'salesforce-project
-                                              :url (salesforce-project--user-data
-                                                    (gethash "name" sfdx-config) 'instanceUrl)
-                                              :org (gethash "name" sfdx-config))))))
+                              (let ((org-name (gethash "name" sfdx-config)))
+
+                                (salesforce-project--setup
+                                 :session
+                                 (make-instance 'salesforce-project
+                                                :url (salesforce-project--user-data
+                                                      org-name 'instanceUrl)
+                                                :org org-name))))))
 
     (setq salesforce-project-session project-session
           salesforce-api-version (map-nested-elt sfdx-config '("sourceApiVersion")))
@@ -216,13 +220,6 @@ Otherwise, path is relative to metadata source directory."
     (emacs-pp-job
      (lambda ()
        (salesforce-org-set-default (salesforce-project-org project-session))))))
-
-
-(defun salesforce-project-cleanup ()
-  "Cleanup project before switch."
-  (when (salesforce-project-p)
-    (salesforce-project--save-session)
-    (setq salesforce-project-session nil)))
 
 ;;; Project Operations
 

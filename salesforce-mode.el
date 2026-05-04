@@ -145,12 +145,9 @@ Updates `salesforce-mode-line-current-org-status' with appropriate icon and face
 
 (defun salesforce-mode--check-org-status ()
   "Check the current org connection status and update mode line."
-  (when-let* (((bound-and-true-p salesforce-mode))
-              (salesforce-project-session)
-              (org-name (salesforce-project-org salesforce-project-session))
-              ((not (string-empty-p org-name))))
+  (when salesforce-project-session
     (salesforce-org--status
-     :org org-name
+     :org (salesforce-project-org salesforce-project-session)
      :then #'salesforce-mode--set-mode-line-status)))
 
 (defun salesforce-mode--start-status-check-timer ()
@@ -171,22 +168,11 @@ Updates `salesforce-mode-line-current-org-status' with appropriate icon and face
 Ensures org name is populated and starts status checks."
   (when (bound-and-true-p salesforce-mode)
     ;; Ensure org name is populated from config file
-    (when (and salesforce-project-session
-               (null (salesforce-project-org salesforce-project-session)))
-      (when-let ((org-name (salesforce-project--org-name)))
-        (setf (salesforce-project-org salesforce-project-session) org-name)))
+    (unless salesforce-project-session
+      (salesforce-project--setup))
 
-    ;; Only proceed with status check if we have org name
-    (when-let* ((salesforce-project-session)
-                (org-name (salesforce-project-org salesforce-project-session))
-                ((not (string-empty-p org-name))))
-      ;; Check status immediately on initialization
-      (unless salesforce-status-check
-        (setq salesforce-status-check
-              (progn (salesforce-mode--check-org-status)
-                     t)))
-      ;; Start periodic status checks
-      (salesforce-mode--start-status-check-timer))))
+    ;; Start periodic status checks
+    (salesforce-mode--start-status-check-timer)))
 
 (defun salesforce-mode--cleanup ()
   "Cleanup Salesforce mode resources.
@@ -204,8 +190,6 @@ Stops the periodic status check timer."
                                     :test "sf apex run test --test-level RunAllInOrg"
                                     :test-suffix "Test")
 
-  (add-hook 'projectile-after-switch-project-hook
-            #'salesforce-project-cleanup)
   (add-hook 'projectile-after-switch-project-hook
             #'salesforce-project-init))
 
@@ -238,8 +222,8 @@ Key bindings:
                 (salesforce-mode--cleanup)))
 
 ;; Add mode line indicator
-(add-to-list 'mode-line-misc-info 
-             `(salesforce-mode 
+(add-to-list 'mode-line-misc-info
+             `(salesforce-mode
                ("" salesforce-project--mode-line-format " ")))
 
 (put 'salesforce-project--mode-line-format 'risky-local-variable t)
