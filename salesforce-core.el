@@ -138,7 +138,7 @@ If DEPTH is less than 1, returns the immediate parent directory."
 (cl-defun salesforce-core--get-error (proc event &key stderr)
   "Assert event is success."
   (pcase event
-    ("exited abnormally with code 2\n"
+    ((pred (string-prefix-p "exited abnormally with code"))
      (or (salesforce-core--parse-json proc)
          (emacs-pp-parser-raw stderr)))
     (_
