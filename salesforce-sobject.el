@@ -201,6 +201,47 @@ If not, offer to generate it."
         (when (file-exists-p file-path)
           file-path)))))
 
+;; (defclass salesforce-sobject (eieio-persistent)
+;;   (())
+;;   :documentation "Save sobject information.")
+
+(cl-defun salesforce-sobject-all (&key (org (salesforce-project-org salesforce-project-session)) &allow-other-keys)
+  "Get Sobject describe to save on local.
+
+SOBJECTS: list of sobject name.
+ORG: target org which run command."
+  (let (sobjects)
+    (emacs-pp-job
+     (lambda ()
+       (unless sobjects
+         (salesforce-core--sobject-process
+          :args `("list" "--sobject" "all" "-o" ,org "--json"))))
+     (lambda (data)
+       (when data
+         (setq sobjects data)))
+     :finally
+     (lambda ()
+       (cl-loop for sobject in sobjects
+                do (salesforce-sobject-describe sobject))))))
+
+(cl-defun salesforce-sobject-describe (sobjects &key (org (salesforce-project-org salesforce-project-session)))
+  "Get Sobject describe to save on local.
+
+SOBJECTS: list of sobject name.
+ORG: target org which run command."
+  (declare (indent 1))
+  (emacs-pp-job-enqueue
+   (lambda ()
+     (salesforce-core--sobject-process
+      :args `("describe" "--sobject" ,sobject "-o" ,org "--json")))
+   (lambda (json-describe)
+     (let ((object-directory ((salesforce-project-metadata-path salesforce-project-session 'standardObject))))
+       (write-region json-describe nil object-directory)))
+   :finally
+   (lambda (job)
+     (when (equal (emacs-pp-job-state job) 'success)
+       (message "retrieve %s describe completed" sobject)))))
+
 (provide 'salesforce-sobject)
 
 ;;; salesforce-sobject.el ends here
