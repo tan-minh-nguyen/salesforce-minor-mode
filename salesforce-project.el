@@ -290,22 +290,21 @@ Otherwise, path is relative to metadata source directory."
   TARGET-ORG specifies the Salesforce org.
   FINISH-FUNC is a function to call upon completion."
   (declare (indent 1))
-  (let* ((file-name (file-name-base file))
-         (metadata-api (salesforce-project-metadata-type-from-file file)))
+  (let* ((file-name (file-name-base file)))
     (salesforce-core--project-process
      :args `("retrieve" "start"
-             "--metadata" ,(concat metadata-api ":" file-name)
+             "--metadata" ,(salesforce-project--gen-metadata-param file)
              "-t" ,save-directory
              "--zip-file-name" ,file-name
              "-o" ,org
              "-z"
              "--json")
      :callback
-     (lambda (_)
-       (let ((extract-directory (expand-file-name file-name save-directory)))
+     (lambda (&rest _)
+       (let ((save-metadata-directory (expand-file-name file-name save-directory)))
          (if then
-             (funcall then extract-directory)
-           extract-directory))))))
+             (funcall then save-metadata-directory)
+           save-metadata-directory))))))
 
 ;;; Ediff Integration
 
@@ -440,7 +439,7 @@ Otherwise, path is relative to metadata source directory."
                         (symbol-value file1-ref) 
                         (symbol-value file2-ref))))))))
 
-;;TODO: support multi org
+;;TODO: support 3 orgs compare
 (defun salesforce-project-diff-org ()
   "Diff source between the local project and a specific Salesforce platform."
   (interactive)
@@ -460,7 +459,8 @@ Otherwise, path is relative to metadata source directory."
        (salesforce-project--pull-metadata file
          :org org))
      (lambda (save-directory)
-       (let ((pulled-file (salesforce--find-file (file-name-base file) save-directory)))
+       (let* ((file-name (file-name-base file))
+              (pulled-file (salesforce--find-file file-name save-directory)))
          (salesforce-project--ediff-setup pulled-file file)))
      :catch
      (lambda (error)
