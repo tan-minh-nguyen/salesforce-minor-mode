@@ -488,27 +488,32 @@ Can pass parameters to search input:
     (lambda (action)
       (pcase action
         ((pred stringp)
-         (pcase-let* ((`(,search . ,args) (salesforce-data--consult-input-transform action))
-                      (search-fields (assoc-default :fields args))
-                      (org (or (car (assoc-default :org args))
-                              (salesforce-project-org salesforce-project-session)))
-                      (search-sobjects (assoc-default :sobject args)))
-           (emacs-pp-job
-            (lambda ()
-              (let ((search-clause
-                     (apply #'salesforce-data--search-build search
-                            `(,@(when search-fields (list :fields search-fields))
-                              ,@(when search-sobjects (list :sobjects search-sobjects)))))
-                    (temp-file (make-temp-file "sosl")))
+         (cl-block search-block
+           (pcase-let* ((`(,search . ,args) (salesforce-data--consult-input-transform action))
+                        (search-fields (assoc-default :fields args))
+                        (org (or (car (assoc-default :org args))
+                                 (ignore-errors
+                                   (salesforce-project-org salesforce-project-session))))
+                        (search-sobjects (assoc-default :sobject args)))
+             (unless (salesforce-project--resolve-username org)
+               ;; TODO: auto complete for input org
+               (cl-return-from search-block nil))
+             (emacs-pp-job
+              (lambda ()
+                (let ((search-clause
+                       (apply #'salesforce-data--search-build search
+                              `(,@(when search-fields (list :fields search-fields))
+                                ,@(when search-sobjects (list :sobjects search-sobjects)))))
+                      (temp-file (make-temp-file "sosl")))
 
-                (write-region search-clause nil temp-file)
+                  (write-region search-clause nil temp-file)
 
-                (apply #'salesforce-data--dispatch-search
-                       (list "search" "-f" temp-file "--result-format=json" "-o" org))))
-            (lambda (data)
-              (let ((items (cl-loop for item across (map-nested-elt data '("searchRecords"))
-                                    collect (propertize (gethash "Id" item) 'data item))))
-                (funcall sink items)))))
+                  (apply #'salesforce-data--dispatch-search
+                         (list "search" "-f" temp-file "--result-format=json" "-o" org))))
+              (lambda (data)
+                (let ((items (cl-loop for item across (map-nested-elt data '("searchRecords"))
+                                      collect (propertize (gethash "Id" item) 'data item))))
+                  (funcall sink items))))))
          nil)
         ((or 'cancel 'destroy)
          ;;TODO: add feat abort pipeline
