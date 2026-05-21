@@ -469,30 +469,32 @@ Otherwise, path is relative to metadata source directory."
 
 ;;; Multi-Source Operations
 
-(defun salesforce-project--process-multi-sources (files command)
-  "Process multiple metadata FILES with the specified COMMAND."
-  (let ((args (apply #'append
-                     (list command "start" "--json")
-                     (cl-loop for file in files
-                              collect (list "-d" file)))))
-    (salesforce-core--project-process
-     :args args
-     :callback (lambda (json-instance)
-                 (if (and json-instance (eq (map-elt json-instance "status") 0))
-                     (salesforce-core--alert (concat "Success " command " files"))
-                   (salesforce-core--alert
-                    (format "Failed to %s files" command)
-                    :severity 'urgent))))))
+(defun salesforce-project--marked-files-dired ()
+  "Get files marked in `dired-mode'."
+  (let (markers)
+    (prog1 (dired-map-over-marks
+            (let ((m (point-marker)))
+              (push m markers)
 
-(defun salesforce-project--push-multi-sources (files)
-  "Push multiple metadata FILES to a Salesforce org."
-  (interactive (list (transient-args 'salesforce-project--deploy-files-menu)))
-  (salesforce-project--process-multi-sources files "deploy"))
+              (dired-get-filename))
+            nil)
+      (dolist (m markers) (set-marker m nil)))))
 
-(defun salesforce-project--retrieve-multi-sources (files)
-  "Retrieve multiple metadata FILES from a Salesforce org."
-  (interactive (list (transient-args 'salesforce-project--deploy-files-menu)))
-  (salesforce-project--process-multi-sources files "retrieve"))
+(defun salesforce-project-push-sources ()
+  "Push select sources to org."
+  (interactive)
+  (let ((files (pcase major-mode
+                 ('dired-mode (salesforce-project--marked-files-dired))
+                 (_ nil))))
+    (apply #'salesforce-project--process-multi-sources "deploy" files)))
+
+(defun salesforce-project-retrieve-sources ()
+  "Push select sources to org."
+  (interactive)
+  (let ((files (pcase major-mode
+                 ('dired-mode (salesforce-project--marked-files-dired))
+                 (_ nil))))
+    (apply #'salesforce-project--process-multi-sources "retrieve" files)))
 
 ;;; Selection Deploy Operations
 
@@ -540,46 +542,11 @@ Otherwise, path is relative to metadata source directory."
     
     dest-path))
 
-(defun salesforce-project--initialize-file-temp (current-file relative-path)
-  "Initialize a temporary project for section deployment.
-  Copy CURRENT-FILE to a temp folder with the same path structure as project root."
-  (when current-file
-    (let* ((project-name (projectile-project-name))
-           (temp-dir (expand-file-name project-name temporary-file-directory)))
-      
-      (salesforce-project--create-temp-project-folder temp-dir relative-path)
-      (salesforce-project--copy-file-to-temp 
-       current-file 
-       (expand-file-name relative-path temp-dir)))))
-
-;;TODO: refactor maybe this will useful in some case
-(defun salesforce-project-deploy-select (file-name)
-  "Backup metadata and select section to deploy.
-  FILE-NAME is the path to the file being deployed.
-
-  This function:
-  1. Clones the metadata from a Salesforce org.
-  2. Creates a temporary project structure.
-  3. Sets up an Ediff session to compare local and cloud versions."
-  (interactive (list (buffer-file-name)))
-  
-  (salesforce-project--clone-cloud-metadata
-   :metadata-file file-name
-   :finish-func 
-   (lambda (cloned-path)
-     (let* ((backup-file (salesforce--find-file 
-                          (file-name-nondirectory file-name)
-                          cloned-path))
-            (relative-path (salesforce-project--get-relative-path file-name))
-            (project-temp (salesforce-project--initialize-file-temp 
-                           backup-file 
-                           relative-path))
-            (cloud-file-path (concat project-temp 
-                                     (file-name-base file-name) 
-                                     "." 
-                                     (file-name-extension file-name))))
-       
-       (salesforce-project--ediff-setup cloud-file-path file-name)))))
+(defun salesforce-project--gen-metadata-param (file)
+  "Format metadata parameter from source of FILE."
+  (let ((file-name (file-name-base file))
+        (metadata-name (salesforce-project-metadata-type-from-file file)))
+    (concat metadata-name ":" file-name)))
 
 ;;; User Management
 
@@ -594,7 +561,7 @@ Otherwise, path is relative to metadata source directory."
                                   :object-type 'hash-table))))
         (map-elt json "orgs")))))
 
-(defun salesforce-project--resolve-username (username-or-alias table)
+(cl-defun salesforce-project--resolve-username (username-or-alias &key (table (salesforce-project--users)))
   "Resolve USERNAME-OR-ALIAS to an actual username using TABLE.
   TABLE should be a hash table mapping aliases to usernames."
   (let ((alias (hash-table-keys table))
@@ -606,9 +573,7 @@ Otherwise, path is relative to metadata source directory."
 
 (defun salesforce-project--user-data (username-or-alias key)
   "Get Salesforce user authentication data using USERNAME-OR-ALIAS and KEY."
-  (when-let* ((table (salesforce-project--users))
-              (user-name (salesforce-project--resolve-username 
-                          username-or-alias table))
+  (when-let* ((user-name (salesforce-project--resolve-username username-or-alias))
               (json-file (format "~/.sfdx/%s.json" user-name))
               (_ (file-exists-p (expand-file-name json-file)))
               (data (with-temp-buffer
@@ -621,7 +586,7 @@ Otherwise, path is relative to metadata source directory."
   "Check if USERNAME-OR-ALIAS exists as a connected user."
   (when-let ((table (salesforce-project--users)))
     (or (member username-or-alias (hash-table-keys table))
-       (member username-or-alias (hash-table-values table)))))
+        (member username-or-alias (hash-table-values table)))))
 
 ;;; Mode Line
 

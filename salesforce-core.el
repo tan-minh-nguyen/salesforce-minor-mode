@@ -250,6 +250,24 @@ If SYNC is non-nil, wait for process to complete and return result."
                                :catch catch
                                :callback callback))
 
+(defun salesforce-project--process-multi-sources (command &rest files)
+  "Process multiple metadata FILES with the specified COMMAND."
+  (declare (indent 1))
+  (let ((args (apply #'append
+                     (list command "start" "--json")
+                     (cl-loop for file in files
+                              as metadata-param = (salesforce-project--gen-metadata-param file)
+                              collect (list "--metadata" metadata-param)))))
+    (salesforce-core--project-process
+     :args args
+     :callback
+     (lambda (json-instance)
+       (if (and json-instance (eq (map-elt json-instance "status") 0))
+           (salesforce-core--alert (concat "Success " command " files"))
+         (salesforce-core--alert
+          (format "Failed to %s files" command)
+          :severity 'urgent))))))
+
 ;;; API Request
 
 (defmacro salesforce-core--api-request (service)
