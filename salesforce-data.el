@@ -637,6 +637,20 @@ Optional SOBJECT-NAME and ORG-NAME can be provided."
     (org-table-export salesforce-data--file "orgtbl-to-csv")
     (salesforce-data--transient:import-bulk)))
 
+(defun salesforce-data-log-cleaner ()
+  "Clean old logs files."
+  (interactive)
+  (let ((export-file (make-temp-file "salesforce")))
+    (emacs-pp-job
+     (lambda ()
+       (salesforce-data--export-bulk
+        :args `("--query" "'SELECT Id FROM ApexLog'" "--result-format" "csv" "--output-file" ,export-file)))
+     (lambda ()
+       (salesforce-data--delete-bulk
+        :args `("--sobject" "ApexLog" "--file" ,export-file)))
+     (lambda ()
+       (message "Clean logs completed.")))))
+
 ;;; Test Result Handling
 (provide 'salesforce-data)
 
