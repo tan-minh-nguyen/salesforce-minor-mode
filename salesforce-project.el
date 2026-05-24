@@ -104,8 +104,8 @@ Use projectile if available, otherwise fall back to project.el."
     (manifest        :directory "manifest/"             :api nil)
     ;; Tool directories (relative to project root)
     (tool            :directory ".sfdx/tools/"          :base root)
-    (standardObject  :directory ".sfdx/tools/soqlMetadata/StandardObjects"          :base root)
-    (customObject    :directory ".sfdx/tools/soqlMetadata/CustomSbjects"          :base root)
+    (standardObject  :directory ".sfdx/tools/soqlMetadata/standardObjects"          :base root)
+    (customObject    :directory ".sfdx/tools/soqlMetadata/customObjects"          :base root)
     (log             :directory ".sfdx/tools/logs/"     :base root)
     (cache           :directory ".sfdx/tools/cache/"    :base root))
   "Unified metadata type registry.
