@@ -106,7 +106,7 @@ Use projectile if available, otherwise fall back to project.el."
     (tool            :directory ".sfdx/tools/"          :base root)
     (standardObject  :directory ".sfdx/tools/soqlMetadata/standardObjects"          :base root)
     (customObject    :directory ".sfdx/tools/soqlMetadata/customObjects"          :base root)
-    (log             :directory ".sfdx/tools/logs/"     :base root)
+    (logs             :directory ".sfdx/tools/debug/logs/"     :base root)
     (cache           :directory ".sfdx/tools/cache/"    :base root))
   "Unified metadata type registry.
 Each entry: (SYMBOL :directory DIRECTORY :api API-NAME :base BASE)
@@ -158,7 +158,7 @@ Otherwise, path is relative to metadata source directory."
 
 (cl-defmethod salesforce-project-log-dir ((project salesforce-project))
   "Return log directory of PROJECT."
-  (salesforce-project-metadata-path project 'log))
+  (salesforce-project-metadata-path project 'logs))
 
 (cl-defmethod salesforce-project-cache-dir ((project salesforce-project))
   "Return cache directory of PROJECT."
