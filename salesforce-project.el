@@ -298,7 +298,12 @@ Otherwise, path is relative to metadata source directory."
              "-o" ,org
              "-z"
              "--json")
-     :callback then)))
+     :callback
+     (lambda (_)
+       (let ((extract-directory (expand-file-name file-name save-directory)))
+         (if then
+             (funcall then extract-directory)
+           extract-directory))))))
 
 ;;; Ediff Integration
 
@@ -452,9 +457,8 @@ Otherwise, path is relative to metadata source directory."
      (lambda ()
        (salesforce-project--pull-metadata file
          :org org))
-     (lambda ()
-       (let ((pulled-file (salesforce--find-file (file-name-base file)
-                                                 temporary-file-directory)))
+     (lambda (save-directory)
+       (let ((pulled-file (salesforce--find-file (file-name-base file) save-directory)))
          (salesforce-project--ediff-setup pulled-file file)))
      :catch
      (lambda (error)
