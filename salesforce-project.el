@@ -444,7 +444,7 @@ Otherwise, path is relative to metadata source directory."
   "Diff source between the local project and a specific Salesforce platform."
   (interactive)
   (salesforce-org-read
-   (pcase-lambda (`(,org . ,data))
+   (pcase-lambda (`(,org . ,data) &rest _)
      (salesforce-project-diff org))
    :prompt "Org: "
    :require-match t))

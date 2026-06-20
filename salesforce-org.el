@@ -16,23 +16,24 @@
 
 ;;; Core org operations
 
-(cl-defun salesforce-org--auth-web (alias &key (url "https://login.salesforce.com"))
+(cl-defun salesforce-org--auth-web (alias &rest args &key (url "https://login.salesforce.com") &allow-other-keys)
   "Authorize a Salesforce org through the web login flow.
 
 URL is the login endpoint to connect to.
 ALIAS is the name to assign to the authorized org."
-  (salesforce-core--org-process
-   :args `("login" "web" "-a" ,alias "--instance-url" ,url "--set-default" "--json")
-   :callback
-   (lambda (json-instance)
-     (salesforce-project--setup
-      :session
-      (make-instance 'salesforce-project
-                     :org alias
-                     :url (salesforce-project--user-data alias "instanceUrl")))
-     
-     (salesforce-core--alert (format "Authorize to %s success"
-                                     (map-nested-elt json-instance '("result" "username")))))))
+  (let ((args (seq-difference args (list :url url))))
+    (salesforce-core--org-process
+     :args `("login" "web" "-a" ,alias "--instance-url" ,url ,@args "--json")
+     :callback
+     (lambda (json-instance)
+       (salesforce-project--setup
+        :session
+        (make-instance 'salesforce-project
+                       :org alias
+                       :url (salesforce-project--user-data alias "instanceUrl")))
+       
+       (salesforce-core--alert (format "Authorize to %s success"
+                                       (map-nested-elt json-instance '("result" "username"))))))))
 
 (cl-defun salesforce-org--status (&key then org)
   "Check current org status.
@@ -68,8 +69,8 @@ Options:
 (cl-defun salesforce-org-read (then &key prompt require-match)
   "Select available orgs that are authorized.
 
+THEN: action run after selected candidate.
 PROMPT: label of input candidate.
-BODY: The forms to run after getting user selection.
 REQUIRE-MATCH: Whether to require a match."
   (let (candidate)
     (emacs-pp-job
@@ -86,12 +87,17 @@ REQUIRE-MATCH: Whether to require a match."
                                                           item))
                                                   org-collection)
                          as async = (consult--async-dynamic
-                                     (lambda (input)
-                                       (if input
-                                           (seq-filter (pcase-lambda (`(,username . ,data))
-                                                         (string-prefix-p input (substring-no-properties username) t))
-                                                       collection)
-                                         collection)))
+                                     (lambda (action)
+                                       (pcase-let ((`(,search-txt . ,_) (consult--command-split action)))
+                                         (if search-txt
+                                             (seq-filter (pcase-lambda (`(,user-name . ,data))
+                                                           (when-let* ((pred-collection (list (substring-no-properties user-name)
+                                                                                              (map-elt data "alias" "")
+                                                                                              (map-elt data "name" "")
+                                                                                              (map-elt data "instanceUrl" ""))))
+                                                             (try-completion search-txt pred-collection)))
+                                                         collection)
+                                           collection))))
                          as narrow = (aref (upcase org-type) 0)
                          as annotate = (pcase-lambda (data)
                                          (let* ((alias (or (map-elt data "alias") ""))
@@ -108,10 +114,10 @@ REQUIRE-MATCH: Whether to require a match."
                                                    " "
                                                    (propertize last-used 'face 'font-lock-doc-face))))
                          collect (list :async async
-                                    :name org-type
-                                    :category 'salesforce-org
-                                    :narrow narrow
-                                    :annotate annotate))
+                                       :name org-type
+                                       :category 'salesforce-org
+                                       :narrow narrow
+                                       :annotate annotate))
                 :prompt prompt
                 :initial ""
                 :require-match require-match))))
@@ -120,11 +126,13 @@ REQUIRE-MATCH: Whether to require a match."
        (let* ((selected-value (car candidate))
               (pair-value (if (hash-table-p selected-value)
                               (cons (or (map-elt selected-value "alias")
-                                       (map-elt selected-value "username"))
+                                        (map-elt selected-value "username"))
                                     selected-value)
                             (cons (string-replace "#" "" selected-value) nil))))
-
-         (funcall then pair-value))))))
+         (if (not (hash-table-p selected-value))
+             (pcase-let ((`(,input . ,args) (consult--command-split (car pair-value))))
+               (apply then (cons input nil) args))
+           (funcall then pair-value)))))))
 
 ;;; Interactive commands - Org management
 
@@ -139,7 +147,7 @@ REQUIRE-MATCH: Whether to require a match."
   "Open selected org."
   (interactive)
   (salesforce-org-read
-   (pcase-lambda (`(,org . ,data))
+   (pcase-lambda (`(,org . ,data) &rest _)
      (salesforce-org--browse org
        :args '("-r")
        :then
@@ -152,7 +160,7 @@ REQUIRE-MATCH: Whether to require a match."
   "Use web login to authorize to org."
   (interactive)
   (salesforce-org-read
-   (pcase-lambda (`(,alias . ,data))
+   (pcase-lambda (`(,alias . ,data) &rest args)
      (let* ((collection '(sandbox production))
             (annotate-fn
              (lambda (candidate)
@@ -175,7 +183,7 @@ REQUIRE-MATCH: Whether to require a match."
                                     :prompt "URL: "
                                     :annotate annotate-fn
                                     :lookup lookup-fn))))
-       (salesforce-org--auth-web alias :url url)))
+       (apply #'salesforce-org--auth-web alias :url url args)))
    :prompt "Select Org: "))
 
 (defun salesforce-org-set-default (org-name)
@@ -196,7 +204,7 @@ REQUIRE-MATCH: Whether to require a match."
   "Change default connection org."
   (interactive)
   (salesforce-org-read
-   (pcase-lambda (`(,org-name . ,data))
+   (pcase-lambda (`(,org-name . ,data) &rest _)
      (salesforce-org-set-default (or (map-elt data "alias") org-name)))
    :prompt "Select Org: "
    :require-match t))
