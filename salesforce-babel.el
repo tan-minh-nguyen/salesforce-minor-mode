@@ -51,20 +51,20 @@
   "Get batch from dictionary."
   (gethash batch-id salesforce-babel-batch-dict))
 
-(cl-defun salesforce-babel-job-dictionary-put (job &key (batch-id (emacs-pp--gen-batch-id)))
+(cl-defun salesforce-babel-job-dictionary-put (job-id &key (batch-id (emacs-pp--gen-batch-id)))
   "Push job to batch dictionary."
   (declare (indent 1))
-  (if-let ((batch (salesforce-babel-batch-dictionary batch-id)))
-      (salesforce-babel-batch-add-source batch job)
+  (if-let ((batch (salesforce-babel-batch-dictionary-get batch-id)))
+      (salesforce-babel-batch-add-source batch job-id)
     (salesforce-babel-batch-dictionary-put
      (make-instance 'salesforce-babel-batch
                     :id batch-id
-                    :jobs (list job))))
-  (puthash job batch-id salesforce-babel-job-dict))
+                    :jobs (list job-id))))
+  (puthash job-id batch-id salesforce-babel-job-dict))
 
-(defun salesforce-babel-job-dictionary-get (job)
+(defun salesforce-babel-job-dictionary-get (job-id)
   "Get job in batch dictionary."
-  (gethash (emacs-pp-job-id job) salesforce-babel-job-dict))
+  (gethash job-id salesforce-babel-job-dict))
 
 (defun emacs-pp--gen-batch-id ()
   "Generate unique pipeline ID from timestamp."
@@ -143,10 +143,10 @@ PAIR is a cons cell of (variable-name . value)."
        (concat (salesforce-babel--expand-apex-vars vars)
                body)))))
 
-(defmacro salesforce-babel-make-job (&rest body)
+(defun salesforce-babel-make-job (&rest body)
   "Expand form BODY to sequence job."
-  `(apply #'emacs-pp-job-sequence
-          :ready-p nil
-          ',body))
+  (apply #'emacs-pp-job
+         :ready-p nil
+         body))
 
 (provide 'salesforce-babel)
