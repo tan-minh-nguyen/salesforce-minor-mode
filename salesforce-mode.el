@@ -70,6 +70,11 @@
   :type 'boolean
   :group 'salesforce)
 
+(defcustom salesforce-window-command-p nil
+  "Enable run in window command line mode."
+  :type 'boolean
+  :group 'salesforce)
+
 (defvar salesforce-mode--status-check-timer nil
   "Timer for periodic org connection status checks.")
 

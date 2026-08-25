@@ -168,7 +168,9 @@ If SYNC is non-nil, wait for process to complete and return result."
               (funcall catch err)))
          (emacs-pp--cleanup-process proc)
          (emacs-pp--cleanup-process stderr)))))
-   :cmd (cons salesforce-program-bin args)))
+   :cmd (if salesforce-window-command-p
+            `("cmd.exe" "/C" ,salesforce-program-bin ,@args)
+          (cons salesforce-program-bin args))))
 
 (defun salesforce-core--handle-process-error (err)
   "Handle process error ERR."
