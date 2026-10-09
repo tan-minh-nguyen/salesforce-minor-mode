@@ -82,11 +82,6 @@
            as expanded-var = (salesforce-babel--expand-apex-var var)
            concat expanded-var))
 
-(cl-defun salesforce-babel--sanitizer-value (value)
-  "Transform value to valid input"
-  (let* ((type (salesforce-babel--infer-type value)))
-    (salesforce-babel--format-value type value)))
-
 (defun salesforce-babel--get-apex-type (type)
   "Get Apex type string for TYPE."
   (pcase type
@@ -125,23 +120,100 @@ PAIR is a cons cell of (variable-name . value)."
   "Return t if thing is `emacs-pp-job'"
   (string-prefix-p "emacs-pp-process" thing))
 
-(defun salesforce-babel-bind-job-results (params job-results)
-  "Expand source PARAMS with JOB-RESULT."
+;; ── SOQL core process ──────────────────────────────────────────────────────
+
+(defun salesforce-babel--soql-result-p (data)
+  "Return non-nil if DATA is a SOQL tabular result (list of lists)."
+  (and (listp data) (consp data) (listp (car data))))
+
+(defun salesforce-babel--soql-result-to-apex-value (data &optional field)
+  "Convert SOQL tabular DATA to an Apex List<String> literal.
+FIELD is the column name to extract (default: first column)."
+  (let* ((header (car data))
+         (rows (cdr data))
+         (col-idx (if field
+                      (or (seq-position header field #'string-match-p) 0)
+                    0))
+         (values (mapcar (lambda (row)
+                           (format "'%s'" (elt row col-idx)))
+                         rows)))
+    (concat "new List<String>{"
+            (string-join values ",")
+            "}")))
+
+(defun salesforce-babel--soql-object-field (var)
+  "Get field of VAR to bind, default use Id.
+E.g., `ids.Id' → \"Id\"; `ids' → \"Id\"."
+  (let* ((var (format "%s" var))
+         (fields (cdr (split-string var "\\."))))
+    (string-join (or fields (list "Id")) ".")))
+
+(defun salesforce-babel--soql-format-resolved-value (data field)
+  "Format already-resolved DATA as a SOQL value using FIELD column if tabular.
+DATA is a resolved value (not a job-id): a SOQL result list, string, or number."
+  (cond
+   ((salesforce-babel--soql-result-p data)
+    (let* ((header (car data))
+           (rows (cdr data))
+           (col-idx (or (seq-position header field #'string-match-p) 0))
+           (values (mapcar (lambda (row) (format "'%s'" (elt row col-idx))) rows)))
+      (concat "(" (string-join values ",") ")")))
+   ((and (stringp data) (or (string-prefix-p "'" data) (string-prefix-p "\"" data)))
+    (format "'%s'" (replace-regexp-in-string "'\\|\"" "" data)))
+   ((numberp data) (format "%s" data))
+   (t (format "'%s'" (or data "")))))
+
+(defun salesforce-babel--bind-soql-vars (params job-results)
+  "Resolve vars from PARAMS using JOB-RESULTS; format as SOQL values.
+Separate from `salesforce-babel-bind-job-results' (Apex path) to avoid
+Apex-formatted output in SOQL substitution."
   (cl-loop for (var-name . value) in (salesforce-babel-get-vars params)
            as data = (pcase value
                        ((pred salesforce-babel-job-p)
                         (gethash value job-results))
                        (_ value))
-           as sanitizer-value = (salesforce-babel--sanitizer-value data)
-           collect (cons var-name sanitizer-value)))
+           as field = (salesforce-babel--soql-object-field var-name)
+           as bare-name = (car (split-string (format "%s" var-name) "\\."))
+           as soql-value = (salesforce-babel--soql-format-resolved-value data field)
+           collect (cons bare-name soql-value)))
+
+(defun salesforce-babel--expand-soql-vars (vars soql)
+  "Replace :VAR placeholders in SOQL with pre-formatted values from VARS."
+  (cl-loop for (var . value) in vars
+           do (setq soql (string-replace (format ":%s" var) value soql))
+           finally return soql))
+
+(cl-defun salesforce-babel--sanitizer-value (value &optional field)
+  "Transform VALUE to valid Apex input.
+When VALUE is a SOQL tabular result, converts using FIELD column."
+  (if (salesforce-babel--soql-result-p value)
+      (salesforce-babel--soql-result-to-apex-value value field)
+    (let* ((type (salesforce-babel--infer-type value)))
+      (salesforce-babel--format-value type value))))
+
+(defun salesforce-babel-bind-job-results (params job-results)
+  "Expand source PARAMS with JOB-RESULT, extracting field from var name.
+Supports `ids.Id' syntax: bare-name becomes the var, Id becomes the field."
+  (cl-loop for (var-name . value) in (salesforce-babel-get-vars params)
+           as data = (pcase value
+                       ((pred salesforce-babel-job-p)
+                        (gethash value job-results))
+                       (_ value))
+           as field = (salesforce-babel--soql-object-field var-name)
+           as bare-name = (car (split-string (format "%s" var-name) "\\."))
+           as sanitizer-value = (salesforce-babel--sanitizer-value data field)
+           collect (cons bare-name sanitizer-value)))
 
 (cl-defun salesforce-babel-expand-body (body params &key (type 'apex) job-results)
-  "Expand BODY with binding PARAMS."
-  (let ((vars (salesforce-babel-bind-job-results params job-results)))
-    (pcase type
-      ('apex
-       (concat (salesforce-babel--expand-apex-vars vars)
-               body)))))
+  "Expand BODY with binding PARAMS.
+TYPE is `apex' (default) or `soql'.  JOB-RESULTS is the pipeline hash."
+  (pcase type
+    ('apex
+     (let ((vars (salesforce-babel-bind-job-results params job-results)))
+       (concat (salesforce-babel--expand-apex-vars vars) body)))
+    ('soql
+     (let ((vars (salesforce-babel--bind-soql-vars params job-results)))
+       (salesforce-babel--expand-soql-vars vars body)))))
 
 (defun salesforce-babel-make-job (&rest body)
   "Expand form BODY to sequence job."
@@ -150,3 +222,4 @@ PAIR is a cons cell of (variable-name . value)."
          body))
 
 (provide 'salesforce-babel)
+;;; salesforce-babel.el ends here

@@ -171,12 +171,13 @@ Otherwise, path is relative to metadata source directory."
   (when-let ((default-directory (or directory (salesforce-project-root))))
     (cl-some #'projectile-verify-file-wildcard salesforce-files-test-root)))
 
-;;;###autoload 
+;;;###autoload
 (defun salesforce-project-init ()
   "Initialize configuration for a Salesforce project.
   Sets up metadata and applies directory locals."
   (when (and (salesforce-project-p)
-             (not (alist-get 'salesforce-project-session dir-local-variables-alist)))
+             (not (alist-get 'salesforce-project-session
+                             dir-local-variables-alist)))
     (let ((enable-local-variables :all))
       (salesforce-project-load-sfdx-project))))
 
@@ -199,9 +200,11 @@ Otherwise, path is relative to metadata source directory."
   "Read sfdx-config.json file from PATH."
   (let ((sfdx-file (expand-file-name (or path "sfdx-project.json")
                                      (salesforce-project-root))))
-    (with-temp-buffer
-      (insert-file-contents sfdx-file)
-      (json-parse-string (buffer-string)))))
+    (if (file-exists-p sfdx-file)
+        (with-temp-buffer
+          (insert-file-contents sfdx-file)
+          (json-parse-string (buffer-string)))
+      (make-hash-table :test #'equal))))
 
 (defun salesforce-project-load-sfdx-project ()
   "Sync config in sfdx-project.json to `salesforce-project-session'."
@@ -232,20 +235,23 @@ Otherwise, path is relative to metadata source directory."
   (let* ((project-directory (read-directory-name "Directory: "))
          (project-name (read-string "Project name: "))
          (project-template (completing-read "Project template: " 
-                                            '("standard" "empty" "project"))))
-    (unless (file-exists-p project-dir)
-      (make-directory project-dir 'parents))
+                                            '("standard" "empty" "project")))
+         (absolute-path (expand-file-name project-directory)))
+
+    (unless (file-exists-p absolute-path)
+      (make-directory absolute-path 'parents))
+
     (salesforce-core--project-process
      :args `("generate"
              "--name" ,project-name
              "--template" ,project-template
-             ,@(when project-directory
-                 (list "--output-dir" project-directory))
+             ,@(when absolute-path
+                 (list "--output-dir" absolute-path))
              "--manifest"
              "--json")
      :callback
      (lambda (_)
-       (salesforce-core--alert "Create Project Success")))))
+       (salesforce-core--alert (format "Create Project %s Success" project-name))))))
 
 ;;; Source Push/Retrieve Operations
 
@@ -260,9 +266,7 @@ Otherwise, path is relative to metadata source directory."
   (interactive (list (buffer-file-name)))
   (declare (indent 1))
   (salesforce-core--project-process
-   :args `("deploy" "start" "-d" ,file
-           "-o" ,org
-           "--json")
+   :args `("deploy" "start" "-d" ,file "-o" ,org "--json")
    :callback
    (lambda (_)
      (salesforce-core--alert (format "Deploy %s success" file)))))
